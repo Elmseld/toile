@@ -244,6 +244,40 @@ defmodule ToileWeb.UserLive.SettingsTest do
       assert Accounts.get_user_by_email(user.email)
     end
 
+    test "returns to the link after reauthenticating when sudo mode has expired", %{
+      user: user,
+      token: token,
+      email: email
+    } do
+      confirm_path = ~p"/users/settings/confirm-email/#{token}"
+
+      conn =
+        build_conn()
+        |> log_in_user(user,
+          token_authenticated_at: DateTime.add(DateTime.utc_now(:second), -11, :minute)
+        )
+        |> get(confirm_path)
+
+      assert redirected_to(conn) == ~p"/users/log-in"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+               "Du måste logga in igen för att se den här sidan."
+
+      assert get_session(conn, :user_return_to) == confirm_path
+      assert Accounts.get_user_by_email(user.email)
+
+      # Reauthenticate with a magic link in the same browser session.
+      {login_token, _hashed} = generate_user_magic_link_token(user)
+      conn = post(conn, ~p"/users/log-in", %{"user" => %{"token" => login_token}})
+      assert redirected_to(conn) == confirm_path
+
+      {:error, {:live_redirect, %{to: path, flash: flash}}} = live(conn, confirm_path)
+      assert path == ~p"/users/settings"
+      assert flash["info"] == "E-postadressen är ändrad."
+      refute Accounts.get_user_by_email(user.email)
+      assert Accounts.get_user_by_email(email)
+    end
+
     test "redirects if user is not logged in", %{token: token} do
       conn = build_conn()
       {:error, redirect} = live(conn, ~p"/users/settings/confirm-email/#{token}")

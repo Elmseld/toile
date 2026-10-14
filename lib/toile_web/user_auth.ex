@@ -280,6 +280,27 @@ defmodule ToileWeb.UserAuth do
     end
   end
 
+  @doc """
+  Plug for routes that require a recent authentication (sudo mode).
+
+  Must run after `require_authenticated_user/2`. Mirrors the
+  `:require_sudo_mode` `on_mount` hook, but because it runs on the initial HTTP
+  request it can store the requested path in the session. After logging in
+  again the user returns there, so for example an email-change confirmation
+  link opened after the sudo window still completes the change.
+  """
+  def require_sudo_mode(conn, _opts) do
+    if Accounts.sudo_mode?(conn.assigns.current_scope.user, -10) do
+      conn
+    else
+      conn
+      |> put_flash(:error, "Du måste logga in igen för att se den här sidan.")
+      |> maybe_store_return_to()
+      |> redirect(to: ~p"/users/log-in")
+      |> halt()
+    end
+  end
+
   defp maybe_store_return_to(%{method: "GET"} = conn) do
     put_session(conn, :user_return_to, current_path(conn))
   end

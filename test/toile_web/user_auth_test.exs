@@ -389,6 +389,38 @@ defmodule ToileWeb.UserAuthTest do
     end
   end
 
+  describe "require_sudo_mode/2" do
+    test "lets recently authenticated users through", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> assign(:current_scope, Scope.for_user(%{user | authenticated_at: DateTime.utc_now()}))
+        |> UserAuth.require_sudo_mode([])
+
+      refute conn.halted
+      refute conn.status
+    end
+
+    test "redirects to login and stores the path when authentication is too old", %{
+      conn: conn,
+      user: user
+    } do
+      eleven_minutes_ago = DateTime.add(DateTime.utc_now(:second), -11, :minute)
+
+      conn =
+        %{conn | path_info: ["users", "settings", "confirm-email", "abc"], query_string: ""}
+        |> assign(:current_scope, Scope.for_user(%{user | authenticated_at: eleven_minutes_ago}))
+        |> fetch_flash()
+        |> UserAuth.require_sudo_mode([])
+
+      assert conn.halted
+      assert redirected_to(conn) == ~p"/users/log-in"
+      assert get_session(conn, :user_return_to) == "/users/settings/confirm-email/abc"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+               "Du måste logga in igen för att se den här sidan."
+    end
+  end
+
   describe "disconnect_sessions/1" do
     test "broadcasts disconnect messages for each token" do
       tokens = [%{token: "token1"}, %{token: "token2"}]

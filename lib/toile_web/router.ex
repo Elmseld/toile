@@ -52,14 +52,24 @@ defmodule ToileWeb.Router do
 
     live_session :require_authenticated_user,
       on_mount: [{ToileWeb.UserAuth, :require_authenticated}] do
-      live "/users/settings", UserLive.Settings, :edit
-      live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
-
       live "/patterns", PatternLive.Index, :index
       # Måttprofiler (0004) och mönsterprojekt (0005) läggs här.
     end
 
     post "/users/update-password", UserSessionController, :update_password
+  end
+
+  # Account settings need a recent login. The :require_sudo_mode plug checks
+  # this on the HTTP request so the path (e.g. an email-change confirmation
+  # link) is saved and the user returns to it after logging in again.
+  scope "/", ToileWeb do
+    pipe_through [:browser, :require_authenticated_user, :require_sudo_mode]
+
+    live_session :require_sudo_mode,
+      on_mount: [{ToileWeb.UserAuth, :require_authenticated}] do
+      live "/users/settings", UserLive.Settings, :edit
+      live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
+    end
   end
 
   scope "/", ToileWeb do
