@@ -5,11 +5,11 @@ defmodule ToileWeb.UserSessionController do
   alias ToileWeb.UserAuth
 
   def create(conn, %{"_action" => "confirmed"} = params) do
-    create(conn, params, "User confirmed successfully.")
+    create(conn, params, "Ditt konto är bekräftat.")
   end
 
   def create(conn, params) do
-    create(conn, params, "Welcome back!")
+    create(conn, params, "Välkommen tillbaka!")
   end
 
   # magic link login
@@ -24,7 +24,7 @@ defmodule ToileWeb.UserSessionController do
 
       _ ->
         conn
-        |> put_flash(:error, "The link is invalid or it has expired.")
+        |> put_flash(:error, "Länken är ogiltig eller har gått ut.")
         |> redirect(to: ~p"/users/log-in")
     end
   end
@@ -40,7 +40,7 @@ defmodule ToileWeb.UserSessionController do
     else
       # In order to prevent user enumeration attacks, don't disclose whether the email is registered.
       conn
-      |> put_flash(:error, "Invalid email or password")
+      |> put_flash(:error, "Fel e-post eller lösenord")
       |> put_flash(:email, String.slice(email, 0, 160))
       |> redirect(to: ~p"/users/log-in")
     end
@@ -56,12 +56,12 @@ defmodule ToileWeb.UserSessionController do
 
     conn
     |> put_session(:user_return_to, ~p"/users/settings")
-    |> create(params, "Password updated successfully!")
+    |> create(params, "Lösenordet är ändrat.")
   end
 
   def delete(conn, _params) do
     conn
-    |> put_flash(:info, "Logged out successfully.")
+    |> put_flash(:info, "Du är utloggad.")
     |> UserAuth.log_out_user()
   end
 end

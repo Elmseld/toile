@@ -22,17 +22,17 @@ defmodule Toile.Accounts.UserNotifier do
   Deliver instructions to update a user email.
   """
   def deliver_update_email_instructions(user, url) do
-    deliver(user.email, "Update email instructions", """
+    deliver(user.email, "Ändra e-postadress för Toile", """
 
     ==============================
 
-    Hi #{user.email},
+    Hej #{user.email},
 
-    You can change your email by visiting the URL below:
+    Du kan ändra din e-postadress genom att öppna länken nedan:
 
     #{url}
 
-    If you didn't request this change, please ignore this.
+    Om du inte har bett om den här ändringen kan du bortse från mejlet.
 
     ==============================
     """)
@@ -49,34 +49,37 @@ defmodule Toile.Accounts.UserNotifier do
   end
 
   defp deliver_magic_link_instructions(user, url) do
-    deliver(user.email, "Log in instructions", """
+    deliver(user.email, "Logga in på Toile", """
 
     ==============================
 
-    Hi #{user.email},
+    Hej #{user.email},
 
-    You can log into your account by visiting the URL below:
+    Du kan logga in på ditt konto genom att öppna länken nedan:
 
     #{url}
 
-    If you didn't request this email, please ignore this.
+    Har du glömt ditt lösenord? När du är inloggad kan du välja ett nytt
+    lösenord under Inställningar.
+
+    Om du inte har bett om det här mejlet kan du bortse från det.
 
     ==============================
     """)
   end
 
   defp deliver_confirmation_instructions(user, url) do
-    deliver(user.email, "Confirmation instructions", """
+    deliver(user.email, "Bekräfta ditt konto på Toile", """
 
     ==============================
 
-    Hi #{user.email},
+    Hej #{user.email},
 
-    You can confirm your account by visiting the URL below:
+    Du kan bekräfta ditt konto genom att öppna länken nedan:
 
     #{url}
 
-    If you didn't create an account with us, please ignore this.
+    Om du inte har skapat ett konto hos oss kan du bortse från mejlet.
 
     ==============================
     """)

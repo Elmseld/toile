@@ -10,16 +10,16 @@ defmodule ToileWeb.UserLive.Login do
       <div class="mx-auto max-w-sm space-y-4">
         <div class="text-center">
           <.header>
-            <p>Log in</p>
+            <p>Logga in</p>
             <:subtitle>
               <%= if @current_scope do %>
-                You need to reauthenticate to perform sensitive actions on your account.
+                Du behöver logga in igen för att göra känsliga ändringar i ditt konto.
               <% else %>
-                Don't have an account? <.link
+                Har du inget konto? <.link
                   navigate={~p"/users/register"}
                   class="font-semibold text-brand hover:underline"
                   phx-no-format
-                >Sign up</.link> for an account now.
+                >Registrera dig</.link> nu.
               <% end %>
             </:subtitle>
           </.header>
@@ -28,9 +28,9 @@ defmodule ToileWeb.UserLive.Login do
         <div :if={local_mail_adapter?()} class="alert alert-info">
           <.icon name="hero-information-circle" class="size-6 shrink-0" />
           <div>
-            <p>You are running the local mail adapter.</p>
+            <p>Du kör den lokala mejladaptern.</p>
             <p>
-              To see sent emails, visit <.link href="/dev/mailbox" class="underline">the mailbox page</.link>.
+              Skickade mejl finns på <.link href="/dev/mailbox" class="underline">brevlådesidan</.link>.
             </p>
           </div>
         </div>
@@ -46,18 +46,18 @@ defmodule ToileWeb.UserLive.Login do
             readonly={!!@current_scope}
             field={f[:email]}
             type="email"
-            label="Email"
+            label="E-post"
             autocomplete="username"
             spellcheck="false"
             required
             phx-mounted={JS.focus()}
           />
           <.button class="btn btn-primary w-full">
-            Log in with email <span aria-hidden="true">→</span>
+            Logga in med e-post <span aria-hidden="true">→</span>
           </.button>
         </.form>
 
-        <div class="divider">or</div>
+        <div class="divider">eller</div>
 
         <.form
           :let={f}
@@ -71,7 +71,7 @@ defmodule ToileWeb.UserLive.Login do
             readonly={!!@current_scope}
             field={f[:email]}
             type="email"
-            label="Email"
+            label="E-post"
             autocomplete="username"
             spellcheck="false"
             required
@@ -79,17 +79,22 @@ defmodule ToileWeb.UserLive.Login do
           <.input
             field={@form[:password]}
             type="password"
-            label="Password"
+            label="Lösenord"
             autocomplete="current-password"
             spellcheck="false"
           />
           <.button class="btn btn-primary w-full" name={@form[:remember_me].name} value="true">
-            Log in and stay logged in <span aria-hidden="true">→</span>
+            Logga in och förbli inloggad <span aria-hidden="true">→</span>
           </.button>
           <.button class="btn btn-primary btn-soft w-full mt-2">
-            Log in only this time
+            Logga in bara den här gången
           </.button>
         </.form>
+
+        <p id="forgot-password-hint" class="text-sm text-base-content/70">
+          Glömt lösenordet? Ange din e-post ovan och välj 'Logga in med e-post'. När du är
+          inloggad kan du välja ett nytt lösenord under Inställningar.
+        </p>
       </div>
     </Layouts.app>
     """
@@ -120,7 +125,7 @@ defmodule ToileWeb.UserLive.Login do
     end
 
     info =
-      "If your email is in our system, you will receive instructions for logging in shortly."
+      "Om din e-postadress finns hos oss får du snart ett mejl med instruktioner för att logga in."
 
     {:noreply,
      socket

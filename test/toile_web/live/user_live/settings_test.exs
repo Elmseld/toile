@@ -12,8 +12,8 @@ defmodule ToileWeb.UserLive.SettingsTest do
         |> log_in_user(user_fixture())
         |> live(~p"/users/settings")
 
-      assert html =~ "Change Email"
-      assert html =~ "Save Password"
+      assert html =~ "Ändra e-post"
+      assert html =~ "Spara lösenord"
     end
 
     test "redirects if user is not logged in", %{conn: conn} do
@@ -21,7 +21,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
 
       assert {:redirect, %{to: path, flash: flash}} = redirect
       assert path == ~p"/users/log-in"
-      assert %{"error" => "You must log in to access this page."} = flash
+      assert %{"error" => "Du måste logga in för att se den här sidan."} = flash
     end
 
     test "redirects if user is not in sudo mode", %{conn: conn} do
@@ -33,7 +33,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
         |> live(~p"/users/settings")
         |> follow_redirect(conn, ~p"/users/log-in")
 
-      assert conn.resp_body =~ "You must re-authenticate to access this page."
+      assert conn.resp_body =~ "Du måste logga in igen för att se den här sidan."
     end
   end
 
@@ -55,7 +55,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
         })
         |> render_submit()
 
-      assert result =~ "A link to confirm your email"
+      assert result =~ "Vi har skickat en länk till den nya adressen"
       assert Accounts.get_user_by_email(user.email)
     end
 
@@ -70,7 +70,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
           "user" => %{"email" => "with spaces"}
         })
 
-      assert result =~ "Change Email"
+      assert result =~ "Ändra e-post"
       assert result =~ "must have the @ sign and no spaces"
     end
 
@@ -84,7 +84,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
         })
         |> render_submit()
 
-      assert result =~ "Change Email"
+      assert result =~ "Ändra e-post"
       assert result =~ "did not change"
     end
   end
@@ -118,7 +118,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
       assert get_session(new_password_conn, :user_token) != get_session(conn, :user_token)
 
       assert Phoenix.Flash.get(new_password_conn.assigns.flash, :info) =~
-               "Password updated successfully"
+               "Lösenordet är ändrat"
 
       assert Accounts.get_user_by_email_and_password(user.email, new_password)
     end
@@ -136,7 +136,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
           }
         })
 
-      assert result =~ "Save Password"
+      assert result =~ "Spara lösenord"
       assert result =~ "should be at least 12 character(s)"
       assert result =~ "does not match password"
     end
@@ -154,7 +154,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
         })
         |> render_submit()
 
-      assert result =~ "Save Password"
+      assert result =~ "Spara lösenord"
       assert result =~ "should be at least 12 character(s)"
       assert result =~ "does not match password"
     end
@@ -179,7 +179,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
       assert {:live_redirect, %{to: path, flash: flash}} = redirect
       assert path == ~p"/users/settings"
       assert %{"info" => message} = flash
-      assert message == "Email changed successfully."
+      assert message == "E-postadressen är ändrad."
       refute Accounts.get_user_by_email(user.email)
       assert Accounts.get_user_by_email(email)
 
@@ -188,7 +188,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
       assert {:live_redirect, %{to: path, flash: flash}} = redirect
       assert path == ~p"/users/settings"
       assert %{"error" => message} = flash
-      assert message == "Email change link is invalid or it has expired."
+      assert message == "Länken för att ändra e-post är ogiltig eller har gått ut."
     end
 
     test "does not update email with invalid token", %{conn: conn, user: user} do
@@ -196,7 +196,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
       assert {:live_redirect, %{to: path, flash: flash}} = redirect
       assert path == ~p"/users/settings"
       assert %{"error" => message} = flash
-      assert message == "Email change link is invalid or it has expired."
+      assert message == "Länken för att ändra e-post är ogiltig eller har gått ut."
       assert Accounts.get_user_by_email(user.email)
     end
 
@@ -206,7 +206,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
       assert {:redirect, %{to: path, flash: flash}} = redirect
       assert path == ~p"/users/log-in"
       assert %{"error" => message} = flash
-      assert message == "You must log in to access this page."
+      assert message == "Du måste logga in för att se den här sidan."
     end
   end
 end

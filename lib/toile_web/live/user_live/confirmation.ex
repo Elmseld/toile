@@ -9,7 +9,7 @@ defmodule ToileWeb.UserLive.Confirmation do
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="mx-auto max-w-sm">
         <div class="text-center">
-          <.header>Welcome {@user.email}</.header>
+          <.header>Välkommen {@user.email}</.header>
         </div>
 
         <.form
@@ -25,13 +25,13 @@ defmodule ToileWeb.UserLive.Confirmation do
           <.button
             name={@form[:remember_me].name}
             value="true"
-            phx-disable-with="Confirming..."
+            phx-disable-with="Bekräftar..."
             class="btn btn-primary w-full"
           >
-            Confirm and stay logged in
+            Bekräfta och förbli inloggad
           </.button>
-          <.button phx-disable-with="Confirming..." class="btn btn-primary btn-soft w-full mt-2">
-            Confirm and log in only this time
+          <.button phx-disable-with="Bekräftar..." class="btn btn-primary btn-soft w-full mt-2">
+            Bekräfta och logga in bara den här gången
           </.button>
         </.form>
 
@@ -46,26 +46,26 @@ defmodule ToileWeb.UserLive.Confirmation do
         >
           <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
           <%= if @current_scope do %>
-            <.button phx-disable-with="Logging in..." class="btn btn-primary w-full">
-              Log in
+            <.button phx-disable-with="Loggar in..." class="btn btn-primary w-full">
+              Logga in
             </.button>
           <% else %>
             <.button
               name={@form[:remember_me].name}
               value="true"
-              phx-disable-with="Logging in..."
+              phx-disable-with="Loggar in..."
               class="btn btn-primary w-full"
             >
-              Keep me logged in on this device
+              Håll mig inloggad på den här enheten
             </.button>
-            <.button phx-disable-with="Logging in..." class="btn btn-primary btn-soft w-full mt-2">
-              Log me in only this time
+            <.button phx-disable-with="Loggar in..." class="btn btn-primary btn-soft w-full mt-2">
+              Logga in mig bara den här gången
             </.button>
           <% end %>
         </.form>
 
         <p :if={!@user.confirmed_at} class="alert alert-outline mt-8">
-          Tip: If you prefer passwords, you can enable them in the user settings.
+          Tips: Om du hellre använder lösenord kan du välja ett under Inställningar.
         </p>
       </div>
     </Layouts.app>
@@ -82,7 +82,7 @@ defmodule ToileWeb.UserLive.Confirmation do
     else
       {:ok,
        socket
-       |> put_flash(:error, "Magic link is invalid or it has expired.")
+       |> put_flash(:error, "Inloggningslänken är ogiltig eller har gått ut.")
        |> push_navigate(to: ~p"/users/log-in")}
     end
   end

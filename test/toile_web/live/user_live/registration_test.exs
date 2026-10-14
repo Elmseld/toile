@@ -8,8 +8,8 @@ defmodule ToileWeb.UserLive.RegistrationTest do
     test "renders registration page", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/users/register")
 
-      assert html =~ "Register"
-      assert html =~ "Log in"
+      assert html =~ "Skapa ett konto"
+      assert html =~ "Logga in"
     end
 
     test "redirects if already logged in", %{conn: conn} do
@@ -30,7 +30,7 @@ defmodule ToileWeb.UserLive.RegistrationTest do
         |> element("#registration_form")
         |> render_change(user: %{"email" => "with spaces"})
 
-      assert result =~ "Register"
+      assert result =~ "Skapa ett konto"
       assert result =~ "must have the @ sign and no spaces"
     end
   end
@@ -47,7 +47,7 @@ defmodule ToileWeb.UserLive.RegistrationTest do
         |> follow_redirect(conn, ~p"/users/log-in")
 
       assert html =~
-               ~r/An email was sent to .*, please access it to confirm your account/
+               ~r/Vi har skickat ett mejl till .*\. Öppna länken i mejlet för att bekräfta ditt konto/
     end
 
     test "renders errors for duplicated email", %{conn: conn} do
@@ -72,11 +72,11 @@ defmodule ToileWeb.UserLive.RegistrationTest do
 
       {:ok, _login_live, login_html} =
         lv
-        |> element("main a", "Log in")
+        |> element("main a", "Logga in")
         |> render_click()
         |> follow_redirect(conn, ~p"/users/log-in")
 
-      assert login_html =~ "Log in"
+      assert login_html =~ "Logga in med e-post"
     end
   end
 end

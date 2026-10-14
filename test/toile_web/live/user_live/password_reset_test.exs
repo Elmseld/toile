@@ -23,8 +23,9 @@ defmodule ToileWeb.UserLive.PasswordResetTest do
     # Another device that is logged in before the reset.
     other_device = log_in_user(build_conn(), user)
 
-    # 1. Request a login link from the login page.
+    # 1. Request a login link from the login page, which explains the flow.
     {:ok, lv, _html} = live(conn, ~p"/users/log-in")
+    assert has_element?(lv, "#forgot-password-hint", "Glömt lösenordet?")
 
     lv
     |> form("#login_form_magic", user: %{email: user.email})
@@ -33,6 +34,8 @@ defmodule ToileWeb.UserLive.PasswordResetTest do
     assert_received {:email, %Swoosh.Email{to: [{_, to}], text_body: body}}
     assert to == user.email
     assert [_, token] = Regex.run(~r{/users/log-in/([\w-]+)}, body)
+    # The email for confirmed users points to Inställningar for a new password.
+    assert body =~ "lösenord under Inställningar"
 
     # 2. Open the link and log in with it.
     {:ok, lv, _html} = live(conn, ~p"/users/log-in/#{token}")

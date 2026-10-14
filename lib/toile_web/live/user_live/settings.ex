@@ -11,8 +11,8 @@ defmodule ToileWeb.UserLive.Settings do
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="text-center">
         <.header>
-          Account Settings
-          <:subtitle>Manage your account email address and password settings</:subtitle>
+          Inställningar
+          <:subtitle>Ändra e-postadress och lösenord för ditt konto</:subtitle>
         </.header>
       </div>
 
@@ -20,12 +20,12 @@ defmodule ToileWeb.UserLive.Settings do
         <.input
           field={@email_form[:email]}
           type="email"
-          label="Email"
+          label="E-post"
           autocomplete="username"
           spellcheck="false"
           required
         />
-        <.button variant="primary" phx-disable-with="Changing...">Change Email</.button>
+        <.button variant="primary" phx-disable-with="Ändrar...">Ändra e-post</.button>
       </.form>
 
       <div class="divider" />
@@ -49,7 +49,7 @@ defmodule ToileWeb.UserLive.Settings do
         <.input
           field={@password_form[:password]}
           type="password"
-          label="New password"
+          label="Nytt lösenord"
           autocomplete="new-password"
           spellcheck="false"
           required
@@ -57,12 +57,12 @@ defmodule ToileWeb.UserLive.Settings do
         <.input
           field={@password_form[:password_confirmation]}
           type="password"
-          label="Confirm new password"
+          label="Bekräfta nytt lösenord"
           autocomplete="new-password"
           spellcheck="false"
         />
-        <.button variant="primary" phx-disable-with="Saving...">
-          Save Password
+        <.button variant="primary" phx-disable-with="Sparar...">
+          Spara lösenord
         </.button>
       </.form>
     </Layouts.app>
@@ -74,10 +74,10 @@ defmodule ToileWeb.UserLive.Settings do
     socket =
       case Accounts.update_user_email(socket.assigns.current_scope.user, token) do
         {:ok, _user} ->
-          put_flash(socket, :info, "Email changed successfully.")
+          put_flash(socket, :info, "E-postadressen är ändrad.")
 
         {:error, _} ->
-          put_flash(socket, :error, "Email change link is invalid or it has expired.")
+          put_flash(socket, :error, "Länken för att ändra e-post är ogiltig eller har gått ut.")
       end
 
     {:ok, push_navigate(socket, to: ~p"/users/settings")}
@@ -124,7 +124,9 @@ defmodule ToileWeb.UserLive.Settings do
           &url(~p"/users/settings/confirm-email/#{&1}")
         )
 
-        info = "A link to confirm your email change has been sent to the new address."
+        info =
+          "Vi har skickat en länk till den nya adressen. Öppna den för att bekräfta ändringen."
+
         {:noreply, socket |> put_flash(:info, info)}
 
       changeset ->

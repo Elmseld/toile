@@ -224,7 +224,7 @@ defmodule ToileWeb.UserAuth do
     else
       socket =
         socket
-        |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
+        |> Phoenix.LiveView.put_flash(:error, "Du måste logga in för att se den här sidan.")
         |> Phoenix.LiveView.redirect(to: ~p"/users/log-in")
 
       {:halt, socket}
@@ -239,7 +239,7 @@ defmodule ToileWeb.UserAuth do
     else
       socket =
         socket
-        |> Phoenix.LiveView.put_flash(:error, "You must re-authenticate to access this page.")
+        |> Phoenix.LiveView.put_flash(:error, "Du måste logga in igen för att se den här sidan.")
         |> Phoenix.LiveView.redirect(to: ~p"/users/log-in")
 
       {:halt, socket}
@@ -273,7 +273,7 @@ defmodule ToileWeb.UserAuth do
       conn
     else
       conn
-      |> put_flash(:error, "You must log in to access this page.")
+      |> put_flash(:error, "Du måste logga in för att se den här sidan.")
       |> maybe_store_return_to()
       |> redirect(to: ~p"/users/log-in")
       |> halt()
