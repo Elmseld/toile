@@ -1,8 +1,21 @@
 defmodule ToileWeb.PageControllerTest do
-  use ToileWeb.ConnCase
+  use ToileWeb.ConnCase, async: true
 
-  test "GET /", %{conn: conn} do
-    conn = get(conn, ~p"/")
-    assert html_response(conn, 200) =~ "Peace of mind from prototype to production"
+  import Toile.AccountsFixtures
+
+  describe "GET /" do
+    test "renders the start page for logged-out visitors", %{conn: conn} do
+      conn = get(conn, ~p"/")
+      assert html_response(conn, 200)
+    end
+
+    test "redirects logged-in users to Mina mönster", %{conn: conn} do
+      conn =
+        conn
+        |> log_in_user(user_fixture())
+        |> get(~p"/")
+
+      assert redirected_to(conn) == ~p"/patterns"
+    end
   end
 end
