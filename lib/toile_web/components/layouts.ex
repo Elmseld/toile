@@ -12,15 +12,15 @@ defmodule ToileWeb.Layouts do
   embed_templates "layouts/*"
 
   @doc """
-  Renders your app layout.
+  Renders the app layout with the Toile header.
 
-  This function is typically invoked from every template,
-  and it often contains your application menu, sidebar,
-  or similar.
+  The header shows "Mina mönster", Inställningar and Logga ut when
+  `@current_scope` holds a user, and Logga in and Registrera otherwise.
+  Pass `current_scope` from every page so the header matches the session.
 
   ## Examples
 
-      <Layouts.app flash={@flash}>
+      <Layouts.app flash={@flash} current_scope={@current_scope}>
         <h1>Content</h1>
       </Layouts.app>
 
@@ -35,31 +35,59 @@ defmodule ToileWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
+    <header class="navbar border-b border-base-300 px-4 sm:px-6 lg:px-8">
       <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
-        </a>
+        <.link
+          id="nav-home"
+          href={~p"/"}
+          class="flex w-fit items-center gap-2 text-lg font-semibold tracking-tight"
+        >
+          <.icon name="hero-scissors" class="size-5 text-primary" /> Toile
+        </.link>
       </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
+      <nav class="flex-none" aria-label="Huvudmeny">
+        <ul class="flex flex-wrap items-center gap-2 px-1 sm:gap-4">
+          <%= if @current_scope && @current_scope.user do %>
+            <li>
+              <.link id="nav-my-patterns" navigate={~p"/patterns"} class="btn btn-ghost btn-sm">
+                Mina mönster
+              </.link>
+            </li>
+            <li class="hidden text-sm text-base-content/70 md:block">
+              {@current_scope.user.email}
+            </li>
+            <li>
+              <.link id="nav-settings" navigate={~p"/users/settings"} class="btn btn-ghost btn-sm">
+                Inställningar
+              </.link>
+            </li>
+            <li>
+              <.link
+                id="nav-log-out"
+                href={~p"/users/log-out"}
+                method="delete"
+                class="btn btn-ghost btn-sm"
+              >
+                Logga ut
+              </.link>
+            </li>
+          <% else %>
+            <li>
+              <.link id="nav-log-in" navigate={~p"/users/log-in"} class="btn btn-ghost btn-sm">
+                Logga in
+              </.link>
+            </li>
+            <li>
+              <.link id="nav-register" navigate={~p"/users/register"} class="btn btn-primary btn-sm">
+                Registrera
+              </.link>
+            </li>
+          <% end %>
           <li>
             <.theme_toggle />
           </li>
-          <li>
-            <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
-          </li>
         </ul>
-      </div>
+      </nav>
     </header>
 
     <main class="px-4 py-20 sm:px-6 lg:px-8">
@@ -129,6 +157,7 @@ defmodule ToileWeb.Layouts do
         class="flex p-2 cursor-pointer w-1/3"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="system"
+        aria-label="Systemtema"
       >
         <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
@@ -137,6 +166,7 @@ defmodule ToileWeb.Layouts do
         class="flex p-2 cursor-pointer w-1/3"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="light"
+        aria-label="Ljust tema"
       >
         <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
@@ -145,6 +175,7 @@ defmodule ToileWeb.Layouts do
         class="flex p-2 cursor-pointer w-1/3"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="dark"
+        aria-label="Mörkt tema"
       >
         <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
