@@ -40,7 +40,7 @@ defmodule ToileWeb.UserSessionController do
     else
       # In order to prevent user enumeration attacks, don't disclose whether the email is registered.
       conn
-      |> put_flash(:error, "Fel e-post eller lösenord")
+      |> put_flash(:error, "Fel e-post eller lösenord.")
       |> put_flash(:email, String.slice(email, 0, 160))
       |> redirect(to: ~p"/users/log-in")
     end

@@ -70,8 +70,46 @@ defmodule ToileWeb.UserSessionControllerTest do
           "user" => %{"email" => user.email, "password" => "invalid_password"}
         })
 
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Fel e-post eller lösenord"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Fel e-post eller lösenord."
       assert redirected_to(conn) == ~p"/users/log-in"
+    end
+
+    test "wrong password and unknown email give the same response", %{conn: conn, user: user} do
+      user = set_password(user)
+
+      wrong =
+        post(conn, ~p"/users/log-in", %{
+          "user" => %{"email" => user.email, "password" => "nope nope nope!"}
+        })
+
+      unknown =
+        post(build_conn(), ~p"/users/log-in", %{
+          "user" => %{"email" => "nobody@example.com", "password" => "nope nope nope!"}
+        })
+
+      assert redirected_to(wrong) == redirected_to(unknown)
+
+      assert Phoenix.Flash.get(wrong.assigns.flash, :error) ==
+               Phoenix.Flash.get(unknown.assigns.flash, :error)
+
+      refute get_session(wrong, :user_token)
+      refute get_session(unknown, :user_token)
+    end
+
+    test "logged-out request to /patterns returns there after login", %{conn: conn, user: user} do
+      user = set_password(user)
+      conn = get(conn, ~p"/patterns")
+      assert redirected_to(conn) == ~p"/users/log-in"
+
+      conn =
+        conn
+        |> recycle()
+        |> Plug.Test.init_test_session(%{user_return_to: get_session(conn, :user_return_to)})
+        |> post(~p"/users/log-in", %{
+          "user" => %{"email" => user.email, "password" => valid_user_password()}
+        })
+
+      assert redirected_to(conn) == ~p"/patterns"
     end
   end
 

@@ -20,6 +20,18 @@ defmodule ToileWeb.UserAuthTest do
     %{user: %{user_fixture() | authenticated_at: DateTime.utc_now(:second)}, conn: conn}
   end
 
+  describe "scope configuration" do
+    test "the user scope is registered as the default scope" do
+      scopes = Application.fetch_env!(:toile, :scopes)
+
+      assert [default: true, module: Scope] =
+               Keyword.take(scopes[:user], [:default, :module])
+
+      assert scopes[:user][:schema_type] == :binary_id
+      assert scopes[:user][:schema_key] == :user_id
+    end
+  end
+
   describe "log_in_user/3" do
     test "stores the user token in the session", %{conn: conn, user: user} do
       conn = UserAuth.log_in_user(conn, user)

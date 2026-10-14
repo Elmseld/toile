@@ -41,6 +41,33 @@ defmodule ToileWeb.UserLive.LoginTest do
 
       assert html =~ "Om din e-postadress finns hos oss"
     end
+
+    test "gives the same flash and redirect whether or not the email exists", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/log-in")
+
+      lv
+      |> form("#login_form_magic", user: %{email: user_fixture().email})
+      |> render_submit()
+
+      {known_path, known_flash} = assert_redirect(lv)
+
+      {:ok, lv, _html} = live(build_conn(), ~p"/users/log-in")
+
+      lv
+      |> form("#login_form_magic", user: %{email: "nobody@example.com"})
+      |> render_submit()
+
+      {unknown_path, unknown_flash} = assert_redirect(lv)
+
+      assert known_path == ~p"/users/log-in"
+      assert unknown_path == known_path
+      assert known_flash == unknown_flash
+
+      assert known_flash["info"] ==
+               "Om din e-postadress finns hos oss får du snart ett mejl med instruktioner för att logga in."
+
+      refute_received {:email, %Swoosh.Email{to: [{_, "nobody@example.com"}]}}
+    end
   end
 
   describe "user login - password" do
@@ -70,7 +97,7 @@ defmodule ToileWeb.UserLive.LoginTest do
       render_submit(form, %{user: %{remember_me: true}})
 
       conn = follow_trigger_action(form, conn)
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Fel e-post eller lösenord"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Fel e-post eller lösenord."
       assert redirected_to(conn) == ~p"/users/log-in"
     end
   end
