@@ -241,12 +241,41 @@ defmodule Toile.Accounts do
   ## Session
 
   @doc """
-  Generates a session token.
+  Generates a session token for `user`, as authenticated by a login, a
+  password update or an existing session.
+
+  `user` must be the struct that authentication produced. The token is only
+  created if the user's password hash is still the one in that struct: a
+  password update in the meantime revokes every session, so a session created
+  from the earlier authentication must not survive it. The check and the insert
+  run under the same user row lock as password updates, so an update either
+  happens first (and this returns an error) or afterwards (and deletes the new
+  token along with the others).
+
+  Returns `{:ok, token}`, or `{:error, :credentials_changed}` if the password
+  changed or the user no longer exists.
+
+  ## Examples
+
+      iex> generate_user_session_token(user)
+      {:ok, <<...>>}
+
+      iex> generate_user_session_token(user_from_before_password_update)
+      {:error, :credentials_changed}
+
   """
-  def generate_user_session_token(user) do
-    {token, user_token} = UserToken.build_session_token(user)
-    Repo.insert!(user_token)
-    token
+  def generate_user_session_token(%User{} = user) do
+    Repo.transact(fn ->
+      case lock_user(user.id) do
+        %User{hashed_password: hash} when hash == user.hashed_password ->
+          {token, user_token} = UserToken.build_session_token(user)
+          Repo.insert!(user_token)
+          {:ok, token}
+
+        _ ->
+          {:error, :credentials_changed}
+      end
+    end)
   end
 
   @doc """

@@ -62,7 +62,7 @@ defmodule ToileWeb.ConnCase do
   It returns an updated `conn`.
   """
   def log_in_user(conn, user, opts \\ []) do
-    token = Toile.Accounts.generate_user_session_token(user)
+    {:ok, token} = Toile.Accounts.generate_user_session_token(user)
 
     maybe_set_token_authenticated_at(token, opts[:token_authenticated_at])
 

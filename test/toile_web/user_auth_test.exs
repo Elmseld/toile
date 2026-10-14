@@ -41,6 +41,25 @@ defmodule ToileWeb.UserAuthTest do
       assert Accounts.get_user_by_session_token(token)
     end
 
+    test "does not log in when the password changed after authentication",
+         %{conn: conn, user: user} do
+      {:ok, _} = Accounts.update_user_password(user, %{password: "a brand new password"})
+
+      conn =
+        conn
+        |> fetch_flash()
+        |> fetch_cookies()
+        |> put_session(:user_return_to, "/hello")
+        |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+
+      refute get_session(conn, :user_token)
+      refute get_session(conn, :user_return_to)
+      assert %{max_age: 0} = conn.resp_cookies[@remember_me_cookie]
+      assert redirected_to(conn) == ~p"/users/log-in"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Logga in igen"
+      refute Toile.Repo.get_by(Accounts.UserToken, user_id: user.id, context: "session")
+    end
+
     test "clears everything previously stored in the session", %{conn: conn, user: user} do
       conn = conn |> put_session(:to_be_removed, "value") |> UserAuth.log_in_user(user)
       refute get_session(conn, :to_be_removed)
@@ -131,7 +150,7 @@ defmodule ToileWeb.UserAuthTest do
 
   describe "logout_user/1" do
     test "erases session and cookies", %{conn: conn, user: user} do
-      user_token = Accounts.generate_user_session_token(user)
+      {:ok, user_token} = Accounts.generate_user_session_token(user)
 
       conn =
         conn
@@ -168,7 +187,7 @@ defmodule ToileWeb.UserAuthTest do
 
   describe "fetch_current_scope_for_user/2" do
     test "authenticates user from session", %{conn: conn, user: user} do
-      user_token = Accounts.generate_user_session_token(user)
+      {:ok, user_token} = Accounts.generate_user_session_token(user)
 
       conn =
         conn |> put_session(:user_token, user_token) |> UserAuth.fetch_current_scope_for_user([])
@@ -200,7 +219,7 @@ defmodule ToileWeb.UserAuthTest do
     end
 
     test "does not authenticate if data is missing", %{conn: conn, user: user} do
-      _ = Accounts.generate_user_session_token(user)
+      {:ok, _} = Accounts.generate_user_session_token(user)
       conn = UserAuth.fetch_current_scope_for_user(conn, [])
       refute get_session(conn, :user_token)
       refute conn.assigns.current_scope
@@ -239,7 +258,7 @@ defmodule ToileWeb.UserAuthTest do
     end
 
     test "assigns current_scope based on a valid user_token", %{conn: conn, user: user} do
-      user_token = Accounts.generate_user_session_token(user)
+      {:ok, user_token} = Accounts.generate_user_session_token(user)
       session = conn |> put_session(:user_token, user_token) |> get_session()
 
       {:cont, updated_socket} =
@@ -270,7 +289,7 @@ defmodule ToileWeb.UserAuthTest do
 
   describe "on_mount :require_authenticated" do
     test "authenticates current_scope based on a valid user_token", %{conn: conn, user: user} do
-      user_token = Accounts.generate_user_session_token(user)
+      {:ok, user_token} = Accounts.generate_user_session_token(user)
       session = conn |> put_session(:user_token, user_token) |> get_session()
 
       {:cont, updated_socket} =
@@ -307,7 +326,7 @@ defmodule ToileWeb.UserAuthTest do
 
   describe "on_mount :require_sudo_mode" do
     test "allows users that have authenticated in the last 10 minutes", %{conn: conn, user: user} do
-      user_token = Accounts.generate_user_session_token(user)
+      {:ok, user_token} = Accounts.generate_user_session_token(user)
       session = conn |> put_session(:user_token, user_token) |> get_session()
 
       socket = %LiveView.Socket{
@@ -322,7 +341,7 @@ defmodule ToileWeb.UserAuthTest do
     test "redirects when authentication is too old", %{conn: conn, user: user} do
       eleven_minutes_ago = DateTime.utc_now(:second) |> DateTime.add(-11, :minute)
       user = %{user | authenticated_at: eleven_minutes_ago}
-      user_token = Accounts.generate_user_session_token(user)
+      {:ok, user_token} = Accounts.generate_user_session_token(user)
       {user, token_inserted_at} = Accounts.get_user_by_session_token(user_token)
       assert DateTime.compare(token_inserted_at, user.authenticated_at) == :gt
       session = conn |> put_session(:user_token, user_token) |> get_session()

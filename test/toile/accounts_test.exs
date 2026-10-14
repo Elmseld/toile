@@ -287,7 +287,7 @@ defmodule Toile.AccountsTest do
     end
 
     test "deletes all tokens for the given user", %{user: user} do
-      _ = Accounts.generate_user_session_token(user)
+      {:ok, _} = Accounts.generate_user_session_token(user)
 
       {:ok, {_, _}} =
         Accounts.update_user_password(user, %{
@@ -304,7 +304,7 @@ defmodule Toile.AccountsTest do
     end
 
     test "generates a token", %{user: user} do
-      token = Accounts.generate_user_session_token(user)
+      {:ok, token} = Accounts.generate_user_session_token(user)
       assert user_token = Repo.get_by(UserToken, token: token)
       assert user_token.context == "session"
       assert user_token.authenticated_at != nil
@@ -319,9 +319,53 @@ defmodule Toile.AccountsTest do
       end
     end
 
+    test "does not create a session from a password login made before a password update" do
+      user = user_fixture() |> set_password()
+
+      # The login has verified the old password ...
+      authenticated = Accounts.get_user_by_email_and_password(user.email, valid_user_password())
+      assert authenticated
+
+      # ... but a password update lands before the session is created.
+      {:ok, _} = Accounts.update_user_password(user, %{password: "a brand new password"})
+
+      assert Accounts.generate_user_session_token(authenticated) ==
+               {:error, :credentials_changed}
+
+      refute Repo.get_by(UserToken, user_id: user.id, context: "session")
+    end
+
+    test "does not create a session from a magic link login made before a password update" do
+      user = user_fixture()
+      {encoded_token, _} = generate_user_magic_link_token(user)
+
+      assert {:ok, {authenticated, []}} = Accounts.login_user_by_magic_link(encoded_token)
+      {:ok, _} = Accounts.update_user_password(user, %{password: "a brand new password"})
+
+      assert Accounts.generate_user_session_token(authenticated) ==
+               {:error, :credentials_changed}
+
+      refute Repo.get_by(UserToken, user_id: user.id, context: "session")
+    end
+
+    test "creates a session for the user returned by a password update" do
+      user = user_fixture()
+
+      {:ok, {updated, _}} =
+        Accounts.update_user_password(user, %{password: "a brand new password"})
+
+      assert {:ok, token} = Accounts.generate_user_session_token(updated)
+      assert Repo.get_by(UserToken, token: token, context: "session")
+    end
+
+    test "does not create a session for a deleted user", %{user: user} do
+      Repo.delete!(user)
+      assert Accounts.generate_user_session_token(user) == {:error, :credentials_changed}
+    end
+
     test "duplicates the authenticated_at of given user in new token", %{user: user} do
       user = %{user | authenticated_at: DateTime.add(DateTime.utc_now(:second), -3600)}
-      token = Accounts.generate_user_session_token(user)
+      {:ok, token} = Accounts.generate_user_session_token(user)
       assert user_token = Repo.get_by(UserToken, token: token)
       assert user_token.authenticated_at == user.authenticated_at
       assert DateTime.compare(user_token.inserted_at, user.authenticated_at) == :gt
@@ -331,7 +375,7 @@ defmodule Toile.AccountsTest do
   describe "get_user_by_session_token/1" do
     setup do
       user = user_fixture()
-      token = Accounts.generate_user_session_token(user)
+      {:ok, token} = Accounts.generate_user_session_token(user)
       %{user: user, token: token}
     end
 
@@ -403,7 +447,7 @@ defmodule Toile.AccountsTest do
       assert {:ok, {%User{confirmed_at: %DateTime{}}, [_ | _]}} =
                Accounts.login_user_by_magic_link(encoded_token)
 
-      session_token = Accounts.generate_user_session_token(user)
+      {:ok, session_token} = Accounts.generate_user_session_token(user)
 
       assert {:error, :not_found} = Accounts.login_user_by_magic_link(encoded_token)
       # The losing request must not revoke the session the first one created.
@@ -418,7 +462,7 @@ defmodule Toile.AccountsTest do
       # The first login deletes all of the user's tokens, including the second
       # link, so the second link can no longer be used.
       assert {:ok, {_user, _expired}} = Accounts.login_user_by_magic_link(first_token)
-      session_token = Accounts.generate_user_session_token(user)
+      {:ok, session_token} = Accounts.generate_user_session_token(user)
 
       assert {:error, :not_found} = Accounts.login_user_by_magic_link(second_token)
       assert Accounts.get_user_by_session_token(session_token)
@@ -444,7 +488,7 @@ defmodule Toile.AccountsTest do
   describe "delete_user_session_token/1" do
     test "deletes the token" do
       user = user_fixture()
-      token = Accounts.generate_user_session_token(user)
+      {:ok, token} = Accounts.generate_user_session_token(user)
       assert Accounts.delete_user_session_token(token) == :ok
       refute Accounts.get_user_by_session_token(token)
     end

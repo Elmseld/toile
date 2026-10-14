@@ -31,14 +31,27 @@ defmodule ToileWeb.UserAuth do
 
   Redirects to the session's `:user_return_to` path
   or falls back to the `signed_in_path/1`.
+
+  If the password changed after `user` was authenticated (for example by a
+  concurrent password update), no session is created: the user is logged out
+  and sent back to the log in page.
   """
   def log_in_user(conn, user, params \\ %{}) do
     user_return_to = get_session(conn, :user_return_to)
 
-    conn
-    |> create_or_extend_session(user, params)
-    |> delete_session(:user_return_to)
-    |> redirect(to: user_return_to || signed_in_path(conn))
+    case create_or_extend_session(conn, user, params) do
+      {:ok, conn} ->
+        conn
+        |> delete_session(:user_return_to)
+        |> redirect(to: user_return_to || signed_in_path(conn))
+
+      {:error, :credentials_changed} ->
+        conn
+        |> renew_session(nil)
+        |> delete_resp_cookie(@remember_me_cookie, @remember_me_options)
+        |> put_flash(:error, "Lösenordet ändrades medan du loggade in. Logga in igen.")
+        |> redirect(to: ~p"/users/log-in")
+    end
   end
 
   @doc """
@@ -95,7 +108,11 @@ defmodule ToileWeb.UserAuth do
     token_age = DateTime.diff(DateTime.utc_now(:second), token_inserted_at, :day)
 
     if token_age >= @session_reissue_age_in_days do
-      create_or_extend_session(conn, user, %{})
+      case create_or_extend_session(conn, user, %{}) do
+        {:ok, conn} -> conn
+        # The password changed since the session was read, which revoked it.
+        {:error, :credentials_changed} -> assign(conn, :current_scope, Scope.for_user(nil))
+      end
     else
       conn
     end
@@ -110,13 +127,17 @@ defmodule ToileWeb.UserAuth do
   # function will clear the session to avoid fixation attacks. See the
   # renew_session function to customize this behaviour.
   defp create_or_extend_session(conn, user, params) do
-    token = Accounts.generate_user_session_token(user)
-    remember_me = get_session(conn, :user_remember_me)
+    with {:ok, token} <- Accounts.generate_user_session_token(user) do
+      remember_me = get_session(conn, :user_remember_me)
 
-    conn
-    |> renew_session(user)
-    |> put_token_in_session(token)
-    |> maybe_write_remember_me_cookie(token, params, remember_me)
+      conn =
+        conn
+        |> renew_session(user)
+        |> put_token_in_session(token)
+        |> maybe_write_remember_me_cookie(token, params, remember_me)
+
+      {:ok, conn}
+    end
   end
 
   # Do not renew session if the user is already logged in
