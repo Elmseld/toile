@@ -229,6 +229,26 @@ defmodule Toile.AccountsTest do
       assert "should be at most 72 character(s)" in errors_on(changeset).password
     end
 
+    test "rejects a password over 72 bytes without hashing it", %{user: user} do
+      # 40 characters, so within the character limit, but 80 bytes.
+      multi_byte = String.duplicate("å", 40)
+
+      changeset = Accounts.change_user_password(user, %{password: multi_byte})
+
+      refute changeset.valid?
+      assert errors_on(changeset).password == ["should be at most 72 byte(s)"]
+      refute Ecto.Changeset.get_change(changeset, :hashed_password)
+
+      assert {:error, _changeset} = Accounts.update_user_password(user, %{password: multi_byte})
+      assert Repo.get!(User, user.id).hashed_password == user.hashed_password
+    end
+
+    test "reports only the character limit for a long ASCII password", %{user: user} do
+      changeset = Accounts.change_user_password(user, %{password: String.duplicate("a", 73)})
+
+      assert errors_on(changeset).password == ["should be at most 72 character(s)"]
+    end
+
     test "updates the password", %{user: user} do
       {:ok, {user, expired_tokens}} =
         Accounts.update_user_password(user, %{
@@ -348,6 +368,40 @@ defmodule Toile.AccountsTest do
       assert {:ok, {^user, []}} = Accounts.login_user_by_magic_link(encoded_token)
       # one time use only
       assert {:error, :not_found} = Accounts.login_user_by_magic_link(encoded_token)
+    end
+
+    test "confirms an unconfirmed user only once per link" do
+      user = unconfirmed_user_fixture()
+      {encoded_token, _hashed_token} = generate_user_magic_link_token(user)
+
+      assert {:ok, {%User{confirmed_at: %DateTime{}}, [_ | _]}} =
+               Accounts.login_user_by_magic_link(encoded_token)
+
+      session_token = Accounts.generate_user_session_token(user)
+
+      assert {:error, :not_found} = Accounts.login_user_by_magic_link(encoded_token)
+      # The losing request must not revoke the session the first one created.
+      assert Accounts.get_user_by_session_token(session_token)
+    end
+
+    test "a second link for a just-confirmed user does not revoke its sessions" do
+      user = unconfirmed_user_fixture()
+      {first_token, _} = generate_user_magic_link_token(user)
+      {second_token, _} = generate_user_magic_link_token(user)
+
+      # The first login deletes all of the user's tokens, including the second
+      # link, so the second link can no longer be used.
+      assert {:ok, {_user, _expired}} = Accounts.login_user_by_magic_link(first_token)
+      session_token = Accounts.generate_user_session_token(user)
+
+      assert {:error, :not_found} = Accounts.login_user_by_magic_link(second_token)
+      assert Accounts.get_user_by_session_token(session_token)
+    end
+
+    test "returns not found for a token that is not valid Base64url" do
+      for token <- ["!", "a!b", "%%%", "@@@@"] do
+        assert {:error, :not_found} = Accounts.login_user_by_magic_link(token)
+      end
     end
 
     test "raises when unconfirmed user has password set" do

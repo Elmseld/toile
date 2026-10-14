@@ -275,11 +275,24 @@ defmodule Toile.Accounts do
      This cannot happen in the default implementation but may be the
      source of security pitfalls. See the "Mixing magic link and password registration" section of
      `mix help phx.gen.auth`.
+
+  Each link works once: the token is claimed inside the transaction, so of two
+  concurrent requests with the same link only one succeeds. Unknown, expired,
+  already used and malformed tokens all return `{:error, :not_found}`.
   """
   def login_user_by_magic_link(token) do
-    {:ok, query} = UserToken.verify_magic_link_token_query(token)
+    case UserToken.verify_magic_link_token_query(token) do
+      {:ok, query} -> Repo.transact(fn -> claim_magic_link_token(query) end)
+      :error -> {:error, :not_found}
+    end
+  end
 
-    case Repo.one(query) do
+  # Runs inside a transaction. `FOR UPDATE` locks both the token and the user
+  # row, so a concurrent request for the same link waits for this one to commit
+  # and then no longer finds the (deleted) token. Deleting the token and checking
+  # the row count claims it, so only one request can ever log in with a link.
+  defp claim_magic_link_token(query) do
+    case Repo.one(from(q in query, lock: "FOR UPDATE")) do
       # Prevent session fixation attacks by disallowing magic links for unconfirmed users with password
       {%User{confirmed_at: nil, hashed_password: hash}, _token} when not is_nil(hash) ->
         raise """
@@ -290,19 +303,24 @@ defmodule Toile.Accounts do
         "Mixing magic link and password registration" section of `mix help phx.gen.auth`.
         """
 
-      {%User{confirmed_at: nil} = user, _token} ->
-        user
-        |> User.confirm_changeset()
-        |> update_user_and_delete_all_tokens()
-
-      {user, token} ->
-        Repo.delete!(token)
-        {:ok, {user, []}}
+      {user, user_token} ->
+        case Repo.delete_all(from(t in UserToken, where: t.id == ^user_token.id)) do
+          {1, _} -> login_with_claimed_token(user, user_token)
+          {0, _} -> {:error, :not_found}
+        end
 
       nil ->
         {:error, :not_found}
     end
   end
+
+  defp login_with_claimed_token(%User{confirmed_at: nil} = user, user_token) do
+    with {:ok, user} <- user |> User.confirm_changeset() |> Repo.update() do
+      {:ok, {user, [user_token | delete_all_user_tokens(user)]}}
+    end
+  end
+
+  defp login_with_claimed_token(user, _user_token), do: {:ok, {user, []}}
 
   @doc ~S"""
   Delivers the update email instructions to the given user.
@@ -395,12 +413,16 @@ defmodule Toile.Accounts do
   defp update_user_and_delete_all_tokens(changeset) do
     Repo.transact(fn ->
       with {:ok, user} <- Repo.update(changeset) do
-        tokens_to_expire = Repo.all_by(UserToken, user_id: user.id)
-
-        Repo.delete_all(from(t in UserToken, where: t.id in ^Enum.map(tokens_to_expire, & &1.id)))
-
-        {:ok, {user, tokens_to_expire}}
+        {:ok, {user, delete_all_user_tokens(user)}}
       end
     end)
+  end
+
+  # Deletes every token of `user` and returns the deleted tokens, so the caller
+  # can disconnect the sessions they belonged to. Must run inside a transaction.
+  defp delete_all_user_tokens(user) do
+    tokens_to_expire = Repo.all_by(UserToken, user_id: user.id)
+    Repo.delete_all(from(t in UserToken, where: t.id in ^Enum.map(tokens_to_expire, & &1.id)))
+    tokens_to_expire
   end
 end
