@@ -172,17 +172,25 @@ defmodule Toile.Accounts do
   @doc """
   Updates the user email using the given token.
 
-  If the token matches, the user email is updated and the token is deleted.
+  If the token matches, the user email is updated and every pending email
+  change token of the user is deleted, so each change link works at most once
+  and only while the email is still the one it was issued for.
+
+  The user row is locked before the token is read, so concurrent confirmations
+  (even with different links) run one after the other: once one has changed the
+  email, the others find no matching token and fail. Returns
+  `{:error, :transaction_aborted}` if the token is invalid, expired or already
+  used, or if the user's email has changed since `user` was loaded.
   """
   def update_user_email(user, token) do
-    context = "change:#{user.email}"
-
     Repo.transact(fn ->
-      with {:ok, query} <- UserToken.verify_change_email_token_query(token, context),
-           %UserToken{sent_to: email} <- Repo.one(query),
-           {:ok, user} <- Repo.update(User.email_changeset(user, %{email: email})),
-           {_count, _result} <-
-             Repo.delete_all(from(UserToken, where: [user_id: ^user.id, context: ^context])) do
+      with %User{email: email} = locked_user when email == user.email <- lock_user(user.id),
+           context = "change:#{email}",
+           {:ok, query} <- UserToken.verify_change_email_token_query(token, context),
+           %UserToken{sent_to: new_email} <- Repo.one(query),
+           {count, _} when count > 0 <-
+             Repo.delete_all(from(UserToken, where: [user_id: ^user.id, context: ^context])),
+           {:ok, user} <- Repo.update(User.email_changeset(locked_user, %{email: new_email})) do
         {:ok, user}
       else
         _ -> {:error, :transaction_aborted}
@@ -281,36 +289,44 @@ defmodule Toile.Accounts do
   already used and malformed tokens all return `{:error, :not_found}`.
   """
   def login_user_by_magic_link(token) do
-    case UserToken.verify_magic_link_token_query(token) do
-      {:ok, query} -> Repo.transact(fn -> claim_magic_link_token(query) end)
-      :error -> {:error, :not_found}
+    with {:ok, query} <- UserToken.verify_magic_link_token_query(token),
+         {%User{id: user_id}, _token} <- Repo.one(query) do
+      Repo.transact(fn -> claim_magic_link_token(query, user_id) end)
+    else
+      _ -> {:error, :not_found}
     end
   end
 
-  # Runs inside a transaction. `FOR UPDATE` locks both the token and the user
-  # row, so a concurrent request for the same link waits for this one to commit
-  # and then no longer finds the (deleted) token. Deleting the token and checking
-  # the row count claims it, so only one request can ever log in with a link.
-  defp claim_magic_link_token(query) do
-    case Repo.one(from(q in query, lock: "FOR UPDATE")) do
-      # Prevent session fixation attacks by disallowing magic links for unconfirmed users with password
-      {%User{confirmed_at: nil, hashed_password: hash}, _token} when not is_nil(hash) ->
-        raise """
-        magic link log in is not allowed for unconfirmed users with a password set!
+  # Runs inside a transaction. Like every write path in this module it locks the
+  # user row first and only then touches the user's tokens, so concurrent logins
+  # (with the same or different links) and password updates queue on the user
+  # row instead of deadlocking. The token is re-read after the lock, so a request
+  # that waited sees the tokens a previous request deleted and fails normally.
+  defp claim_magic_link_token(query, user_id) do
+    with %User{} <- lock_user(user_id),
+         {user, user_token} <- Repo.one(query) do
+      claim_locked_magic_link_token(user, user_token)
+    else
+      _ -> {:error, :not_found}
+    end
+  end
 
-        This cannot happen with the default implementation, which indicates that you
-        might have adapted the code to a different use case. Please make sure to read the
-        "Mixing magic link and password registration" section of `mix help phx.gen.auth`.
-        """
+  # Prevent session fixation attacks by disallowing magic links for unconfirmed users with password
+  defp claim_locked_magic_link_token(%User{confirmed_at: nil, hashed_password: hash}, _token)
+       when not is_nil(hash) do
+    raise """
+    magic link log in is not allowed for unconfirmed users with a password set!
 
-      {user, user_token} ->
-        case Repo.delete_all(from(t in UserToken, where: t.id == ^user_token.id)) do
-          {1, _} -> login_with_claimed_token(user, user_token)
-          {0, _} -> {:error, :not_found}
-        end
+    This cannot happen with the default implementation, which indicates that you
+    might have adapted the code to a different use case. Please make sure to read the
+    "Mixing magic link and password registration" section of `mix help phx.gen.auth`.
+    """
+  end
 
-      nil ->
-        {:error, :not_found}
+  defp claim_locked_magic_link_token(user, user_token) do
+    case Repo.delete_all(from(t in UserToken, where: t.id == ^user_token.id)) do
+      {1, _} -> login_with_claimed_token(user, user_token)
+      {0, _} -> {:error, :not_found}
     end
   end
 
@@ -410,8 +426,18 @@ defmodule Toile.Accounts do
 
   ## Token helper
 
+  # Locks the user row for the rest of the current transaction. Every
+  # transaction that changes a user and their tokens takes this lock (or the
+  # equivalent row lock of an `UPDATE users`) before touching any token, which
+  # gives all of them the same lock order and rules out deadlocks.
+  defp lock_user(user_id) do
+    Repo.one(from(u in User, where: u.id == ^user_id, lock: "FOR UPDATE"))
+  end
+
   defp update_user_and_delete_all_tokens(changeset) do
     Repo.transact(fn ->
+      # The UPDATE locks the user row before any token is deleted, keeping the
+      # same lock order as `lock_user/1`.
       with {:ok, user} <- Repo.update(changeset) do
         {:ok, {user, delete_all_user_tokens(user)}}
       end
