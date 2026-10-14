@@ -80,6 +80,64 @@ defmodule Toile.Accounts do
     |> Repo.insert()
   end
 
+  @doc """
+  Registers a user and emails them login instructions, without revealing
+  whether the email address already has an account.
+
+  On success the new user receives a magic link built with
+  `magic_link_url_fun`. If registration fails only because the email is
+  already taken, the existing account is emailed a short notice containing
+  `login_url` instead, and the result is the same as for a new registration.
+
+  Returns `{:ok, email}` in both of those cases, or `{:error, changeset}` for
+  any other validation error.
+
+  ## Examples
+
+      iex> register_user_and_deliver_instructions(%{email: "new@example.com"}, &url/1, url)
+      {:ok, "new@example.com"}
+
+      iex> register_user_and_deliver_instructions(%{email: "taken@example.com"}, &url/1, url)
+      {:ok, "taken@example.com"}
+
+      iex> register_user_and_deliver_instructions(%{email: "bad"}, &url/1, url)
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def register_user_and_deliver_instructions(attrs, magic_link_url_fun, login_url)
+      when is_function(magic_link_url_fun, 1) and is_binary(login_url) do
+    case register_user(attrs) do
+      {:ok, user} ->
+        {:ok, _} = deliver_login_instructions(user, magic_link_url_fun)
+        {:ok, user.email}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        if only_email_taken_error?(changeset) do
+          email = Ecto.Changeset.get_field(changeset, :email)
+
+          if user = get_user_by_email(email) do
+            {:ok, _} = UserNotifier.deliver_registration_attempt_notice(user, login_url)
+          end
+
+          {:ok, email}
+        else
+          {:error, changeset}
+        end
+    end
+  end
+
+  defp only_email_taken_error?(%Ecto.Changeset{errors: [_ | _] = errors}) do
+    Enum.all?(errors, fn
+      {:email, {_msg, opts}} ->
+        opts[:validation] == :unsafe_unique or opts[:constraint] == :unique
+
+      _ ->
+        false
+    end)
+  end
+
+  defp only_email_taken_error?(_changeset), do: false
+
   ## Settings
 
   @doc """

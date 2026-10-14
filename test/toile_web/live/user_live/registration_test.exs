@@ -4,6 +4,8 @@ defmodule ToileWeb.UserLive.RegistrationTest do
   import Phoenix.LiveViewTest
   import Toile.AccountsFixtures
 
+  alias Toile.Accounts
+
   describe "Registration page" do
     test "renders registration page", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/users/register")
@@ -50,19 +52,51 @@ defmodule ToileWeb.UserLive.RegistrationTest do
                ~r/Vi har skickat ett mejl till .*\. Öppna länken i mejlet för att bekräfta ditt konto/
     end
 
-    test "renders errors for duplicated email", %{conn: conn} do
-      {:ok, lv, _html} = live(conn, ~p"/users/register")
+    test "responds to a taken email exactly as to a new one", %{conn: conn} do
+      user = user_fixture()
+      new_email = unique_user_email()
 
-      user = user_fixture(%{email: "test@email.com"})
+      submit = fn email ->
+        {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+        {:ok, login_lv, _html} =
+          lv
+          |> form("#registration_form", user: %{"email" => email})
+          |> render_submit()
+          |> follow_redirect(conn, ~p"/users/log-in")
+
+        login_lv
+        |> render()
+        |> LazyHTML.from_fragment()
+        |> LazyHTML.query("#flash-info")
+        |> LazyHTML.text()
+      end
+
+      taken_flash = submit.(user.email)
+      new_flash = submit.(new_email)
+
+      expected = fn email ->
+        "Vi har skickat ett mejl till #{email}. Öppna länken i mejlet för att bekräfta ditt konto."
+      end
+
+      assert taken_flash =~ expected.(user.email)
+      assert new_flash =~ expected.(new_email)
+
+      assert String.replace(taken_flash, user.email, "") ==
+               String.replace(new_flash, new_email, "")
+
+      assert Accounts.get_user_by_email(new_email)
+    end
+
+    test "still renders other validation errors on submit", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
 
       result =
         lv
-        |> form("#registration_form",
-          user: %{"email" => user.email}
-        )
+        |> form("#registration_form", user: %{"email" => "with spaces"})
         |> render_submit()
 
-      assert result =~ "has already been taken"
+      assert result =~ "must have the @ sign and no spaces"
     end
   end
 

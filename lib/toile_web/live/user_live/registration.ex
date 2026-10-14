@@ -56,19 +56,19 @@ defmodule ToileWeb.UserLive.Registration do
 
   @impl true
   def handle_event("save", %{"user" => user_params}, socket) do
-    case Accounts.register_user(user_params) do
-      {:ok, user} ->
-        {:ok, _} =
-          Accounts.deliver_login_instructions(
-            user,
-            &url(~p"/users/log-in/#{&1}")
-          )
-
+    # A taken email gets the same response as a new one so the form does not
+    # reveal which addresses have accounts.
+    case Accounts.register_user_and_deliver_instructions(
+           user_params,
+           &url(~p"/users/log-in/#{&1}"),
+           url(~p"/users/log-in")
+         ) do
+      {:ok, email} ->
         {:noreply,
          socket
          |> put_flash(
            :info,
-           "Vi har skickat ett mejl till #{user.email}. Öppna länken i mejlet för att bekräfta ditt konto."
+           "Vi har skickat ett mejl till #{email}. Öppna länken i mejlet för att bekräfta ditt konto."
          )
          |> push_navigate(to: ~p"/users/log-in")}
 

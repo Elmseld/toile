@@ -48,6 +48,28 @@ defmodule Toile.Accounts.UserNotifier do
     end
   end
 
+  @doc """
+  Deliver a notice that someone tried to register with an email address that
+  already has an account, with a link to the login page.
+  """
+  def deliver_registration_attempt_notice(user, login_url) do
+    deliver(user.email, "Någon försökte skapa ett konto på Toile", """
+
+    ==============================
+
+    Hej #{user.email},
+
+    Någon försökte nyss skapa ett nytt konto på Toile med din e-postadress.
+    Du har redan ett konto hos oss och kan logga in här:
+
+    #{login_url}
+
+    Om det inte var du kan du bortse från mejlet. Ditt konto är oförändrat.
+
+    ==============================
+    """)
+  end
+
   defp deliver_magic_link_instructions(user, url) do
     deliver(user.email, "Logga in på Toile", """
 

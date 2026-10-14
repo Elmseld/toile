@@ -370,6 +370,64 @@ defmodule Toile.AccountsTest do
     end
   end
 
+  describe "register_user_and_deliver_instructions/3" do
+    import Swoosh.TestAssertions
+
+    @login_url "http://localhost/users/log-in"
+
+    test "registers a new user and sends a magic link" do
+      email = unique_user_email()
+
+      assert {:ok, ^email} =
+               Accounts.register_user_and_deliver_instructions(
+                 %{email: email},
+                 &"http://localhost/users/log-in/#{&1}",
+                 @login_url
+               )
+
+      assert %User{} = Accounts.get_user_by_email(email)
+
+      assert_email_sent(fn sent ->
+        assert sent.to == [{"", email}]
+        assert sent.subject == "Bekräfta ditt konto på Toile"
+      end)
+    end
+
+    test "returns the same result for a taken email and notifies the existing account" do
+      %{email: email} = user = user_fixture()
+      # Drop the email sent while creating the fixture.
+      assert_email_sent()
+
+      assert {:ok, ^email} =
+               Accounts.register_user_and_deliver_instructions(
+                 %{email: email},
+                 &"http://localhost/users/log-in/#{&1}",
+                 @login_url
+               )
+
+      assert [%User{id: id}] = Repo.all(User)
+      assert id == user.id
+
+      assert_email_sent(fn sent ->
+        assert sent.to == [{"", email}]
+        assert sent.subject == "Någon försökte skapa ett konto på Toile"
+        assert sent.text_body =~ @login_url
+      end)
+    end
+
+    test "returns the changeset for other validation errors" do
+      assert {:error, changeset} =
+               Accounts.register_user_and_deliver_instructions(
+                 %{email: "not valid"},
+                 &"http://localhost/users/log-in/#{&1}",
+                 @login_url
+               )
+
+      assert %{email: ["must have the @ sign and no spaces"]} = errors_on(changeset)
+      assert_no_email_sent()
+    end
+  end
+
   describe "deliver_login_instructions/2" do
     setup do
       %{user: unconfirmed_user_fixture()}
