@@ -20,8 +20,11 @@ defmodule ToileWeb.UserSessionControllerTest do
       assert get_session(conn, :user_token)
       assert redirected_to(conn) == ~p"/"
 
-      # Now do a logged in request and assert on the menu
+      # Now do a logged in request and assert on the menu.
+      # Logged-in users are sent from / to "Mina mönster".
       conn = get(conn, ~p"/")
+      assert redirected_to(conn) == ~p"/patterns"
+      conn = get(conn, ~p"/patterns")
       response = html_response(conn, 200)
       assert response =~ user.email
       assert response =~ ~p"/users/settings"
@@ -84,8 +87,11 @@ defmodule ToileWeb.UserSessionControllerTest do
       assert get_session(conn, :user_token)
       assert redirected_to(conn) == ~p"/"
 
-      # Now do a logged in request and assert on the menu
+      # Now do a logged in request and assert on the menu.
+      # Logged-in users are sent from / to "Mina mönster".
       conn = get(conn, ~p"/")
+      assert redirected_to(conn) == ~p"/patterns"
+      conn = get(conn, ~p"/patterns")
       response = html_response(conn, 200)
       assert response =~ user.email
       assert response =~ ~p"/users/settings"
@@ -108,8 +114,11 @@ defmodule ToileWeb.UserSessionControllerTest do
 
       assert Accounts.get_user!(user.id).confirmed_at
 
-      # Now do a logged in request and assert on the menu
+      # Now do a logged in request and assert on the menu.
+      # Logged-in users are sent from / to "Mina mönster".
       conn = get(conn, ~p"/")
+      assert redirected_to(conn) == ~p"/patterns"
+      conn = get(conn, ~p"/patterns")
       response = html_response(conn, 200)
       assert response =~ user.email
       assert response =~ ~p"/users/settings"
