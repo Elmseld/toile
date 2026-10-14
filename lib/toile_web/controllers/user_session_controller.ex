@@ -46,17 +46,37 @@ defmodule ToileWeb.UserSessionController do
     end
   end
 
-  def update_password(conn, %{"user" => user_params} = params) do
+  def update_password(conn, %{"user" => user_params}) do
     user = conn.assigns.current_scope.user
-    true = Accounts.sudo_mode?(user)
-    {:ok, {_user, expired_tokens}} = Accounts.update_user_password(user, user_params)
 
-    # disconnect all existing LiveViews with old sessions
-    UserAuth.disconnect_sessions(expired_tokens)
+    # Sudo mode can expire between the LiveView validating the form and the
+    # browser submitting it, and the route can also be posted to directly.
+    with {:sudo, true} <- {:sudo, Accounts.sudo_mode?(user)},
+         {:ok, {user, expired_tokens}} <- Accounts.update_user_password(user, user_params) do
+      # disconnect all existing LiveViews with old sessions
+      UserAuth.disconnect_sessions(expired_tokens)
 
-    conn
-    |> put_session(:user_return_to, ~p"/users/settings")
-    |> create(params, "Lösenordet är ändrat.")
+      # The password change deleted every session token, so log the user in
+      # again directly rather than re-verifying the submitted credentials.
+      conn
+      |> put_session(:user_return_to, ~p"/users/settings")
+      |> put_flash(:info, "Lösenordet är ändrat.")
+      |> UserAuth.log_in_user(user, user_params)
+    else
+      {:sudo, false} ->
+        conn
+        |> put_session(:user_return_to, ~p"/users/settings")
+        |> put_flash(:error, "Du måste logga in igen för att se den här sidan.")
+        |> redirect(to: ~p"/users/log-in")
+
+      {:error, %Ecto.Changeset{}} ->
+        conn
+        |> put_flash(
+          :error,
+          "Lösenordet kunde inte ändras. Kontrollera uppgifterna och försök igen."
+        )
+        |> redirect(to: ~p"/users/settings")
+    end
   end
 
   def delete(conn, _params) do

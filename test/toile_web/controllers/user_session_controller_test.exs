@@ -174,6 +174,103 @@ defmodule ToileWeb.UserSessionControllerTest do
 
       assert redirected_to(conn) == ~p"/users/log-in"
     end
+
+    test "redirects to login page when magic link is not valid Base64url", %{conn: conn} do
+      conn = post(conn, ~p"/users/log-in", %{"user" => %{"token" => "!"}})
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+               "Länken är ogiltig eller har gått ut."
+
+      assert redirected_to(conn) == ~p"/users/log-in"
+    end
+  end
+
+  describe "POST /users/update-password" do
+    @new_password "a brand new password"
+
+    test "updates the password and logs the user in again", %{conn: conn, user: user} do
+      conn = log_in_user(conn, user)
+      old_token = get_session(conn, :user_token)
+
+      conn =
+        post(conn, ~p"/users/update-password", %{
+          "user" => %{
+            "email" => user.email,
+            "password" => @new_password,
+            "password_confirmation" => @new_password
+          }
+        })
+
+      assert redirected_to(conn) == ~p"/users/settings"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) == "Lösenordet är ändrat."
+      assert get_session(conn, :user_token) != old_token
+      refute Accounts.get_user_by_session_token(old_token)
+      assert Accounts.get_user_by_email_and_password(user.email, @new_password)
+    end
+
+    test "asks for reauthentication when sudo mode has expired", %{conn: conn, user: user} do
+      twenty_one_minutes_ago = DateTime.add(DateTime.utc_now(:second), -21, :minute)
+      conn = log_in_user(conn, user, token_authenticated_at: twenty_one_minutes_ago)
+      token = get_session(conn, :user_token)
+
+      conn =
+        post(conn, ~p"/users/update-password", %{
+          "user" => %{
+            "email" => user.email,
+            "password" => @new_password,
+            "password_confirmation" => @new_password
+          }
+        })
+
+      assert redirected_to(conn) == ~p"/users/log-in"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+               "Du måste logga in igen för att se den här sidan."
+
+      assert get_session(conn, :user_return_to) == ~p"/users/settings"
+      refute Accounts.get_user_by_email_and_password(user.email, @new_password)
+      # The session is kept so the user can reauthenticate.
+      assert Accounts.get_user_by_session_token(token)
+    end
+
+    test "redirects back to settings with an error for invalid data", %{conn: conn, user: user} do
+      conn = log_in_user(conn, user)
+      token = get_session(conn, :user_token)
+
+      conn =
+        post(conn, ~p"/users/update-password", %{
+          "user" => %{
+            "email" => user.email,
+            "password" => "short",
+            "password_confirmation" => "different"
+          }
+        })
+
+      assert redirected_to(conn) == ~p"/users/settings"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Lösenordet kunde inte ändras"
+      refute Accounts.get_user_by_email_and_password(user.email, "short")
+      # Failed attempts must not revoke the user's sessions.
+      assert Accounts.get_user_by_session_token(token)
+    end
+
+    test "rejects a password over 72 bytes", %{conn: conn, user: user} do
+      conn = log_in_user(conn, user)
+      multi_byte = String.duplicate("å", 40)
+
+      conn =
+        post(conn, ~p"/users/update-password", %{
+          "user" => %{"password" => multi_byte, "password_confirmation" => multi_byte}
+        })
+
+      assert redirected_to(conn) == ~p"/users/settings"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Lösenordet kunde inte ändras"
+      refute Accounts.get_user_by_email_and_password(user.email, multi_byte)
+    end
+
+    test "redirects to login when not logged in", %{conn: conn} do
+      conn = post(conn, ~p"/users/update-password", %{"user" => %{"password" => @new_password}})
+      assert redirected_to(conn) == ~p"/users/log-in"
+    end
   end
 
   describe "DELETE /users/log-out" do
