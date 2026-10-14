@@ -176,6 +176,10 @@ defmodule Toile.Accounts do
   change token of the user is deleted, so each change link works at most once
   and only while the email is still the one it was issued for.
 
+  Only tokens issued to `user` count. The context alone is not enough: it holds
+  the address the change was requested from, and that address may since have
+  moved to another account.
+
   The user row is locked before the token is read, so concurrent confirmations
   (even with different links) run one after the other: once one has changed the
   email, the others find no matching token and fail. Returns
@@ -187,7 +191,8 @@ defmodule Toile.Accounts do
       with %User{email: email} = locked_user when email == user.email <- lock_user(user.id),
            context = "change:#{email}",
            {:ok, query} <- UserToken.verify_change_email_token_query(token, context),
-           %UserToken{sent_to: new_email} <- Repo.one(query),
+           %UserToken{sent_to: new_email} <-
+             Repo.one(from(t in query, where: t.user_id == ^locked_user.id)),
            {count, _} when count > 0 <-
              Repo.delete_all(from(UserToken, where: [user_id: ^user.id, context: ^context])),
            {:ok, user} <- Repo.update(User.email_changeset(locked_user, %{email: new_email})) do

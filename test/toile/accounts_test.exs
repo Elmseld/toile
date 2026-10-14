@@ -169,6 +169,32 @@ defmodule Toile.AccountsTest do
       assert Repo.get_by(UserToken, user_id: user.id)
     end
 
+    test "does not accept a change token issued to another account for a reused address",
+         %{user: former_owner, token: foreign_token} do
+      # The former owner's token has context "change:<old address>". They then
+      # move to another address and someone else takes the old one.
+      {:ok, _} =
+        former_owner |> User.email_changeset(%{email: unique_user_email()}) |> Repo.update()
+
+      victim = unconfirmed_user_fixture(%{email: former_owner.email})
+
+      # The victim has a pending change of their own for the same context.
+      _ =
+        extract_user_token(fn url ->
+          Accounts.deliver_user_update_email_instructions(
+            %{victim | email: unique_user_email()},
+            victim.email,
+            url
+          )
+        end)
+
+      assert Accounts.update_user_email(victim, foreign_token) ==
+               {:error, :transaction_aborted}
+
+      assert Repo.get!(User, victim.id).email == victim.email
+      assert Repo.get_by(UserToken, user_id: victim.id, context: "change:#{victim.email}")
+    end
+
     test "does not update email if token expired", %{user: user, token: token} do
       {1, nil} = Repo.update_all(UserToken, set: [inserted_at: ~N[2020-01-01 00:00:00]])
 
