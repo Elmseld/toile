@@ -4,9 +4,17 @@ defmodule ToileWeb.PageControllerTest do
   import Toile.AccountsFixtures
 
   describe "GET /" do
-    test "renders the start page for logged-out visitors", %{conn: conn} do
+    test "renders the Toile description for logged-out visitors", %{conn: conn} do
       conn = get(conn, ~p"/")
-      assert html_response(conn, 200)
+      document = conn |> html_response(200) |> LazyHTML.from_document()
+
+      refute Enum.empty?(LazyHTML.query(document, "#landing"))
+
+      assert document |> LazyHTML.query("#landing-register") |> LazyHTML.attribute("href") ==
+               [~p"/users/register"]
+
+      assert document |> LazyHTML.query("#landing-log-in") |> LazyHTML.attribute("href") ==
+               [~p"/users/log-in"]
     end
 
     test "redirects logged-in users to Mina mönster", %{conn: conn} do
