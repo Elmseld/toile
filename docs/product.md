@@ -10,6 +10,9 @@ mönsterkonstruktörer. Båda grupperna använder samma motor men får olika myc
 
 ## Användare och roller
 - **Användare**: ett konto, egna måttprofiler och egna mönsterprojekt. Ser och ändrar bara sitt eget.
+  Registrerar sig med e-post, bekräftar via länk och loggar in med e-postlänk eller lösenord. Glömt
+  lösenord: logga in med e-postlänk och välj nytt lösenord under Inställningar. Inloggade hamnar på
+  "Mina mönster" (`/patterns`), utloggade ser en kort beskrivning av Toile.
 - Lägen (kommer efter MVP): **hobbyläge** (reglage och guidad anpassning) och **proffsläge**
   (fri konstruktion, formler, gradering). I MVP finns ett läge, närmast proffsläget men enkelt.
 

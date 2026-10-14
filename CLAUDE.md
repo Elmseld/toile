@@ -18,4 +18,4 @@ CI (`.github/workflows/ci.yml`) runs both sets of checks. Tool versions are pinn
 ## Conventions
 - Lengths are millimeters everywhere in code and storage. Only the UI shows centimeters.
 - Coordinates follow SVG: origin top left, y down.
-- User-owned data (measurement profiles, pattern projects) is always scoped to the current user.
+- User-owned data (measurement profiles, pattern projects) is always scoped to the current user. Follow `docs/adr/0001-scope-per-anvandare.md` (context functions take `%Toile.Accounts.Scope{}` first; generate with `mix phx.gen.live`). Routes for such data go in the `:require_authenticated_user` live_session in `lib/toile_web/router.ex`.
