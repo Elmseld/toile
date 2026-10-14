@@ -428,6 +428,81 @@ defmodule Toile.AccountsTest do
     end
   end
 
+  describe "request_user_email_change/3" do
+    import Swoosh.TestAssertions
+
+    setup do
+      user = user_fixture()
+      # Drop the email sent while creating the fixture.
+      assert_email_sent()
+      %{user: user}
+    end
+
+    test "sends a change link to a free address", %{user: user} do
+      email = unique_user_email()
+
+      assert {:ok, ^email} =
+               Accounts.request_user_email_change(
+                 user,
+                 %{email: email},
+                 &"http://localhost/users/settings/confirm-email/#{&1}"
+               )
+
+      assert Repo.get_by(UserToken, user_id: user.id, context: "change:#{user.email}")
+
+      assert_email_sent(fn sent ->
+        assert sent.to == [{"", email}]
+        assert sent.subject == "Ändra e-postadress för Toile"
+      end)
+    end
+
+    test "returns the same result for a taken address and sends no change link",
+         %{user: user} do
+      %{email: taken} = other = user_fixture()
+      assert_email_sent()
+
+      assert {:ok, ^taken} =
+               Accounts.request_user_email_change(
+                 user,
+                 %{email: taken},
+                 &"http://localhost/users/settings/confirm-email/#{&1}"
+               )
+
+      refute Repo.get_by(UserToken, user_id: user.id, context: "change:#{user.email}")
+      assert Accounts.get_user!(user.id).email == user.email
+      assert Accounts.get_user!(other.id).email == taken
+
+      assert_email_sent(fn sent ->
+        assert sent.to == [{"", taken}]
+        refute sent.text_body =~ "confirm-email"
+        assert sent.subject == "Någon försökte använda din e-postadress på Toile"
+      end)
+
+      assert_no_email_sent()
+    end
+
+    test "returns the changeset for other validation errors", %{user: user} do
+      assert {:error, changeset} =
+               Accounts.request_user_email_change(
+                 user,
+                 %{email: "not valid"},
+                 &"http://localhost/users/settings/confirm-email/#{&1}"
+               )
+
+      assert %{email: ["must have the @ sign and no spaces"]} = errors_on(changeset)
+
+      assert {:error, changeset} =
+               Accounts.request_user_email_change(
+                 user,
+                 %{email: user.email},
+                 &"http://localhost/users/settings/confirm-email/#{&1}"
+               )
+
+      assert %{email: ["did not change"]} = errors_on(changeset)
+      assert_no_email_sent()
+    end
+  end
+
   describe "deliver_login_instructions/2" do
     setup do
       %{user: unconfirmed_user_fixture()}

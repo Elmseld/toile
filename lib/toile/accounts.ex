@@ -321,6 +321,57 @@ defmodule Toile.Accounts do
     UserNotifier.deliver_update_email_instructions(user, update_email_url_fun.(encoded_token))
   end
 
+  @doc ~S"""
+  Requests an email change for `user`, without revealing whether the new
+  address already belongs to another account.
+
+  If the new address is valid and free, a confirmation link built with
+  `update_email_url_fun` is sent to it. If the only problem is that the address
+  is already taken, no change link is sent; the owner of that address gets a
+  short notice instead, and the result is the same as for a free address.
+
+  Returns `{:ok, new_email}` in both of those cases, or `{:error, changeset}`
+  for any other validation error (bad format, unchanged email, ...).
+
+  ## Examples
+
+      iex> request_user_email_change(user, %{email: "free@example.com"}, &url(~p"/users/settings/confirm-email/#{&1}"))
+      {:ok, "free@example.com"}
+
+      iex> request_user_email_change(user, %{email: "taken@example.com"}, &url(~p"/users/settings/confirm-email/#{&1}"))
+      {:ok, "taken@example.com"}
+
+      iex> request_user_email_change(user, %{email: "bad"}, &url(~p"/users/settings/confirm-email/#{&1}"))
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def request_user_email_change(%User{} = user, attrs, update_email_url_fun)
+      when is_function(update_email_url_fun, 1) do
+    changeset = change_user_email(user, attrs)
+
+    cond do
+      changeset.valid? ->
+        new_user = Ecto.Changeset.apply_action!(changeset, :update)
+
+        {:ok, _} =
+          deliver_user_update_email_instructions(new_user, user.email, update_email_url_fun)
+
+        {:ok, new_user.email}
+
+      only_email_taken_error?(changeset) ->
+        email = Ecto.Changeset.get_field(changeset, :email)
+
+        if owner = get_user_by_email(email) do
+          {:ok, _} = UserNotifier.deliver_email_change_attempt_notice(owner)
+        end
+
+        {:ok, email}
+
+      true ->
+        {:error, Map.put(changeset, :action, :update)}
+    end
+  end
+
   @doc """
   Delivers the magic link login instructions to the given user.
   """

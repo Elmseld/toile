@@ -116,20 +116,20 @@ defmodule ToileWeb.UserLive.Settings do
     user = socket.assigns.current_scope.user
     true = Accounts.sudo_mode?(user)
 
-    case Accounts.change_user_email(user, user_params) do
-      %{valid?: true} = changeset ->
-        Accounts.deliver_user_update_email_instructions(
-          Ecto.Changeset.apply_action!(changeset, :insert),
-          user.email,
-          &url(~p"/users/settings/confirm-email/#{&1}")
-        )
-
+    # A taken address gets the same response as a free one so the form does
+    # not reveal which addresses have accounts.
+    case Accounts.request_user_email_change(
+           user,
+           user_params,
+           &url(~p"/users/settings/confirm-email/#{&1}")
+         ) do
+      {:ok, _email} ->
         info =
           "Vi har skickat en länk till den nya adressen. Öppna den för att bekräfta ändringen."
 
         {:noreply, socket |> put_flash(:info, info)}
 
-      changeset ->
+      {:error, changeset} ->
         {:noreply, assign(socket, :email_form, to_form(changeset, action: :insert))}
     end
   end

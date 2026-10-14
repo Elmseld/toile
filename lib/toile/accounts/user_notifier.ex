@@ -39,6 +39,26 @@ defmodule Toile.Accounts.UserNotifier do
   end
 
   @doc """
+  Deliver a notice that another account tried to change its email address to
+  this user's address. Nothing about this user's account changes.
+  """
+  def deliver_email_change_attempt_notice(user) do
+    deliver(user.email, "Någon försökte använda din e-postadress på Toile", """
+
+    ==============================
+
+    Hej #{user.email},
+
+    Någon försökte nyss byta e-postadressen på ett annat Toile-konto till din
+    adress. Eftersom adressen redan hör till ditt konto har ingenting ändrats.
+
+    Om det inte var du kan du bortse från mejlet. Ditt konto är oförändrat.
+
+    ==============================
+    """)
+  end
+
+  @doc """
   Deliver instructions to log in with a magic link.
   """
   def deliver_login_instructions(user, url) do

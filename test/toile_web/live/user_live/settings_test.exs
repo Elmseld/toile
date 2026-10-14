@@ -3,6 +3,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
 
   alias Toile.Accounts
   import Phoenix.LiveViewTest
+  import Swoosh.TestAssertions
   import Toile.AccountsFixtures
 
   describe "Settings page" do
@@ -57,6 +58,49 @@ defmodule ToileWeb.UserLive.SettingsTest do
 
       assert result =~ "Vi har skickat en länk till den nya adressen"
       assert Accounts.get_user_by_email(user.email)
+    end
+
+    test "gives the same response for a taken address and sends no change link",
+         %{conn: conn, user: user} do
+      %{email: taken} = user_fixture()
+      # Drop the emails sent while creating both fixtures.
+      assert_email_sent()
+      assert_email_sent()
+      free = unique_user_email()
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      free_result =
+        lv
+        |> form("#email_form", %{"user" => %{"email" => free}})
+        |> render_submit()
+
+      assert_email_sent(subject: "Ändra e-postadress för Toile", to: free)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      taken_result =
+        lv
+        |> form("#email_form", %{"user" => %{"email" => taken}})
+        |> render_submit()
+
+      for result <- [free_result, taken_result] do
+        assert result =~ "Vi har skickat en länk till den nya adressen"
+        refute result =~ "has already been taken"
+      end
+
+      # Only the free address got a change link.
+      assert [%{sent_to: ^free}] =
+               Toile.Repo.all_by(Accounts.UserToken,
+                 user_id: user.id,
+                 context: "change:#{user.email}"
+               )
+
+      assert_email_sent(
+        subject: "Någon försökte använda din e-postadress på Toile",
+        to: taken
+      )
+
+      assert_no_email_sent()
     end
 
     test "renders errors with invalid data (phx-change)", %{conn: conn} do
