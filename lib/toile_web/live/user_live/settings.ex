@@ -114,23 +114,11 @@ defmodule ToileWeb.UserLive.Settings do
   def handle_event("update_email", params, socket) do
     %{"user" => user_params} = params
     user = socket.assigns.current_scope.user
-    true = Accounts.sudo_mode?(user)
 
-    # A taken address gets the same response as a free one so the form does
-    # not reveal which addresses have accounts.
-    case Accounts.request_user_email_change(
-           user,
-           user_params,
-           &url(~p"/users/settings/confirm-email/#{&1}")
-         ) do
-      {:ok, _email} ->
-        info =
-          "Vi har skickat en länk till den nya adressen. Öppna den för att bekräfta ändringen."
-
-        {:noreply, socket |> put_flash(:info, info)}
-
-      {:error, changeset} ->
-        {:noreply, assign(socket, :email_form, to_form(changeset, action: :insert))}
+    if Accounts.sudo_mode?(user) do
+      request_email_change(socket, user, user_params)
+    else
+      {:noreply, require_reauthentication(socket)}
     end
   end
 
@@ -149,8 +137,34 @@ defmodule ToileWeb.UserLive.Settings do
   def handle_event("update_password", params, socket) do
     %{"user" => user_params} = params
     user = socket.assigns.current_scope.user
-    true = Accounts.sudo_mode?(user)
 
+    if Accounts.sudo_mode?(user) do
+      update_password(socket, user, user_params)
+    else
+      {:noreply, require_reauthentication(socket)}
+    end
+  end
+
+  defp request_email_change(socket, user, user_params) do
+    # A taken address gets the same response as a free one so the form does
+    # not reveal which addresses have accounts.
+    case Accounts.request_user_email_change(
+           user,
+           user_params,
+           &url(~p"/users/settings/confirm-email/#{&1}")
+         ) do
+      {:ok, _email} ->
+        info =
+          "Vi har skickat en länk till den nya adressen. Öppna den för att bekräfta ändringen."
+
+        {:noreply, socket |> put_flash(:info, info)}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :email_form, to_form(changeset, action: :insert))}
+    end
+  end
+
+  defp update_password(socket, user, user_params) do
     case Accounts.change_user_password(user, user_params) do
       %{valid?: true} = changeset ->
         {:noreply, assign(socket, trigger_submit: true, password_form: to_form(changeset))}
@@ -158,5 +172,14 @@ defmodule ToileWeb.UserLive.Settings do
       changeset ->
         {:noreply, assign(socket, password_form: to_form(changeset, action: :insert))}
     end
+  end
+
+  # Sudo mode can expire while the page is open. Send the user to log in again
+  # instead of crashing; once logged in, `UserAuth.log_in_user/3` falls back to
+  # the settings page for an already signed-in user.
+  defp require_reauthentication(socket) do
+    socket
+    |> put_flash(:error, "Du måste logga in igen för att se den här sidan.")
+    |> redirect(to: ~p"/users/log-in")
   end
 end

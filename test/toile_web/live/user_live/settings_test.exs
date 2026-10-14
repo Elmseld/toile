@@ -131,6 +131,26 @@ defmodule ToileWeb.UserLive.SettingsTest do
       assert result =~ "Ändra e-post"
       assert result =~ "did not change"
     end
+
+    test "redirects to log in when sudo mode expired while the page was open", %{
+      conn: conn,
+      user: user
+    } do
+      # Drop the email sent while creating the fixture.
+      assert_email_sent()
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+      expire_sudo_mode(lv)
+
+      {:ok, login_conn} =
+        lv
+        |> form("#email_form", %{"user" => %{"email" => unique_user_email()}})
+        |> render_submit()
+        |> follow_redirect(conn, ~p"/users/log-in")
+
+      assert login_conn.resp_body =~ "Du måste logga in igen för att se den här sidan."
+      assert Accounts.get_user_by_email(user.email)
+      refute_email_sent()
+    end
   end
 
   describe "update password form" do
@@ -201,6 +221,30 @@ defmodule ToileWeb.UserLive.SettingsTest do
       assert result =~ "Spara lösenord"
       assert result =~ "should be at least 12 character(s)"
       assert result =~ "does not match password"
+    end
+
+    test "redirects to log in when sudo mode expired while the page was open", %{
+      conn: conn,
+      user: user
+    } do
+      new_password = valid_user_password()
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+      expire_sudo_mode(lv)
+
+      {:ok, login_conn} =
+        lv
+        |> form("#password_form", %{
+          "user" => %{
+            "email" => user.email,
+            "password" => new_password,
+            "password_confirmation" => new_password
+          }
+        })
+        |> render_submit()
+        |> follow_redirect(conn, ~p"/users/log-in")
+
+      assert login_conn.resp_body =~ "Du måste logga in igen för att se den här sidan."
+      refute Accounts.get_user_by_email_and_password(user.email, new_password)
     end
   end
 
@@ -286,5 +330,15 @@ defmodule ToileWeb.UserLive.SettingsTest do
       assert %{"error" => message} = flash
       assert message == "Du måste logga in för att se den här sidan."
     end
+  end
+
+  # Simulates the sudo window running out while the settings page stays open by
+  # back-dating the user's authentication time in the running LiveView.
+  defp expire_sudo_mode(lv) do
+    expired_at = DateTime.add(DateTime.utc_now(:second), -21, :minute)
+
+    :sys.replace_state(lv.pid, fn state ->
+      update_in(state.socket.assigns.current_scope.user, &%{&1 | authenticated_at: expired_at})
+    end)
   end
 end
