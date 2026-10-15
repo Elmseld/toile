@@ -461,17 +461,26 @@ defmodule Toile.Accounts do
   ## Token helper
 
   # Locks the user row for the rest of the current transaction. Every
-  # transaction that changes a user and their tokens takes this lock (or the
-  # equivalent row lock of an `UPDATE users`) before touching any token, which
-  # gives all of them the same lock order and rules out deadlocks.
+  # transaction that changes a user and their tokens takes this lock before
+  # touching any token, which gives all of them the same lock order and rules
+  # out deadlocks.
+  #
+  # It has to be `FOR UPDATE`: an `UPDATE users` that leaves the key alone only
+  # takes `FOR NO KEY UPDATE`, which still lets the foreign key check of a
+  # concurrent `users_tokens` insert (`FOR KEY SHARE`) through. `FOR UPDATE`
+  # makes such an insert wait until this transaction has finished.
   defp lock_user(user_id) do
     Repo.one(from(u in User, where: u.id == ^user_id, lock: "FOR UPDATE"))
   end
 
-  defp update_user_and_delete_all_tokens(changeset) do
+  # Revoking every token only works if no token can be inserted between
+  # collecting them and committing, so the user row is locked with
+  # `lock_user/1` first rather than relying on the lock of the UPDATE.
+  defp update_user_and_delete_all_tokens(%Ecto.Changeset{data: %User{id: user_id}} = changeset) do
     Repo.transact(fn ->
-      # The UPDATE locks the user row before any token is deleted, keeping the
-      # same lock order as `lock_user/1`.
+      # A deleted user is left to the UPDATE, which raises as it did before.
+      lock_user(user_id)
+
       with {:ok, user} <- Repo.update(changeset) do
         {:ok, {user, delete_all_user_tokens(user)}}
       end

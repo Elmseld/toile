@@ -57,12 +57,60 @@ defmodule Toile.Accounts.SessionTokenConcurrencyTest do
 
     # Only let the update commit once the login is blocked on the user row, so
     # the login necessarily reads the row as the update left it.
-    wait_until_waiting_on_lock(backend_pid)
+    wait_until_waiting_on_lock(backend_pid, "the login")
     send(reset.pid, :commit)
 
     assert {:ok, {%User{}, _expired}} = Task.await(reset)
     assert Task.await(login) == {:error, :credentials_changed}
     assert session_tokens(user) == []
+  end
+
+  test "an email token issued during a password update is not left out of the revocation" do
+    user = unboxed_user(fn -> user_fixture() |> set_password() end)
+    test_pid = self()
+
+    # A password update that holds the user row lock until told to commit.
+    reset =
+      Task.async(fn ->
+        unboxed(fn ->
+          Repo.transact(fn ->
+            {:ok, result} = Accounts.update_user_password(user, %{password: @new_password})
+            send(test_pid, :password_updated)
+
+            receive do
+              :commit -> {:ok, result}
+            end
+          end)
+        end)
+      end)
+
+    assert_receive :password_updated, 5_000
+
+    issue =
+      Task.async(fn ->
+        unboxed(fn ->
+          %{rows: [[backend_pid]]} = Repo.query!("SELECT pg_backend_pid()")
+          send(test_pid, {:issue_backend, backend_pid})
+          extract_user_token(&Accounts.deliver_login_instructions(user, &1))
+        end)
+      end)
+
+    assert_receive {:issue_backend, backend_pid}, 5_000
+
+    # The update has already collected the tokens to revoke. If the insert got
+    # through now it would commit before the update and survive it; it has to
+    # wait for the update instead.
+    wait_until_waiting_on_lock(backend_pid, "the token insert")
+    send(reset.pid, :commit)
+
+    assert {:ok, {%User{}, expired}} = Task.await(reset)
+    token = Task.await(issue)
+
+    # The token was created after the update committed, so it is a fresh
+    # token for the new credentials, not one the update failed to revoke.
+    assert [%UserToken{id: id}] = unboxed(fn -> Repo.all_by(UserToken, user_id: user.id) end)
+    refute id in Enum.map(expired, & &1.id)
+    assert unboxed(fn -> Accounts.get_user_by_magic_link_token(token) end).id == user.id
   end
 
   test "no session from a login with the old password survives concurrent password updates" do
@@ -96,7 +144,9 @@ defmodule Toile.Accounts.SessionTokenConcurrencyTest do
     end
   end
 
-  defp wait_until_waiting_on_lock(backend_pid, attempts \\ 500) do
+  # Polls pg_stat_activity on a third connection; config/test.exs keeps the
+  # pool large enough for that even with a single scheduler.
+  defp wait_until_waiting_on_lock(backend_pid, what, attempts \\ 500) do
     %{rows: rows} =
       unboxed(fn ->
         Repo.query!("SELECT wait_event_type FROM pg_stat_activity WHERE pid = $1", [backend_pid])
@@ -107,11 +157,11 @@ defmodule Toile.Accounts.SessionTokenConcurrencyTest do
         :ok
 
       attempts == 0 ->
-        flunk("the login never waited on the user row lock")
+        flunk("#{what} never waited on the user row lock")
 
       true ->
         Process.sleep(10)
-        wait_until_waiting_on_lock(backend_pid, attempts - 1)
+        wait_until_waiting_on_lock(backend_pid, what, attempts - 1)
     end
   end
 
