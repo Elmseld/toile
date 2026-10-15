@@ -8,6 +8,11 @@ An app for drafting and developing sewing patterns. Start from parametric base b
 
 ## Development
 
+Tool versions (Erlang, Elixir, Bun) are pinned in `.tool-versions`, and CI reads the same file.
+From the repo root, install them with `asdf install` or `mise install`. Alternatively, check that
+Homebrew's `erlang` and `elixir` match the pinned versions. After an Erlang/OTP change, run
+`mix local.hex --force` and `mix deps.clean --all && rm -rf _build` before `mix setup`.
+
 ```bash
 docker compose up -d
 mix setup
