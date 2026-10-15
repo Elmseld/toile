@@ -1,7 +1,7 @@
 ---
 id: 0014
 title: Run the whole development environment in Docker
-status: todo
+status: in-progress
 type: chore
 ---
 

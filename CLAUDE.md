@@ -8,10 +8,12 @@ Read `docs/product.md` for what the product is and its principles, and `AGENTS.m
 - `docs/tickets/`: work items for `/ship`. `docs/adr/`: architecture decisions.
 
 ## Running things
-- Database: `docker compose up -d` (Postgres 17 on localhost:5432).
-- App checks: `mix precommit` (compile with warnings as errors, unused deps, format, test).
-- Engine checks: `cd engine && bun run typecheck && bun test`.
-- Dev server: `mix phx.server` on localhost:4000.
+Everything runs in Docker; no Erlang, Elixir or Bun is needed on the host.
+- Start: `docker compose up` (Postgres and the app on localhost:4000, code reloading). Use `docker compose up -d` to run in the background.
+- App checks: `docker compose exec app mix precommit` (compile with warnings as errors, unused deps, format, test).
+- Engine checks: `docker compose exec app sh -c "cd engine && bun run typecheck && bun test"`.
+- Any mix task or generator: `docker compose exec app mix <task>`. If the app is not running, use `docker compose run --rm app mix <task>`.
+- Versions: `.tool-versions` is the single source. The `Dockerfile` `ARG`s must match it; `bin/check-tool-versions` checks this in CI.
 
 CI (`.github/workflows/ci.yml`) runs both sets of checks. Tool versions are pinned in `.tool-versions`.
 
