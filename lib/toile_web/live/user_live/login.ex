@@ -19,7 +19,7 @@ defmodule ToileWeb.UserLive.Login do
                   navigate={~p"/users/register"}
                   class="font-semibold text-brand hover:underline"
                   phx-no-format
-                >{gettext("Sign up")}</.link> {gettext("now")}.
+                >{gettext("Sign up")}</.link> {pgettext("login sign-up link", "now")}.
               <% end %>
             </:subtitle>
           </.header>
@@ -30,8 +30,8 @@ defmodule ToileWeb.UserLive.Login do
           <div>
             <p>{gettext("You are running the local mail adapter.")}</p>
             <p>
-              {gettext("Sent emails are on the")}
-              <.link href="/dev/mailbox" class="underline" phx-no-format>{gettext("mailbox page")}</.link>.
+              {pgettext("login mailbox link", "Sent emails are on the")}
+              <.link href="/dev/mailbox" class="underline" phx-no-format>{pgettext("login mailbox link", "mailbox page")}</.link>.
             </p>
           </div>
         </div>

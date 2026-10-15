@@ -17,7 +17,7 @@ defmodule ToileWeb.UserLive.Registration do
               <.link navigate={~p"/users/log-in"} class="font-semibold text-brand hover:underline">
                 {gettext("Log in")}
               </.link>
-              {gettext("here")}.
+              {pgettext("registration log-in link", "here")}.
             </:subtitle>
           </.header>
         </div>

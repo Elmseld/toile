@@ -379,11 +379,6 @@ msgstr ""
 
 #: lib/toile_web/live/user_live/login.ex
 #, elixir-autogen, elixir-format
-msgid "Sent emails are on the"
-msgstr ""
-
-#: lib/toile_web/live/user_live/login.ex
-#, elixir-autogen, elixir-format
 msgid "Sign up"
 msgstr ""
 
@@ -432,22 +427,31 @@ msgstr ""
 msgid "Your email address has been changed."
 msgstr ""
 
-#: lib/toile_web/live/user_live/registration.ex
+#: lib/toile_web/live/user_live/login.ex
 #, elixir-autogen, elixir-format
-msgid "here"
+msgid "or"
 msgstr ""
 
 #: lib/toile_web/live/user_live/login.ex
 #, elixir-autogen, elixir-format
+msgctxt "login mailbox link"
+msgid "Sent emails are on the"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgctxt "login mailbox link"
 msgid "mailbox page"
 msgstr ""
 
 #: lib/toile_web/live/user_live/login.ex
 #, elixir-autogen, elixir-format
+msgctxt "login sign-up link"
 msgid "now"
 msgstr ""
 
-#: lib/toile_web/live/user_live/login.ex
+#: lib/toile_web/live/user_live/registration.ex
 #, elixir-autogen, elixir-format
-msgid "or"
+msgctxt "registration log-in link"
+msgid "here"
 msgstr ""

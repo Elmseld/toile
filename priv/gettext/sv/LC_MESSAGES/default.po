@@ -379,11 +379,6 @@ msgstr "Sparar..."
 
 #: lib/toile_web/live/user_live/login.ex
 #, elixir-autogen, elixir-format
-msgid "Sent emails are on the"
-msgstr "Skickade mejl finns på"
-
-#: lib/toile_web/live/user_live/login.ex
-#, elixir-autogen, elixir-format
 msgid "Sign up"
 msgstr "Registrera dig"
 
@@ -432,22 +427,31 @@ msgstr "Du behöver logga in igen för att göra känsliga ändringar i ditt kon
 msgid "Your email address has been changed."
 msgstr "E-postadressen är ändrad."
 
-#: lib/toile_web/live/user_live/registration.ex
+#: lib/toile_web/live/user_live/login.ex
 #, elixir-autogen, elixir-format
-msgid "here"
-msgstr "här"
+msgid "or"
+msgstr "eller"
 
 #: lib/toile_web/live/user_live/login.ex
 #, elixir-autogen, elixir-format
+msgctxt "login mailbox link"
+msgid "Sent emails are on the"
+msgstr "Skickade mejl finns på"
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgctxt "login mailbox link"
 msgid "mailbox page"
 msgstr "brevlådesidan"
 
 #: lib/toile_web/live/user_live/login.ex
 #, elixir-autogen, elixir-format
+msgctxt "login sign-up link"
 msgid "now"
 msgstr "nu"
 
-#: lib/toile_web/live/user_live/login.ex
+#: lib/toile_web/live/user_live/registration.ex
 #, elixir-autogen, elixir-format
-msgid "or"
-msgstr "eller"
+msgctxt "registration log-in link"
+msgid "here"
+msgstr "här"
