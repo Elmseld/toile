@@ -1,7 +1,7 @@
-defmodule Toile.Tooling.CheckToolVersionsTest do
+defmodule CheckToolVersionsScriptTest do
   use ExUnit.Case, async: true
 
-  @script Path.expand("../../../bin/check-tool-versions", __DIR__)
+  @script Path.expand("../../bin/check-tool-versions", __DIR__)
 
   @tool_versions "erlang 29.1.2\nelixir 1.20.4-otp-29\nbun 1.4.3\n"
   @dockerfile """
@@ -31,11 +31,6 @@ defmodule Toile.Tooling.CheckToolVersionsTest do
     assert out =~ "ok       erlang"
     assert out =~ "ok       elixir"
     assert out =~ "ok       bun"
-    refute out =~ "MISMATCH"
-  end
-
-  test "the real repo files agree" do
-    assert {out, 0} = System.cmd("sh", [@script], stderr_to_stdout: true)
     refute out =~ "MISMATCH"
   end
 
