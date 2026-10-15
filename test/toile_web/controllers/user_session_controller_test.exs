@@ -113,6 +113,48 @@ defmodule ToileWeb.UserSessionControllerTest do
     end
   end
 
+  describe "POST /users/log-in - malformed params" do
+    for {name, params} <- [
+          {"no user key", %{}},
+          {"user is not a map", %{"user" => "nope"}},
+          {"empty user map", %{"user" => %{}}},
+          {"missing password", %{"user" => %{"email" => "a@example.com"}}},
+          {"missing email", %{"user" => %{"password" => "hello world!!"}}},
+          {"email is a list",
+           %{"user" => %{"email" => ["a@example.com"], "password" => "hello world!!"}}},
+          {"password is a map",
+           %{"user" => %{"email" => "a@example.com", "password" => %{"x" => "y"}}}},
+          {"token is a list", %{"user" => %{"token" => ["abc"]}}},
+          {"token is a map", %{"user" => %{"token" => %{"a" => "b"}}}}
+        ] do
+      @params params
+      test "gives the generic login error when #{name}", %{conn: conn} do
+        conn = post(conn, ~p"/users/log-in", @params)
+
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Fel e-post eller lösenord."
+        assert redirected_to(conn) == ~p"/users/log-in"
+        refute get_session(conn, :user_token)
+      end
+    end
+
+    test "a non-string token does not fall back to password login", %{conn: conn, user: user} do
+      user = set_password(user)
+
+      conn =
+        post(conn, ~p"/users/log-in", %{
+          "user" => %{
+            "token" => ["abc"],
+            "email" => user.email,
+            "password" => valid_user_password()
+          }
+        })
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Fel e-post eller lösenord."
+      assert redirected_to(conn) == ~p"/users/log-in"
+      refute get_session(conn, :user_token)
+    end
+  end
+
   describe "POST /users/log-in - magic link" do
     test "logs the user in", %{conn: conn, user: user} do
       {token, _hashed_token} = generate_user_magic_link_token(user)

@@ -13,7 +13,8 @@ defmodule ToileWeb.UserSessionController do
   end
 
   # magic link login
-  defp create(conn, %{"user" => %{"token" => token} = user_params}, info) do
+  defp create(conn, %{"user" => %{"token" => token} = user_params}, info)
+       when is_binary(token) do
     case Accounts.login_user_by_magic_link(token) do
       {:ok, {user, tokens_to_disconnect}} ->
         UserAuth.disconnect_sessions(tokens_to_disconnect)
@@ -30,21 +31,33 @@ defmodule ToileWeb.UserSessionController do
   end
 
   # email + password login
-  defp create(conn, %{"user" => user_params}, info) do
-    %{"email" => email, "password" => password} = user_params
-
+  defp create(conn, %{"user" => %{"email" => email, "password" => password} = user_params}, info)
+       when is_binary(email) and is_binary(password) and not is_map_key(user_params, "token") do
     if user = Accounts.get_user_by_email_and_password(email, password) do
       conn
       |> put_flash(:info, info)
       |> UserAuth.log_in_user(user, user_params)
     else
-      # In order to prevent user enumeration attacks, don't disclose whether the email is registered.
-      conn
-      |> put_flash(:error, "Fel e-post eller lösenord.")
-      |> put_flash(:email, String.slice(email, 0, 160))
-      |> redirect(to: ~p"/users/log-in")
+      invalid_credentials(conn, email)
     end
   end
+
+  # Missing or malformed params (no "user" map, missing fields, non-string
+  # values) are attacker-controlled input; answer exactly like wrong credentials.
+  defp create(conn, _params, _info), do: invalid_credentials(conn, nil)
+
+  # In order to prevent user enumeration attacks, don't disclose whether the email is registered.
+  defp invalid_credentials(conn, email) do
+    conn
+    |> put_flash(:error, "Fel e-post eller lösenord.")
+    |> maybe_keep_email(email)
+    |> redirect(to: ~p"/users/log-in")
+  end
+
+  defp maybe_keep_email(conn, email) when is_binary(email),
+    do: put_flash(conn, :email, String.slice(email, 0, 160))
+
+  defp maybe_keep_email(conn, _email), do: conn
 
   def update_password(conn, %{"user" => user_params}) do
     user = conn.assigns.current_scope.user
