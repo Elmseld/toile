@@ -1,30 +1,30 @@
 ---
 id: 0008
-title: Editor – flytta punkter och ändra formler och parametrar
+title: Editor – move points and edit formulas and parameters
 status: todo
 type: feature
 ---
 
-## Bakgrund
-Konstruktion handlar om att utgå från ett grundmönster och ändra det. Användaren måste kunna
-justera mönstret direkt, med mus, touch och penna.
+## Background
+Pattern drafting means starting from a basic block and modifying it. The user must be able to
+adjust the pattern directly, using mouse, touch and pen.
 
-## Önskat beteende
-På projektsidan kan användaren välja en punkt och dra den, eller öppna punkten och ändra dess
-formel. Parametrar (t.ex. rörelsevidd) kan ändras i en sidopanel. Allt räknas om direkt.
+## Desired behaviour
+On the project page the user can select a point and drag it, or open the point and edit its
+formula. Parameters (e.g. ease) can be changed in a side panel. Everything is recalculated immediately.
 
-## Acceptanskriterier
-- [ ] Punkter går att markera och dra med mus, touch och penna (pointer events). Dragningen sparas som förskjutning (offset) och beroende punkter och kurvor följer med under dragningen.
-- [ ] Kontrollpunkter för Bézierkurvor går att dra.
-- [ ] En panel visar markerad punkts operation och formler. Ändrade formler valideras, och fel visas utan att mönstret försvinner.
-- [ ] En parameterpanel listar mönstrets parametrar och låter användaren ändra dem.
-- [ ] Ångra och gör om (minst 50 steg) inom en session.
-- [ ] Ändringar sparas till projektet (autosparning eller tydlig spara-knapp). Vid omladdning syns samma mönster.
-- [ ] Omräkning under dragning känns direkt (inga serveranrop per rörelse).
-- [ ] Ett test (LiveView eller JS) täcker att en sparad förskjutning finns kvar efter omladdning.
+## Acceptance criteria
+- [ ] Points can be selected and dragged with mouse, touch and pen (pointer events). The drag is saved as an offset, and dependent points and curves follow along during the drag.
+- [ ] Control points of Bézier curves can be dragged.
+- [ ] A panel shows the selected point's operation and formulas. Edited formulas are validated, and errors are shown without the pattern disappearing.
+- [ ] A parameter panel lists the pattern's parameters and lets the user change them.
+- [ ] Undo and redo (at least 50 steps) within a session.
+- [ ] Changes are saved to the project (autosave or an explicit save button). After a reload the same pattern is shown.
+- [ ] Recalculation during a drag feels instant (no server calls per movement).
+- [ ] A test (LiveView or JS) covers that a saved offset persists after a reload.
 
-## Utanför scope
-- Lägga till nya punkter och linjer från grunden, flytta inprovningar, slash & spread.
+## Out of scope
+- Adding new points and lines from scratch, moving darts, slash & spread.
 
-## Anteckningar
-Motorn finns i klienten via JS-hooken från 0005. Servern tar emot och validerar mönsterdefinitionen vid sparning.
+## Notes
+The engine runs in the client via the JS hook from 0005. The server receives and validates the pattern definition when saving.

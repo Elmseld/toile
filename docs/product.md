@@ -1,65 +1,77 @@
-# Produktbeskrivning
+# Product description
 
-<!-- Agenterna läser den här filen före varje ticket. Håll den aktuell och konkret. -->
+<!-- Agents read this file before every ticket. Keep it current and concrete. -->
 
-## Vad är produkten?
-Toile är en webbapp för att konstruera och utveckla sömnadsmönster. Användaren utgår från
-parametriska grundmönster (livstycke, kjol, ärm) som räknas fram ur egna mått, ändrar dem och
-skriver ut dem i skala 1:1. Appen riktar sig både till hobbysömmare och till yrkesmässiga
-mönsterkonstruktörer. Båda grupperna använder samma motor men får olika mycket av den synlig.
+## What is the product?
+Toile is a web app for drafting and developing sewing patterns. The user starts from parametric
+blocks (bodice, skirt, sleeve) that are calculated from their own measurements, modifies them, and
+prints them at 1:1 scale. The app targets both hobby sewists and professional pattern makers.
+Both groups use the same engine but get different amounts of it exposed.
 
-## Användare och roller
-- **Användare**: ett konto, egna måttprofiler och egna mönsterprojekt. Ser och ändrar bara sitt eget.
-- Lägen (kommer efter MVP): **hobbyläge** (reglage och guidad anpassning) och **proffsläge**
-  (fri konstruktion, formler, gradering). I MVP finns ett läge, närmast proffsläget men enkelt.
+## Users and roles
+- **User**: one account, their own measurement profiles and their own pattern projects. Sees and
+  changes only their own. Registers with email, confirms via a link, and logs in with an email
+  link or a password. Forgotten password: log in with an email link and choose a new password
+  under "Inställningar" (Settings). Registration and email change never reveal whether an address
+  already has an account (the owner gets an email instead). Settings require a recent login.
+  Logged-in users land on "Mina mönster" (My patterns, `/patterns`); logged-out users see a short
+  description of Toile.
+- Modes (after the MVP): **hobby mode** (sliders and guided adjustment) and **pro mode** (free
+  drafting, formulas, grading). The MVP has a single mode, closest to pro mode but kept simple.
 
-## Kärnflöden (MVP)
-1. **Mått**: användaren skapar en måttprofil ("Jag", "Kund Anna") och fyller i mått med hjälptexter.
-2. **Nytt mönster**: användaren väljer grundmönster och måttprofil. Appen räknar fram mönstret och visar det.
-3. **Ändra**: användaren drar i punkter, ändrar formler eller parametrar (t.ex. rörelsevidd), och
-   mönstret räknas om direkt. Byte av måttprofil räknar om hela mönstret.
-4. **Färdigställa**: sömsmån läggs till per kant. Markeringar (trådriktning, hack, vikningskant) visas.
-5. **Skriva ut**: PDF i skala 1:1, kaklad på A4 med överlapp, numrering och testruta.
+## Core flows (MVP)
+1. **Measurements**: the user creates a measurement profile ("Jag", "Kund Anna") and fills in
+   measurements with help texts.
+2. **New pattern**: the user picks a block and a measurement profile. The app calculates the pattern
+   and displays it.
+3. **Modify**: the user drags points, edits formulas or parameters (e.g. ease), and the pattern is
+   recalculated immediately. Switching measurement profile recalculates the whole pattern.
+4. **Finish**: seam allowance is added per edge. Markings (grainline, notches, fold line) are shown.
+5. **Print**: PDF at 1:1 scale, tiled on A4 with overlap, numbering and a test square.
 
-## Domänbegrepp
-| Begrepp | Betydelse |
-|---------|-----------|
-| Mått (measurement) | Ett kroppsmått i en måttprofil, t.ex. `waist`, `hip`, `back_length`. |
-| Måttprofil | Namngiven uppsättning mått för en person. |
-| Grundmönster (block) | Mallmönster definierat med formler mot mått, utan design och utan sömsmån. |
-| Mönsterdefinition | Data (JSON) som beskriver parametrar, punkter, kurvor och mönsterdelar. Det är den som lagras. |
-| Parameter | Namngivet värde som inte är ett kroppsmått, t.ex. `ease_hip`. Kan exponeras som reglage. |
-| Punkt | Definieras av en operation (t.ex. "längs linje A–B, avstånd `waist/4`"), inte av fria koordinater. |
-| Mönsterdel (piece) | Sluten kontur av linjer/kurvor, t.ex. "framstycke". Har trådriktning och sömsmån per kant. |
-| Mönsterprojekt | En användares mönster: en kopia av ett grundmönster och dess ändringar, kopplad till en måttprofil. |
-| Inprovning (dart) | Kilformad intagning som formar plagget. |
-| Sömsmån | Tillägg utanför sömlinjen. |
-| Kakling (tiling) | Uppdelning av ett 1:1-mönster på flera A4-sidor. |
+## Domain glossary
+The UI is Swedish, so the Swedish UI term is given in parentheses.
 
-## Teknik
-- **Phoenix 1.8 / LiveView** (Elixir 1.20, OTP 29) för konton, måttprofiler och lagring av
-  mönsterprojekt. Postgres 17 via `docker compose`.
-- **`engine/`**: mönstermotorn som rent TypeScript-paket (Bun för test och typkontroll).
-  Den tar mönsterdefinition, mått och parametrar och ger geometri. Den har ingen DOM och ingen I/O.
-  Editorn, PDF-exporten och ev. serverrendering använder samma kod.
-- Editorn är en LiveView-sida med en JS-hook som kör motorn i klienten och ritar SVG.
-  Dragning och omräkning sker helt i klienten. Servern får det sparade resultatet (mönsterdefinitionen).
+| Term | Meaning |
+|------|---------|
+| Measurement (mått) | A body measurement in a measurement profile, e.g. `waist`, `hip`, `back_length`. |
+| Measurement profile (måttprofil) | Named set of measurements for one person. |
+| Block (grundmönster) | Template pattern defined by formulas against measurements, without design and without seam allowance. |
+| Pattern definition (mönsterdefinition) | Data (JSON) describing parameters, points, curves and pattern pieces. This is what gets stored. |
+| Parameter | Named value that is not a body measurement, e.g. `ease_hip`. Can be exposed as a slider. |
+| Point (punkt) | Defined by an operation (e.g. "along line A–B, distance `waist/4`"), not by free coordinates. |
+| Pattern piece (mönsterdel) | Closed outline of lines/curves, e.g. "front piece". Has a grainline and seam allowance per edge. |
+| Pattern project (mönsterprojekt) | A user's pattern: a copy of a block plus its modifications, linked to a measurement profile. |
+| Dart (inprovning) | Wedge-shaped fold that shapes the garment. |
+| Seam allowance (sömsmån) | Extra margin outside the seam line. |
+| Tiling (kakling) | Splitting a 1:1 pattern across several A4 pages. |
+
+## Technology
+- **Phoenix 1.8 / LiveView** (Elixir 1.20, OTP 29) for accounts, measurement profiles and storage
+  of pattern projects. Postgres 17 via `docker compose`.
+- **`engine/`**: the pattern engine as a pure TypeScript package (Bun for tests and type checking).
+  It takes a pattern definition, measurements and parameters and returns geometry. It has no DOM
+  and no I/O. The editor, the PDF export and possibly server rendering use the same code.
+- The editor is a LiveView page with a JS hook that runs the engine in the client and draws SVG.
+  Dragging and recalculation happen entirely in the client. The server receives the saved result
+  (the pattern definition).
 - CI: GitHub Actions (`.github/workflows/ci.yml`).
-- Kontroller: se `CLAUDE.md`.
+- Checks: see `CLAUDE.md`.
 
-## Principer och begränsningar
-- **All geometri räknas i motorn.** Elixir lagrar och validerar mönsterdefinitioner men räknar
-  aldrig ut geometri. Ingen geometrilogik i två språk.
-- **Mönster är parametriska.** Punkter definieras relativt mått, parametrar och andra punkter,
-  så att ett mönster går att räkna om för nya mått. Fria koordinater är bara tillåtna som
-  förskjutning (offset) från en definierad punkt.
-- **Enheter**: alla längder lagras och räknas i millimeter. UI visar centimeter med en decimal.
-- **Koordinatsystem**: origo uppe till vänster, x åt höger, y nedåt (som SVG).
-- Allt som en användare äger (måttprofiler, projekt) är privat för användaren och scopas per konto.
-- Ska fungera med mus, touch och penna (pointer events) på desktop och surfplatta.
-- Utskrift måste vara skalriktig. Testrutan i PDF:en ska mäta exakt 10 × 10 cm.
+## Principles and constraints
+- **All geometry is calculated in the engine.** Elixir stores and validates pattern definitions but
+  never computes geometry. No geometry logic in two languages.
+- **Patterns are parametric.** Points are defined relative to measurements, parameters and other
+  points, so a pattern can be recalculated for new measurements. Free coordinates are only allowed
+  as an offset from a defined point.
+- **Units**: all lengths are stored and calculated in millimetres. The UI shows centimetres with
+  one decimal.
+- **Coordinate system**: origin at the top left, x to the right, y downward (like SVG).
+- Everything a user owns (measurement profiles, projects) is private to that user and scoped per account.
+- Must work with mouse, touch and pen (pointer events) on desktop and tablet.
+- Printing must be true to scale. The test square in the PDF must measure exactly 10 × 10 cm.
 
-## Senare (inte MVP)
-Gradering och storleksserier, hobbyläge med exponerade reglage, publicering och marknadsplats,
-läggplan och tygåtgång, projektorläge, versionshistorik med provningsanteckningar,
-3D-förhandsvisning, export till SVG/DXF.
+## Later (not MVP)
+Grading and size series, hobby mode with exposed sliders, publishing and marketplace, marker
+layout and fabric consumption, projector mode, version history with fitting notes, 3D preview,
+export to SVG/DXF.

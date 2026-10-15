@@ -1,5 +1,8 @@
 import Config
 
+# Only in tests, remove the complexity from the password hashing algorithm
+config :bcrypt_elixir, :log_rounds, 1
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used
@@ -11,7 +14,9 @@ config :toile, Toile.Repo,
   hostname: "localhost",
   database: "toile_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: System.schedulers_online() * 2
+  # The concurrency tests hold up to three connections at once (two racing
+  # transactions and an observer), so never go below that on small machines.
+  pool_size: max(System.schedulers_online() * 2, 4)
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.

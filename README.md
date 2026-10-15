@@ -14,6 +14,8 @@ mix setup
 mix phx.server
 ```
 
-Then open [localhost:4000](http://localhost:4000).
+Then open [localhost:4000](http://localhost:4000). `mix setup` also runs the auth migrations.
+Emails sent in dev (registration, login links) land in the local Swoosh mailbox at
+[localhost:4000/dev/mailbox](http://localhost:4000/dev/mailbox).
 
 Tests: `mix test` for the app, `cd engine && bun test` for the engine.
