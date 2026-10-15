@@ -26,7 +26,9 @@ och `phx.gen.schema` genererar scopad kod. Varje användarägd resurs följer de
 5. PubSub-topics är per användare: `"user:#{scope.user.id}:x"`.
 6. LiveViews får `socket.assigns.current_scope` från live_session `:require_authenticated_user`
    och skickar det vidare. De läser aldrig `user_id` från params. Alla sidor för måttprofiler och
-   mönster läggs i den live_sessionen.
+   mönster läggs i den live_sessionen. Kontoinställningar (`/users/settings`) ligger i en egen
+   scope med `:require_sudo_mode` (nylig inloggning krävs); användarägda resurser som `/patterns`
+   kräver inte sudo-läge och stannar i `:require_authenticated_user`.
 7. Varje resurs har ett test som visar att en annan användares scope inte kan lista, hämta,
    ändra eller ta bort den (`user_scope_fixture/0`).
 8. Nya resurser startas med `mix phx.gen.live ...`, som använder standardscopet.
@@ -37,3 +39,5 @@ och `phx.gen.schema` genererar scopad kod. Varje användarägd resurs följer de
 - Lösenordsåterställning är Phoenix 1.8:s standardflöde: inloggning med e-postlänk, sedan nytt
   lösenord under Inställningar. En klassisk återställningssida är en eventuell uppföljande ticket.
 - Registrering sker med enbart e-post. Kontot bekräftas via länk och lösenord sätts efteråt.
+- Säkerhetsbeslut för konton (token-hantering, låsordning, enumerering) står i
+  `docs/adr/0002-kontosakerhet.md`.
