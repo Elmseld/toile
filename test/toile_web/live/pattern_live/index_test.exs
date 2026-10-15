@@ -26,6 +26,7 @@ defmodule ToileWeb.PatternLive.IndexTest do
       assert has_element?(view, "#my-patterns h1", "My patterns")
       assert has_element?(view, "#patterns-empty")
       assert html =~ "My patterns"
+      assert page_title(view) =~ "My patterns"
     end
   end
 end
