@@ -1,7 +1,7 @@
 ---
 id: 0013
 title: Upgrade Elixir and dependencies
-status: todo
+status: in-review
 type: chore
 ---
 
@@ -23,13 +23,13 @@ requirements in `mix.exs` and `.tool-versions` match what is used locally and in
 behaviour changes.
 
 ## Acceptance criteria
-- [ ] `.tool-versions` specifies Elixir 1.20.4 (and the latest Erlang 29 patch if a newer one exists). CI uses the same versions.
-- [ ] `mix.exs` requires `elixir: "~> 1.20"` and `{:phoenix, "~> 1.8.15"}`.
-- [ ] `phoenix_live_view` is upgraded to 1.2.x, `phoenix_live_dashboard` to 0.9.x and `dns_cluster` to 0.3.x. `mix hex.outdated` shows no dependencies where "Update not possible" is caused by our own requirements.
-- [ ] Breaking changes and deprecations in LiveView 1.2, LiveDashboard 0.9 and dns_cluster 0.3 have been reviewed according to their changelogs and handled. The `phoenix_live_view` JS package in assets follows the same version.
-- [ ] `mix precommit` passes without warnings (no new deprecation warnings), and the engine checks pass.
-- [ ] The account features from 0001 (registration, login, settings, logout) work in the browser after the upgrade.
-- [ ] The README mentions how to install the right tool versions (e.g. `asdf install` or `mise install` based on `.tool-versions`).
+- [x] `.tool-versions` specifies Elixir 1.20.4 (and the latest Erlang 29 patch if a newer one exists). CI uses the same versions.
+- [x] `mix.exs` requires `elixir: "~> 1.20"` and `{:phoenix, "~> 1.8.15"}`.
+- [x] `phoenix_live_view` is upgraded to 1.2.x, `phoenix_live_dashboard` to 0.9.x and `dns_cluster` to 0.3.x. `mix hex.outdated` shows no dependencies where "Update not possible" is caused by our own requirements.
+- [x] Breaking changes and deprecations in LiveView 1.2, LiveDashboard 0.9 and dns_cluster 0.3 have been reviewed according to their changelogs and handled. The `phoenix_live_view` JS package in assets follows the same version.
+- [x] `mix precommit` passes without warnings (no new deprecation warnings), and the engine checks pass.
+- [x] The account features from 0001 (registration, login, settings, logout) work in the browser after the upgrade.
+- [x] The README mentions how to install the right tool versions (e.g. `asdf install` or `mise install` based on `.tool-versions`).
 
 ## Out of scope
 - New features, or starting to use new LiveView 1.2 APIs beyond what is required.
@@ -38,3 +38,8 @@ behaviour changes.
 ## Notes
 Run after the PR for 0001 is merged. Remember to update the local generator archive too:
 `mix archive.install hex phx_new` (does not affect the project, but future projects).
+
+Bun was also bumped from 1.3.14 to 1.4.3 in `.tool-versions` at the user's request (outside the
+original scope). The Bun 1.4.0 to 1.4.3 release notes contain nothing that affects the engine: the
+existing `bun.lock` (lockfileVersion 1) still loads and passes `bun install --frozen-lockfile`
+unchanged, and `bun run typecheck` and `bun test` pass on 1.4.3.
