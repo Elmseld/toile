@@ -1,7 +1,7 @@
 ---
 id: 0014
 title: Run the whole development environment in Docker
-status: in-progress
+status: in-review
 type: chore
 ---
 
@@ -20,13 +20,13 @@ Tests, checks and engine commands run in the container. No Elixir, Erlang or Bun
 installed on the machine, and the versions in Docker are the same as in CI.
 
 ## Acceptance criteria
-- [ ] A development `Dockerfile` (or a `dev` target) with the Erlang, Elixir and Bun versions listed in `.tool-versions`. There is a single source for the versions, or a CI check that fails if the Dockerfile and `.tool-versions` disagree.
-- [ ] `compose.yaml` has an `app` service that depends on `db` (healthcheck). It mounts the code and runs `mix setup` when needed, then `mix phx.server` on port 4000. `deps`, `_build`, `engine/node_modules` and the Hex/Mix cache live in named volumes so that restarts are fast.
-- [ ] Database settings come from environment variables (e.g. `DATABASE_HOST`, default `localhost`), so that the app reaches `db` in Docker and `localhost` in CI. `config/dev.exs` and `config/test.exs` read them.
+- [x] A development `Dockerfile` (or a `dev` target) with the Erlang, Elixir and Bun versions listed in `.tool-versions`. There is a single source for the versions, or a CI check that fails if the Dockerfile and `.tool-versions` disagree.
+- [x] `compose.yaml` has an `app` service that depends on `db` (healthcheck). It mounts the code and runs `mix setup` when needed, then `mix phx.server` on port 4000. `deps`, `_build`, `engine/node_modules` and the Hex/Mix cache live in named volumes so that restarts are fast.
+- [x] Database settings come from environment variables (e.g. `DATABASE_HOST`, default `localhost`), so that the app reaches `db` in Docker and `localhost` in CI. `config/dev.exs` and `config/test.exs` read them.
 - [ ] Code reloading works when a file changes on the host (LiveView and CSS/JS watchers). This is verified manually and noted in the PR.
-- [ ] Tests and checks can be run in the container: `docker compose exec app mix precommit` and `docker compose exec app sh -c "cd engine && bun run typecheck && bun test"`, or an equivalent alias/script.
-- [ ] `CLAUDE.md` describes all commands via Docker, since the agents in `/ship` read the check commands from there. `README.md` describes starting, testing, `iex` (`docker compose exec app iex -S mix`) and how to clear volumes.
-- [ ] `.claude/launch.json` starts the app via `docker compose up`, and `.claude/smoke-test.md` matches the new way of starting.
+- [x] Tests and checks can be run in the container: `docker compose exec app mix precommit` and `docker compose exec app sh -c "cd engine && bun run typecheck && bun test"`, or an equivalent alias/script.
+- [x] `CLAUDE.md` describes all commands via Docker, since the agents in `/ship` read the check commands from there. `README.md` describes starting, testing, `iex` (`docker compose exec app iex -S mix`) and how to clear volumes.
+- [x] `.claude/launch.json` starts the app via `docker compose up`, and `.claude/smoke-test.md` matches the new way of starting.
 - [ ] CI passes, with the same versions as the Docker image. CI may keep using setup-beam if the versions are guaranteed to be identical.
 - [ ] `/smoke-test` passes with the app in Docker.
 
