@@ -38,3 +38,8 @@ behaviour changes.
 ## Notes
 Run after the PR for 0001 is merged. Remember to update the local generator archive too:
 `mix archive.install hex phx_new` (does not affect the project, but future projects).
+
+Bun was also bumped from 1.3.14 to 1.4.3 in `.tool-versions` at the user's request (outside the
+original scope). The Bun 1.4.0 to 1.4.3 release notes contain nothing that affects the engine: the
+existing `bun.lock` (lockfileVersion 1) still loads and passes `bun install --frozen-lockfile`
+unchanged, and `bun run typecheck` and `bun test` pass on 1.4.3.
