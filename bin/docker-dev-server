@@ -1,0 +1,7 @@
+#!/bin/sh
+# Start command of the compose `app` service. Every step is idempotent, so it
+# runs on each start; with warm volumes it only checks deps and builds assets.
+set -e
+mix setup
+(cd engine && bun install --frozen-lockfile)
+exec mix phx.server
