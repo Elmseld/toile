@@ -35,3 +35,53 @@ msgstr "Ingen internetanslutning"
 #, elixir-autogen, elixir-format
 msgid "close"
 msgstr "Stäng"
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Change your email address for Toile"
+msgstr "Ändra e-postadress för Toile"
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Confirm your account on Toile"
+msgstr "Bekräfta ditt konto på Toile"
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Hi %{email},\n\nSomeone just tried to change the email address of another Toile account to your\naddress. Since the address already belongs to your account, nothing has changed.\n\nIf this wasn't you, you can ignore this email. Your account is unchanged.\n"
+msgstr "Hej %{email},\n\nNågon försökte nyss byta e-postadressen på ett annat Toile-konto till din\nadress. Eftersom adressen redan hör till ditt konto har ingenting ändrats.\n\nOm det inte var du kan du bortse från mejlet. Ditt konto är oförändrat.\n"
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Hi %{email},\n\nSomeone just tried to create a new account on Toile with your email address.\nYou already have an account with us and can log in here:\n\n%{url}\n\nIf this wasn't you, you can ignore this email. Your account is unchanged.\n"
+msgstr "Hej %{email},\n\nNågon försökte nyss skapa ett nytt konto på Toile med din e-postadress.\nDu har redan ett konto hos oss och kan logga in här:\n\n%{url}\n\nOm det inte var du kan du bortse från mejlet. Ditt konto är oförändrat.\n"
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Hi %{email},\n\nYou can change your email address by visiting the link below:\n\n%{url}\n\nIf you didn't request this change, please ignore this email.\n"
+msgstr "Hej %{email},\n\nDu kan ändra din e-postadress genom att öppna länken nedan:\n\n%{url}\n\nOm du inte har bett om den här ändringen kan du bortse från mejlet.\n"
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Hi %{email},\n\nYou can confirm your account by visiting the link below:\n\n%{url}\n\nIf you didn't create an account with us, please ignore this email.\n"
+msgstr "Hej %{email},\n\nDu kan bekräfta ditt konto genom att öppna länken nedan:\n\n%{url}\n\nOm du inte har skapat ett konto hos oss kan du bortse från mejlet.\n"
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Hi %{email},\n\nYou can log into your account by visiting the link below:\n\n%{url}\n\nForgot your password? Once you are logged in, you can choose a new\npassword under Settings.\n\nIf you didn't request this email, please ignore it.\n"
+msgstr "Hej %{email},\n\nDu kan logga in på ditt konto genom att öppna länken nedan:\n\n%{url}\n\nHar du glömt ditt lösenord? När du är inloggad kan du välja ett nytt\nlösenord under Inställningar.\n\nOm du inte har bett om det här mejlet kan du bortse från det.\n"
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Log in to Toile"
+msgstr "Logga in på Toile"
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Someone tried to create an account on Toile"
+msgstr "Någon försökte skapa ett konto på Toile"
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Someone tried to use your email address on Toile"
+msgstr "Någon försökte använda din e-postadress på Toile"

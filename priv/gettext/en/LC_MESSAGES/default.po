@@ -35,3 +35,53 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "close"
 msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Change your email address for Toile"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Confirm your account on Toile"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Hi %{email},\n\nSomeone just tried to change the email address of another Toile account to your\naddress. Since the address already belongs to your account, nothing has changed.\n\nIf this wasn't you, you can ignore this email. Your account is unchanged.\n"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Hi %{email},\n\nSomeone just tried to create a new account on Toile with your email address.\nYou already have an account with us and can log in here:\n\n%{url}\n\nIf this wasn't you, you can ignore this email. Your account is unchanged.\n"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Hi %{email},\n\nYou can change your email address by visiting the link below:\n\n%{url}\n\nIf you didn't request this change, please ignore this email.\n"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Hi %{email},\n\nYou can confirm your account by visiting the link below:\n\n%{url}\n\nIf you didn't create an account with us, please ignore this email.\n"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Hi %{email},\n\nYou can log into your account by visiting the link below:\n\n%{url}\n\nForgot your password? Once you are logged in, you can choose a new\npassword under Settings.\n\nIf you didn't request this email, please ignore it.\n"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Log in to Toile"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Someone tried to create an account on Toile"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Someone tried to use your email address on Toile"
+msgstr ""
