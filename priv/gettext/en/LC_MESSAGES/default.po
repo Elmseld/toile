@@ -136,3 +136,13 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Your password was changed while you were logging in. Log in again."
 msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Internal Server Error"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Not Found"
+msgstr ""

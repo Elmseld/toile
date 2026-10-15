@@ -136,3 +136,13 @@ msgstr "Lösenordet är ändrat."
 #, elixir-autogen, elixir-format
 msgid "Your password was changed while you were logging in. Log in again."
 msgstr "Lösenordet ändrades medan du loggade in. Logga in igen."
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Internal Server Error"
+msgstr "Internt serverfel"
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Not Found"
+msgstr "Sidan hittades inte"
