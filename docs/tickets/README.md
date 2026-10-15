@@ -1,17 +1,17 @@
 # Tickets
 
-En fil per ticket: `NNNN-kort-titel.md`. Kör `/ship NNNN` för att låta agenterna ta den hela vägen till en PR.
+One file per ticket: `NNNN-short-title.md`. Run `/ship NNNN` to have the agents take it all the way to a PR.
 
 Front matter:
 
 ```yaml
 ---
 id: 0001
-title: Kort titel
+title: Short title
 status: todo        # todo | in-progress | in-review | done
 type: feature       # feature | bug | chore
 ---
 ```
 
-Skriv **vad** och **varför**, och gör acceptanskriterierna testbara. Planeringsagenten
-bestämmer **hur**.
+Write the **what** and the **why**, and make the acceptance criteria testable. The planning agent
+decides the **how**.
