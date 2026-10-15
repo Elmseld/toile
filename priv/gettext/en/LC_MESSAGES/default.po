@@ -455,3 +455,53 @@ msgstr ""
 msgctxt "registration log-in link"
 msgid "here"
 msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Bad Request"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Conflict"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Forbidden"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Method Not Allowed"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Not Acceptable"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Request Entity Too Large"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Something went wrong"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Unauthorized"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Unprocessable Entity"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Unsupported Media Type"
+msgstr ""
