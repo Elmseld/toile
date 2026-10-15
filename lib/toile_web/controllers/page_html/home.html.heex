@@ -2,49 +2,51 @@
   <section id="landing" class="space-y-8">
     <div class="space-y-4">
       <h1 class="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-        Sömnadsmönster efter dina egna mått
+        {gettext("Sewing patterns made to your own measurements")}
       </h1>
       <p class="text-lg leading-8 text-base-content/80">
-        Toile är en webbapp för att konstruera och utveckla sömnadsmönster. Du utgår från
-        grundmönster (livstycke, kjol, ärm) som räknas fram ur dina egna mått,
-        ändrar dem och skriver ut dem i skala 1:1.
+        {gettext(
+          "Toile is a web app for drafting and developing sewing patterns. You start from basic blocks (bodice, skirt, sleeve) calculated from your own measurements, adapt them and print them at 1:1 scale."
+        )}
       </p>
     </div>
 
     <ul class="grid gap-4 sm:grid-cols-3">
       <li class="rounded-box border border-base-300 bg-base-200 p-4">
         <.icon name="hero-arrows-pointing-out" class="size-6 text-primary" />
-        <h2 class="mt-2 font-semibold">Efter dina mått</h2>
+        <h2 class="mt-2 font-semibold">{gettext("Made to your measurements")}</h2>
         <p class="mt-1 text-sm text-base-content/70">
-          Grundmönstren räknas fram ur dina mått och följer med när du byter måttprofil.
+          {gettext(
+            "The blocks are calculated from your measurements and follow along when you switch measurement profile."
+          )}
         </p>
       </li>
       <li class="rounded-box border border-base-300 bg-base-200 p-4">
         <.icon name="hero-pencil-square" class="size-6 text-primary" />
-        <h2 class="mt-2 font-semibold">Anpassningsbart</h2>
+        <h2 class="mt-2 font-semibold">{gettext("Adaptable")}</h2>
         <p class="mt-1 text-sm text-base-content/70">
-          Flytta punkter, ändra formler och lägg till sömsmån.
+          {gettext("Move points, change formulas and add seam allowance.")}
         </p>
       </li>
       <li class="rounded-box border border-base-300 bg-base-200 p-4">
         <.icon name="hero-printer" class="size-6 text-primary" />
-        <h2 class="mt-2 font-semibold">Utskrift i 1:1</h2>
+        <h2 class="mt-2 font-semibold">{gettext("Printing at 1:1")}</h2>
         <p class="mt-1 text-sm text-base-content/70">
-          Skriv ut på A4 med numrering och testruta.
+          {gettext("Print on A4 with page numbers and a test square.")}
         </p>
       </li>
     </ul>
 
     <p class="leading-7 text-base-content/80">
-      Toile riktar sig både till hobbysömmare och till småskaliga mönsterkonstruktörer.
+      {gettext("Toile is for both home sewists and small-scale pattern makers.")}
     </p>
 
     <div class="flex flex-wrap gap-3">
       <.link id="landing-register" navigate={~p"/users/register"} class="btn btn-primary">
-        Skapa konto <span aria-hidden="true">&rarr;</span>
+        {gettext("Create account")} <span aria-hidden="true">&rarr;</span>
       </.link>
       <.link id="landing-log-in" navigate={~p"/users/log-in"} class="btn btn-ghost">
-        Logga in
+        {gettext("Log in")}
       </.link>
     </div>
   </section>

@@ -17,6 +17,19 @@ defmodule ToileWeb.PageControllerTest do
                [~p"/users/log-in"]
     end
 
+    test "shows the landing page texts in Swedish", %{conn: conn} do
+      document = conn |> get(~p"/") |> html_response(200) |> LazyHTML.from_document()
+
+      assert document |> LazyHTML.query("#landing h1") |> LazyHTML.text() =~
+               "Sömnadsmönster efter dina egna mått"
+
+      assert document |> LazyHTML.query("#landing") |> LazyHTML.text() =~
+               "Du utgår från grundmönster (livstycke, kjol, ärm)"
+
+      assert document |> LazyHTML.query("#landing-register") |> LazyHTML.text() =~ "Skapa konto"
+      assert document |> LazyHTML.query("#landing-log-in") |> LazyHTML.text() =~ "Logga in"
+    end
+
     test "redirects logged-in users to Mina mönster", %{conn: conn} do
       conn =
         conn

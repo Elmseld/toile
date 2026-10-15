@@ -158,6 +158,7 @@ msgid "Light theme"
 msgstr ""
 
 #: lib/toile_web/components/layouts.ex
+#: lib/toile_web/controllers/page_html/home.html.heex
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr ""
@@ -173,6 +174,7 @@ msgid "Main menu"
 msgstr ""
 
 #: lib/toile_web/components/layouts.ex
+#: lib/toile_web/live/pattern_live/index.ex
 #, elixir-autogen, elixir-format
 msgid "My patterns"
 msgstr ""
@@ -190,4 +192,59 @@ msgstr ""
 #: lib/toile_web/components/layouts.ex
 #, elixir-autogen, elixir-format
 msgid "System theme"
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Adaptable"
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Create account"
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Made to your measurements"
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Move points, change formulas and add seam allowance."
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Print on A4 with page numbers and a test square."
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Printing at 1:1"
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Sewing patterns made to your own measurements"
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "The blocks are calculated from your measurements and follow along when you switch measurement profile."
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Toile is a web app for drafting and developing sewing patterns. You start from basic blocks (bodice, skirt, sleeve) calculated from your own measurements, adapt them and print them at 1:1 scale."
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Toile is for both home sewists and small-scale pattern makers."
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "You don't have any patterns yet."
 msgstr ""

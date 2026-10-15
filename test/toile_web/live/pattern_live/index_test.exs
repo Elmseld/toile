@@ -24,7 +24,8 @@ defmodule ToileWeb.PatternLive.IndexTest do
       {:ok, view, html} = live(conn, ~p"/patterns")
 
       assert has_element?(view, "#my-patterns h1", "Mina mönster")
-      assert has_element?(view, "#patterns-empty")
+      assert has_element?(view, "#patterns-empty", "Du har inga mönster än.")
+      assert page_title(view) =~ "Mina mönster"
       assert html =~ "Mina mönster"
     end
   end
