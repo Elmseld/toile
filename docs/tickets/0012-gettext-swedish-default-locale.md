@@ -1,7 +1,7 @@
 ---
 id: 0012
 title: English source strings in code via gettext, Swedish as the default locale
-status: todo
+status: in-progress
 type: chore
 ---
 
