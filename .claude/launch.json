@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "toile",
-      "runtimeExecutable": "mix",
-      "runtimeArgs": ["phx.server"],
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "up"],
       "port": 4000,
       "autoPort": false
     }
