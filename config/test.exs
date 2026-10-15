@@ -11,7 +11,7 @@ config :bcrypt_elixir, :log_rounds, 1
 config :toile, Toile.Repo,
   username: "postgres",
   password: "postgres",
-  hostname: "localhost",
+  hostname: System.get_env("DATABASE_HOST", "localhost"),
   database: "toile_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
   # The concurrency tests hold up to three connections at once (two racing

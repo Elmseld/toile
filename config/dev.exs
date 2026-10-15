@@ -1,10 +1,15 @@
 import Config
 
+# The endpoint binds to PHX_IP (default loopback). Docker Compose sets it to
+# 0.0.0.0 and publishes the port on 127.0.0.1 only. An invalid value fails at boot.
+{:ok, dev_ip} =
+  "PHX_IP" |> System.get_env("127.0.0.1") |> String.to_charlist() |> :inet.parse_address()
+
 # Configure your database
 config :toile, Toile.Repo,
   username: "postgres",
   password: "postgres",
-  hostname: "localhost",
+  hostname: System.get_env("DATABASE_HOST", "localhost"),
   database: "toile_dev",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
@@ -17,9 +22,9 @@ config :toile, Toile.Repo,
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
 config :toile, ToileWeb.Endpoint,
-  # Binding to loopback ipv4 address prevents access from other machines.
-  # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}],
+  # Binds to PHX_IP (see the top of this file). The loopback default prevents
+  # access from other machines; set PHX_IP=0.0.0.0 to allow it.
+  http: [ip: dev_ip],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
