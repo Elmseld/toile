@@ -1,15 +1,23 @@
 defmodule ToileWeb.GettextTest do
   # Guards the translation files: the UI is Swedish, so every message the
-  # code can show must have a Swedish translation.
+  # code can show must have a Swedish translation. Other tests run in "en" and
+  # assert the English msgids, so only these tests look at the sv files.
   use ExUnit.Case, async: true
 
   alias Expo.Message
 
   @gettext_dir Path.expand("../../priv/gettext", __DIR__)
   @sv_dir Path.join(@gettext_dir, "sv/LC_MESSAGES")
+  @config_path Path.expand("../../config/config.exs", __DIR__)
 
-  test "sv is the default locale" do
-    assert Gettext.get_locale(ToileWeb.Gettext) == "sv"
+  # The test env overrides the default locale with "en", so read the config
+  # files as dev and prod would load them instead of asking the running app.
+  for env <- [:dev, :prod] do
+    test "sv is the default locale in #{env}" do
+      config = Config.Reader.read!(@config_path, env: unquote(env))
+
+      assert get_in(config, [:toile, ToileWeb.Gettext, :default_locale]) == "sv"
+    end
   end
 
   test "every sv message is translated" do
