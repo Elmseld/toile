@@ -1,5 +1,6 @@
 defmodule ToileWeb.UserAuth do
   use ToileWeb, :verified_routes
+  use Gettext, backend: ToileWeb.Gettext
 
   import Plug.Conn
   import Phoenix.Controller
@@ -49,7 +50,10 @@ defmodule ToileWeb.UserAuth do
         conn
         |> renew_session(nil)
         |> delete_resp_cookie(@remember_me_cookie, @remember_me_options)
-        |> put_flash(:error, "Lösenordet ändrades medan du loggade in. Logga in igen.")
+        |> put_flash(
+          :error,
+          gettext("Your password was changed while you were logging in. Log in again.")
+        )
         |> redirect(to: ~p"/users/log-in")
     end
   end
@@ -262,7 +266,7 @@ defmodule ToileWeb.UserAuth do
     else
       socket =
         socket
-        |> Phoenix.LiveView.put_flash(:error, "Du måste logga in för att se den här sidan.")
+        |> Phoenix.LiveView.put_flash(:error, gettext("You must log in to access this page."))
         |> Phoenix.LiveView.redirect(to: ~p"/users/log-in")
 
       {:halt, socket}
@@ -277,7 +281,10 @@ defmodule ToileWeb.UserAuth do
     else
       socket =
         socket
-        |> Phoenix.LiveView.put_flash(:error, "Du måste logga in igen för att se den här sidan.")
+        |> Phoenix.LiveView.put_flash(
+          :error,
+          gettext("You must log in again to access this page.")
+        )
         |> Phoenix.LiveView.redirect(to: ~p"/users/log-in")
 
       {:halt, socket}
@@ -311,7 +318,7 @@ defmodule ToileWeb.UserAuth do
       conn
     else
       conn
-      |> put_flash(:error, "Du måste logga in för att se den här sidan.")
+      |> put_flash(:error, gettext("You must log in to access this page."))
       |> maybe_store_return_to()
       |> redirect(to: ~p"/users/log-in")
       |> halt()
@@ -332,7 +339,7 @@ defmodule ToileWeb.UserAuth do
       conn
     else
       conn
-      |> put_flash(:error, "Du måste logga in igen för att se den här sidan.")
+      |> put_flash(:error, gettext("You must log in again to access this page."))
       |> maybe_store_return_to()
       |> redirect(to: ~p"/users/log-in")
       |> halt()

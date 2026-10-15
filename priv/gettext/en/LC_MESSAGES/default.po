@@ -85,3 +85,54 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Someone tried to use your email address on Toile"
 msgstr ""
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Invalid email or password."
+msgstr ""
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "The link is invalid or has expired."
+msgstr ""
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "The password could not be changed. Check the details and try again."
+msgstr ""
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Welcome back!"
+msgstr ""
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "You have been logged out."
+msgstr ""
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#: lib/toile_web/user_auth.ex
+#, elixir-autogen, elixir-format
+msgid "You must log in again to access this page."
+msgstr ""
+
+#: lib/toile_web/user_auth.ex
+#, elixir-autogen, elixir-format
+msgid "You must log in to access this page."
+msgstr ""
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Your account has been confirmed."
+msgstr ""
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Your password has been changed."
+msgstr ""
+
+#: lib/toile_web/user_auth.ex
+#, elixir-autogen, elixir-format
+msgid "Your password was changed while you were logging in. Log in again."
+msgstr ""

@@ -85,3 +85,54 @@ msgstr "Någon försökte skapa ett konto på Toile"
 #, elixir-autogen, elixir-format
 msgid "Someone tried to use your email address on Toile"
 msgstr "Någon försökte använda din e-postadress på Toile"
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Invalid email or password."
+msgstr "Fel e-post eller lösenord."
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "The link is invalid or has expired."
+msgstr "Länken är ogiltig eller har gått ut."
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "The password could not be changed. Check the details and try again."
+msgstr "Lösenordet kunde inte ändras. Kontrollera uppgifterna och försök igen."
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Welcome back!"
+msgstr "Välkommen tillbaka!"
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "You have been logged out."
+msgstr "Du är utloggad."
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#: lib/toile_web/user_auth.ex
+#, elixir-autogen, elixir-format
+msgid "You must log in again to access this page."
+msgstr "Du måste logga in igen för att se den här sidan."
+
+#: lib/toile_web/user_auth.ex
+#, elixir-autogen, elixir-format
+msgid "You must log in to access this page."
+msgstr "Du måste logga in för att se den här sidan."
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Your account has been confirmed."
+msgstr "Ditt konto är bekräftat."
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Your password has been changed."
+msgstr "Lösenordet är ändrat."
+
+#: lib/toile_web/user_auth.ex
+#, elixir-autogen, elixir-format
+msgid "Your password was changed while you were logging in. Log in again."
+msgstr "Lösenordet ändrades medan du loggade in. Logga in igen."
