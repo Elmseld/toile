@@ -14,8 +14,8 @@ defmodule ToileWeb.Layouts do
   @doc """
   Renders the app layout with the Toile header.
 
-  The header shows "Mina mönster", Inställningar and Logga ut when
-  `@current_scope` holds a user, and Logga in and Registrera otherwise.
+  The header shows "Mina mönster", "Inställningar" and "Logga ut" when
+  `@current_scope` holds a user, and "Logga in" and "Registrera" otherwise.
   Pass `current_scope` from every page so the header matches the session.
 
   ## Examples
