@@ -1,0 +1,10 @@
+_build
+deps
+engine/node_modules
+.git
+priv/static/assets
+.elixir_ls
+.expert
+.ship
+tmp
+cover
