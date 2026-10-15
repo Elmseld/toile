@@ -126,7 +126,12 @@ defmodule ToileWeb.UserAuth do
   # When the session is created, rather than extended, the renew_session
   # function will clear the session to avoid fixation attacks. See the
   # renew_session function to customize this behaviour.
+  #
+  # The browser's previous session token, if any, is revoked once the new one
+  # exists, so logging out of this browser cannot leave it valid.
   defp create_or_extend_session(conn, user, params) do
+    superseded_token = get_session(conn, :user_token)
+
     with {:ok, token} <- Accounts.generate_user_session_token(user) do
       remember_me = get_session(conn, :user_remember_me)
 
@@ -136,9 +141,21 @@ defmodule ToileWeb.UserAuth do
         |> put_token_in_session(token)
         |> maybe_write_remember_me_cookie(token, params, remember_me)
 
+      revoke_superseded_token(superseded_token)
       {:ok, conn}
     end
   end
+
+  # Deletes the token and disconnects the LiveViews still running on it. Only
+  # this browser's own previous token is touched, other devices stay logged in.
+  # Open tabs reconnect without a valid token and are sent through the log in
+  # page, which picks up the new session from the cookie.
+  defp revoke_superseded_token(token) when is_binary(token) do
+    Accounts.delete_user_session_token(token)
+    ToileWeb.Endpoint.broadcast(user_session_topic(token), "disconnect", %{})
+  end
+
+  defp revoke_superseded_token(nil), do: :ok
 
   # Do not renew session if the user is already logged in
   # to prevent CSRF errors or data being lost in tabs that are still open

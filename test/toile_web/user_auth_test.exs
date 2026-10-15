@@ -90,6 +90,38 @@ defmodule ToileWeb.UserAuthTest do
       refute get_session(conn, :to_be_removed)
     end
 
+    test "revokes the browser's previous token when re-authenticating, so logout ends both",
+         %{conn: conn, user: user} do
+      {:ok, original_token} = Accounts.generate_user_session_token(user)
+      {:ok, other_device_token} = Accounts.generate_user_session_token(user)
+      original_topic = "users_sessions:#{Base.url_encode64(original_token)}"
+      ToileWeb.Endpoint.subscribe(original_topic)
+
+      # A settings tab is still open on the original token while another tab
+      # reauthenticates for sudo mode.
+      conn =
+        conn
+        |> put_session(:user_token, original_token)
+        |> UserAuth.fetch_current_scope_for_user([])
+        |> UserAuth.log_in_user(user)
+
+      new_token = get_session(conn, :user_token)
+      assert new_token != original_token
+      refute Accounts.get_user_by_session_token(original_token)
+      assert_receive %Phoenix.Socket.Broadcast{event: "disconnect", topic: ^original_topic}
+
+      conn
+      |> recycle()
+      |> Map.replace!(:secret_key_base, ToileWeb.Endpoint.config(:secret_key_base))
+      |> init_test_session(%{user_token: new_token})
+      |> UserAuth.fetch_current_scope_for_user([])
+      |> UserAuth.log_out_user()
+
+      refute Accounts.get_user_by_session_token(new_token)
+      refute Accounts.get_user_by_session_token(original_token)
+      assert Accounts.get_user_by_session_token(other_device_token)
+    end
+
     test "redirects to the configured path", %{conn: conn, user: user} do
       conn = conn |> put_session(:user_return_to, "/hello") |> UserAuth.log_in_user(user)
       assert redirected_to(conn) == "/hello"
@@ -249,6 +281,26 @@ defmodule ToileWeb.UserAuthTest do
       assert %{value: new_signed_token, max_age: max_age} = conn.resp_cookies[@remember_me_cookie]
       assert new_signed_token != signed_token
       assert max_age == @remember_me_cookie_max_age
+    end
+
+    test "revokes the token it replaces when reissuing", %{conn: conn, user: user} do
+      {:ok, token} = Accounts.generate_user_session_token(user)
+      {:ok, other_device_token} = Accounts.generate_user_session_token(user)
+      offset_user_token(token, -10, :day)
+      topic = "users_sessions:#{Base.url_encode64(token)}"
+      ToileWeb.Endpoint.subscribe(topic)
+
+      conn =
+        conn
+        |> put_session(:user_token, token)
+        |> UserAuth.fetch_current_scope_for_user([])
+
+      assert new_token = get_session(conn, :user_token)
+      assert new_token != token
+      assert Accounts.get_user_by_session_token(new_token)
+      refute Accounts.get_user_by_session_token(token)
+      assert_receive %Phoenix.Socket.Broadcast{event: "disconnect", topic: ^topic}
+      assert Accounts.get_user_by_session_token(other_device_token)
     end
   end
 
