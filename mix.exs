@@ -92,7 +92,15 @@ defmodule Toile.MixProject do
         "esbuild toile --minify",
         "phx.digest"
       ],
-      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
+      precommit: [
+        "compile --warnings-as-errors",
+        "deps.unlock --unused",
+        "format",
+        # A separate VM: gettext.extract force-recompiles the app, which in this
+        # VM would redefine modules after protocol consolidation and fail.
+        "cmd env MIX_ENV=test mix gettext.extract --check-up-to-date",
+        "test"
+      ]
     ]
   end
 end
