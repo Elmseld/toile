@@ -56,7 +56,7 @@ defmodule ToileWeb.UserAuthTest do
       refute get_session(conn, :user_return_to)
       assert %{max_age: 0} = conn.resp_cookies[@remember_me_cookie]
       assert redirected_to(conn) == ~p"/users/log-in"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Logga in igen"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Log in again"
       refute Toile.Repo.get_by(Accounts.UserToken, user_id: user.id, context: "session")
     end
 
@@ -420,7 +420,7 @@ defmodule ToileWeb.UserAuthTest do
       assert redirected_to(conn) == ~p"/users/log-in"
 
       assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
-               "Du måste logga in för att se den här sidan."
+               "You must log in to access this page."
     end
 
     test "stores the path to redirect to on GET", %{conn: conn} do
@@ -488,7 +488,7 @@ defmodule ToileWeb.UserAuthTest do
       assert get_session(conn, :user_return_to) == "/users/settings/confirm-email/abc"
 
       assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
-               "Du måste logga in igen för att se den här sidan."
+               "You must log in again to access this page."
     end
   end
 

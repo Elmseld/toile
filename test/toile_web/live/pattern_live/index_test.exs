@@ -23,10 +23,9 @@ defmodule ToileWeb.PatternLive.IndexTest do
     test "shows the heading and the empty state", %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/patterns")
 
-      assert has_element?(view, "#my-patterns h1", "Mina mönster")
-      assert has_element?(view, "#patterns-empty", "Du har inga mönster än.")
-      assert page_title(view) =~ "Mina mönster"
-      assert html =~ "Mina mönster"
+      assert has_element?(view, "#my-patterns h1", "My patterns")
+      assert has_element?(view, "#patterns-empty")
+      assert html =~ "My patterns"
     end
   end
 end

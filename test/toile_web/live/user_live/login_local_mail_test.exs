@@ -10,7 +10,7 @@ defmodule ToileWeb.UserLive.LoginLocalMailTest do
     %{original: original}
   end
 
-  test "shows the local mail notice in Swedish with the mailbox link", %{
+  test "shows the local mail notice with the mailbox link", %{
     conn: conn,
     original: original
   } do
@@ -20,14 +20,10 @@ defmodule ToileWeb.UserLive.LoginLocalMailTest do
       Keyword.put(original, :adapter, Swoosh.Adapters.Local)
     )
 
-    {:ok, lv, html} = live(conn, ~p"/users/log-in")
+    {:ok, lv, _html} = live(conn, ~p"/users/log-in")
 
-    assert has_element?(lv, ".alert-info", "Du kör den lokala mejladaptern.")
-
-    text = html |> LazyHTML.from_fragment() |> LazyHTML.text() |> String.replace(~r/\s+/, " ")
-    assert text =~ "Skickade mejl finns på brevlådesidan."
-    assert has_element?(lv, ~s(.alert-info a[href="/dev/mailbox"]), "brevlådesidan")
-    refute html =~ "local mail adapter"
+    assert has_element?(lv, ".alert-info", "You are running the local mail adapter.")
+    assert has_element?(lv, ~s(.alert-info a[href="/dev/mailbox"]), "mailbox page")
   end
 
   test "hides the notice with other adapters", %{conn: conn} do

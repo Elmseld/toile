@@ -513,7 +513,7 @@ defmodule Toile.AccountsTest do
 
       assert_email_sent(fn sent ->
         assert sent.to == [{"", email}]
-        assert sent.subject == "Bekräfta ditt konto på Toile"
+        assert sent.subject == "Confirm your account on Toile"
       end)
     end
 
@@ -534,7 +534,7 @@ defmodule Toile.AccountsTest do
 
       assert_email_sent(fn sent ->
         assert sent.to == [{"", email}]
-        assert sent.subject == "Någon försökte skapa ett konto på Toile"
+        assert sent.subject == "Someone tried to create an account on Toile"
         assert sent.text_body =~ @login_url
       end)
     end
@@ -576,7 +576,7 @@ defmodule Toile.AccountsTest do
 
       assert_email_sent(fn sent ->
         assert sent.to == [{"", email}]
-        assert sent.subject == "Ändra e-postadress för Toile"
+        assert sent.subject == "Change your email address for Toile"
       end)
     end
 
@@ -599,7 +599,7 @@ defmodule Toile.AccountsTest do
       assert_email_sent(fn sent ->
         assert sent.to == [{"", taken}]
         refute sent.text_body =~ "confirm-email"
-        assert sent.subject == "Någon försökte använda din e-postadress på Toile"
+        assert sent.subject == "Someone tried to use your email address on Toile"
       end)
 
       assert_no_email_sent()

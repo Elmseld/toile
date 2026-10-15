@@ -10,8 +10,8 @@ defmodule ToileWeb.UserLive.RegistrationTest do
     test "renders registration page", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/users/register")
 
-      assert html =~ "Skapa ett konto"
-      assert html =~ "Logga in"
+      assert html =~ "Create an account"
+      assert html =~ "Log in"
     end
 
     test "redirects if already logged in", %{conn: conn} do
@@ -32,9 +32,8 @@ defmodule ToileWeb.UserLive.RegistrationTest do
         |> element("#registration_form")
         |> render_change(user: %{"email" => "with spaces"})
 
-      assert result =~ "Skapa ett konto"
-      assert result =~ "måste innehålla @ och får inte innehålla mellanslag"
-      refute result =~ "must have the @ sign"
+      assert result =~ "Create an account"
+      assert result =~ "must have the @ sign and no spaces"
     end
   end
 
@@ -50,7 +49,7 @@ defmodule ToileWeb.UserLive.RegistrationTest do
         |> follow_redirect(conn, ~p"/users/log-in")
 
       assert html =~
-               ~r/Vi har skickat ett mejl till .*\. Öppna länken i mejlet för att bekräfta ditt konto/
+               ~r/We have sent an email to .*\. Open the link in the email to confirm your account/
     end
 
     test "responds to a taken email exactly as to a new one", %{conn: conn} do
@@ -77,7 +76,7 @@ defmodule ToileWeb.UserLive.RegistrationTest do
       new_flash = submit.(new_email)
 
       expected = fn email ->
-        "Vi har skickat ett mejl till #{email}. Öppna länken i mejlet för att bekräfta ditt konto."
+        "We have sent an email to #{email}. Open the link in the email to confirm your account."
       end
 
       assert taken_flash =~ expected.(user.email)
@@ -97,8 +96,7 @@ defmodule ToileWeb.UserLive.RegistrationTest do
         |> form("#registration_form", user: %{"email" => "with spaces"})
         |> render_submit()
 
-      assert result =~ "måste innehålla @ och får inte innehålla mellanslag"
-      refute result =~ "must have the @ sign"
+      assert result =~ "must have the @ sign and no spaces"
     end
   end
 
@@ -108,11 +106,11 @@ defmodule ToileWeb.UserLive.RegistrationTest do
 
       {:ok, _login_live, login_html} =
         lv
-        |> element("main a", "Logga in")
+        |> element("main a", "Log in")
         |> render_click()
         |> follow_redirect(conn, ~p"/users/log-in")
 
-      assert login_html =~ "Logga in med e-post"
+      assert login_html =~ "Log in with email"
     end
   end
 end
