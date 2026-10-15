@@ -48,7 +48,7 @@ The UI is Swedish, so the Swedish UI term is given in parentheses.
 
 ## Technology
 - **Phoenix 1.8 / LiveView** (Elixir 1.20, OTP 29) for accounts, measurement profiles and storage
-  of pattern projects. Postgres 17 via `docker compose`.
+  of pattern projects. The dev environment (Postgres 17, Elixir, Bun) runs via `docker compose`.
 - **`engine/`**: the pattern engine as a pure TypeScript package (Bun for tests and type checking).
   It takes a pattern definition, measurements and parameters and returns geometry. It has no DOM
   and no I/O. The editor, the PDF export and possibly server rendering use the same code.

@@ -1,11 +1,13 @@
+name: toile
+
 services:
   db:
-    image: postgres:17
+    image: postgres:17.11
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -14,5 +16,37 @@ services:
       timeout: 5s
       retries: 15
 
+  app:
+    build:
+      context: .
+      target: dev
+      args:
+        # zsh and bash do not export UID/GID; on Linux set them in .env.
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    command: bin/docker-dev-server
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_HOST: db
+      PHX_IP: 0.0.0.0
+    ports:
+      # Loopback only: the dev server exposes /dev/mailbox, LiveDashboard and debug errors.
+      - "127.0.0.1:4000:4000"
+    # Tailwind --watch exits when stdin closes, so keep stdin open.
+    stdin_open: true
+    tty: true
+    volumes:
+      - .:/app
+      - deps:/app/deps
+      - build:/app/_build
+      - engine_node_modules:/app/engine/node_modules
+      - hex:/home/app/.hex
+
 volumes:
   pgdata:
+  deps:
+  build:
+  engine_node_modules:
+  hex:

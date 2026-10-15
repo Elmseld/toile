@@ -1,0 +1,45 @@
+#!/bin/sh
+# Checks that the Dockerfile ARG defaults match .tool-versions, the single
+# source of tool versions (CI's setup-beam and setup-bun read it directly).
+# Needs only sh, awk and sed. Exits 1 on any mismatch or missing value.
+set -eu
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+tool_versions="$root/.tool-versions"
+dockerfile="$root/Dockerfile"
+
+tool() {
+  awk -v name="$1" '$1 == name { print $2; exit }' "$tool_versions"
+}
+
+arg() {
+  sed -n "s/^ARG $1=\\([^[:space:]]*\\).*/\\1/p" "$dockerfile" | head -n 1
+}
+
+otp=$(arg OTP_VERSION)
+elixir=$(arg ELIXIR_VERSION)
+bun=$(arg BUN_VERSION)
+
+status=0
+
+check() {
+  label=$1
+  expected=$2
+  actual=$3
+  if [ -n "$expected" ] && [ "$expected" = "$actual" ]; then
+    printf 'ok       %-7s .tool-versions=%s Dockerfile=%s\n' "$label" "$expected" "$actual"
+  else
+    printf 'MISMATCH %-7s .tool-versions=%s Dockerfile=%s\n' "$label" "${expected:-<missing>}" "${actual:-<missing>}"
+    status=1
+  fi
+}
+
+check erlang "$(tool erlang)" "$otp"
+if [ -n "$elixir" ] && [ -n "$otp" ]; then
+  check elixir "$(tool elixir)" "$elixir-otp-${otp%%.*}"
+else
+  check elixir "$(tool elixir)" ""
+fi
+check bun "$(tool bun)" "$bun"
+
+exit "$status"

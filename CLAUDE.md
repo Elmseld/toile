@@ -8,12 +8,15 @@ Read `docs/product.md` for what the product is and its principles, and `AGENTS.m
 - `docs/tickets/`: work items for `/ship`. `docs/adr/`: architecture decisions.
 
 ## Running things
-- Database: `docker compose up -d` (Postgres 17 on localhost:5432).
-- App checks: `mix precommit` (compile with warnings as errors, unused deps, format, test).
-- Engine checks: `cd engine && bun run typecheck && bun test`.
-- Dev server: `mix phx.server` on localhost:4000.
+Everything runs in Docker; no Erlang, Elixir or Bun is needed on the host.
+- Start: `docker compose up` (Postgres and the app on localhost:4000, code reloading). Use `docker compose up -d` to run in the background.
+- App checks: `docker compose exec app mix precommit` (compile with warnings as errors, unused deps, format, test).
+- Engine checks: `docker compose exec app sh -c "cd engine && bun run typecheck && bun test"`.
+- Any mix task or generator: `docker compose exec app mix <task>`.
+- If the app is not running, every `docker compose exec app <cmd>` above also works as `docker compose run --rm app <cmd>`.
+- Versions: `.tool-versions` is the single source. The `Dockerfile` `ARG`s must match it; `bin/check-tool-versions` checks this in CI.
 
-CI (`.github/workflows/ci.yml`) runs both sets of checks. Tool versions are pinned in `.tool-versions`.
+CI (`.github/workflows/ci.yml`) runs three jobs: the app checks, the engine checks, and `docker` (`bin/check-tool-versions`, then a build of the dev image).
 
 ## Conventions
 - The /ship agents load the `elixir-genius` skill for Elixir idioms. When it conflicts with this file, `AGENTS.md` (Phoenix 1.8 conventions) or the ADRs, those win: keep the standard Phoenix layout (contexts under `lib/toile`, web layer under `lib/toile_web`), with no umbrella apps, path-based sub-projects or `impl/` layers unless an ADR introduces them.

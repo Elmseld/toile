@@ -1,0 +1,9 @@
+#!/bin/sh
+# Start command of the compose `app` service. Every step is idempotent, so it
+# runs on each start; with warm volumes it only checks deps and pending migrations.
+# Unlike `mix setup` it skips seeds (run them once by hand) and assets.build,
+# because the Tailwind and esbuild watchers of `mix phx.server` build the assets.
+set -e
+mix do deps.get + ecto.create + ecto.migrate + assets.setup
+(cd engine && bun install --frozen-lockfile)
+exec mix phx.server

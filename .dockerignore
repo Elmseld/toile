@@ -1,0 +1,4 @@
+# The dev image copies nothing from the build context (compose bind-mounts the
+# code at /app), so send none of it: faster builds and no secrets (.env, keys)
+# in the context. Add exceptions with `!path` if a COPY is ever introduced.
+*

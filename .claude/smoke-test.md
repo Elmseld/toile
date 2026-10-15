@@ -1,7 +1,8 @@
 # Smoke test flows
 
-Boot: `docker compose up -d` (Postgres only), then the `toile` entry in `.claude/launch.json`
-(`mix phx.server` on localhost:4000). Ready when `GET /` answers 200.
+Boot: the `toile` entry in `.claude/launch.json` (`docker compose up`: Postgres and the app on
+localhost:4000; the first start compiles deps and can take a few minutes). Ready when `GET /`
+answers 200.
 
 Login: no seed user. Register a fresh address (e.g. `smoke-<timestamp>@toile.test`) and log in with
 the magic link from the dev mailbox at `/dev/mailbox`. For password login, set any 12+ character
