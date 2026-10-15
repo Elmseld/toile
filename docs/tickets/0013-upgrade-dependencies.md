@@ -1,7 +1,7 @@
 ---
 id: 0013
 title: Upgrade Elixir and dependencies
-status: in-progress
+status: in-review
 type: chore
 ---
 
@@ -23,13 +23,13 @@ requirements in `mix.exs` and `.tool-versions` match what is used locally and in
 behaviour changes.
 
 ## Acceptance criteria
-- [ ] `.tool-versions` specifies Elixir 1.20.4 (and the latest Erlang 29 patch if a newer one exists). CI uses the same versions.
-- [ ] `mix.exs` requires `elixir: "~> 1.20"` and `{:phoenix, "~> 1.8.15"}`.
-- [ ] `phoenix_live_view` is upgraded to 1.2.x, `phoenix_live_dashboard` to 0.9.x and `dns_cluster` to 0.3.x. `mix hex.outdated` shows no dependencies where "Update not possible" is caused by our own requirements.
-- [ ] Breaking changes and deprecations in LiveView 1.2, LiveDashboard 0.9 and dns_cluster 0.3 have been reviewed according to their changelogs and handled. The `phoenix_live_view` JS package in assets follows the same version.
-- [ ] `mix precommit` passes without warnings (no new deprecation warnings), and the engine checks pass.
-- [ ] The account features from 0001 (registration, login, settings, logout) work in the browser after the upgrade.
-- [ ] The README mentions how to install the right tool versions (e.g. `asdf install` or `mise install` based on `.tool-versions`).
+- [x] `.tool-versions` specifies Elixir 1.20.4 (and the latest Erlang 29 patch if a newer one exists). CI uses the same versions.
+- [x] `mix.exs` requires `elixir: "~> 1.20"` and `{:phoenix, "~> 1.8.15"}`.
+- [x] `phoenix_live_view` is upgraded to 1.2.x, `phoenix_live_dashboard` to 0.9.x and `dns_cluster` to 0.3.x. `mix hex.outdated` shows no dependencies where "Update not possible" is caused by our own requirements.
+- [x] Breaking changes and deprecations in LiveView 1.2, LiveDashboard 0.9 and dns_cluster 0.3 have been reviewed according to their changelogs and handled. The `phoenix_live_view` JS package in assets follows the same version.
+- [x] `mix precommit` passes without warnings (no new deprecation warnings), and the engine checks pass.
+- [x] The account features from 0001 (registration, login, settings, logout) work in the browser after the upgrade.
+- [x] The README mentions how to install the right tool versions (e.g. `asdf install` or `mise install` based on `.tool-versions`).
 
 ## Out of scope
 - New features, or starting to use new LiveView 1.2 APIs beyond what is required.
