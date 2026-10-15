@@ -24,7 +24,7 @@ Adding more languages later should only require new `.po` files.
 - [x] `priv/gettext/sv/LC_MESSAGES/default.po` and `errors.po` contain Swedish translations of all texts, including Ecto validation errors with correct plural forms (e.g. "ska vara minst 12 tecken").
 - [x] The texts in `core_components.ex` and `layouts.ex` (flash_group, theme toggle) go through gettext and are shown in Swedish.
 - [x] What is shown to the user is unchanged compared to today (the same Swedish texts that 0001 introduced), except that validation errors and system texts are now also in Swedish.
-- [ ] The test environment uses `en` as its default locale (`config/test.exs`), so tests assert English msgids. Tests that only check language or translation are removed; behavioural tests keep their assertions in English. At least one test confirms that emails use the configured default locale regardless of the caller's process locale. Translation completeness for `sv` is guarded by `test/toile_web/gettext_test.exs`.
+- [x] The test environment uses `en` as its default locale (`config/test.exs`), so tests assert English msgids. Tests that only check language or translation are removed; behavioural tests keep their assertions in English. At least one test confirms that emails use the configured default locale regardless of the caller's process locale. Translation completeness for `sv` is guarded by `test/toile_web/gettext_test.exs`.
 - [x] CI runs `mix gettext.extract --check-up-to-date` and fails if texts in the code are missing from the `.pot` files. A check (e.g. a test or script) fails if a text in the `sv` files lacks a translation.
 - [x] `CLAUDE.md` describes the convention: write texts in English in the code via gettext, add the Swedish translation in `priv/gettext/sv/`, and run `mix gettext.extract --merge`.
 
@@ -34,5 +34,5 @@ Adding more languages later should only require new `.po` files.
 - Translation of documentation and tickets.
 
 ## Notes
-- Emails are sent outside the web request. Make sure the right locale is set there (e.g. `Gettext.put_locale/2` or `Gettext.with_locale/3` in `UserNotifier`), so that emails do not fall back to English.
+- Emails are sent outside the web request. Make sure the right locale is set there (e.g. `Gettext.put_locale/2` or `Gettext.with_locale/3` in `UserNotifier`), so that emails use the configured default locale, not the caller's process locale.
 - 0001 has tests that check Swedish texts verbatim. They are converted to assert the English msgid, because the test environment uses `en`; production and dev keep `sv`.
