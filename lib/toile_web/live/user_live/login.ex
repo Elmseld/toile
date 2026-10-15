@@ -36,15 +36,14 @@ defmodule ToileWeb.UserLive.Login do
         </div>
 
         <.form
-          :let={f}
-          for={@form}
+          for={@magic_form}
           id="login_form_magic"
           action={~p"/users/log-in"}
           phx-submit="submit_magic"
         >
           <.input
             readonly={!!@current_scope}
-            field={f[:email]}
+            field={@magic_form[:email]}
             type="email"
             label="E-post"
             autocomplete="username"
@@ -60,8 +59,7 @@ defmodule ToileWeb.UserLive.Login do
         <div class="divider">eller</div>
 
         <.form
-          :let={f}
-          for={@form}
+          for={@password_form}
           id="login_form_password"
           action={~p"/users/log-in"}
           phx-submit="submit_password"
@@ -69,7 +67,7 @@ defmodule ToileWeb.UserLive.Login do
         >
           <.input
             readonly={!!@current_scope}
-            field={f[:email]}
+            field={@password_form[:email]}
             type="email"
             label="E-post"
             autocomplete="username"
@@ -77,13 +75,17 @@ defmodule ToileWeb.UserLive.Login do
             required
           />
           <.input
-            field={@form[:password]}
+            field={@password_form[:password]}
             type="password"
             label="Lösenord"
             autocomplete="current-password"
             spellcheck="false"
           />
-          <.button class="btn btn-primary w-full" name={@form[:remember_me].name} value="true">
+          <.button
+            class="btn btn-primary w-full"
+            name={@password_form[:remember_me].name}
+            value="true"
+          >
             Logga in och förbli inloggad <span aria-hidden="true">→</span>
           </.button>
           <.button class="btn btn-primary btn-soft w-full mt-2">
@@ -106,9 +108,14 @@ defmodule ToileWeb.UserLive.Login do
       Phoenix.Flash.get(socket.assigns.flash, :email) ||
         get_in(socket.assigns, [:current_scope, Access.key(:user), Access.key(:email)])
 
-    form = to_form(%{"email" => email}, as: "user")
+    params = %{"email" => email}
 
-    {:ok, assign(socket, form: form, trigger_submit: false)}
+    {:ok,
+     assign(socket,
+       magic_form: to_form(params, as: "user", id: "login_form_magic"),
+       password_form: to_form(params, as: "user", id: "login_form_password"),
+       trigger_submit: false
+     )}
   end
 
   @impl true
