@@ -146,3 +146,48 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Not Found"
 msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Dark theme"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Light theme"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Log in"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Log out"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Main menu"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "My patterns"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Register"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Settings"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "System theme"
+msgstr ""

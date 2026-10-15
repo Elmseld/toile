@@ -45,12 +45,12 @@ defmodule ToileWeb.Layouts do
           <.icon name="hero-scissors" class="size-5 text-primary" /> Toile
         </.link>
       </div>
-      <nav class="flex-none" aria-label="Huvudmeny">
+      <nav class="flex-none" aria-label={gettext("Main menu")}>
         <ul class="flex flex-wrap items-center gap-2 px-1 sm:gap-4">
           <%= if @current_scope && @current_scope.user do %>
             <li>
               <.link id="nav-my-patterns" navigate={~p"/patterns"} class="btn btn-ghost btn-sm">
-                Mina mönster
+                {gettext("My patterns")}
               </.link>
             </li>
             <li class="hidden text-sm text-base-content/70 md:block">
@@ -58,7 +58,7 @@ defmodule ToileWeb.Layouts do
             </li>
             <li>
               <.link id="nav-settings" navigate={~p"/users/settings"} class="btn btn-ghost btn-sm">
-                Inställningar
+                {gettext("Settings")}
               </.link>
             </li>
             <li>
@@ -68,18 +68,18 @@ defmodule ToileWeb.Layouts do
                 method="delete"
                 class="btn btn-ghost btn-sm"
               >
-                Logga ut
+                {gettext("Log out")}
               </.link>
             </li>
           <% else %>
             <li>
               <.link id="nav-log-in" navigate={~p"/users/log-in"} class="btn btn-ghost btn-sm">
-                Logga in
+                {gettext("Log in")}
               </.link>
             </li>
             <li>
               <.link id="nav-register" navigate={~p"/users/register"} class="btn btn-primary btn-sm">
-                Registrera
+                {gettext("Register")}
               </.link>
             </li>
           <% end %>
@@ -157,7 +157,7 @@ defmodule ToileWeb.Layouts do
         class="flex p-2 cursor-pointer w-1/3"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="system"
-        aria-label="Systemtema"
+        aria-label={gettext("System theme")}
       >
         <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
@@ -166,7 +166,7 @@ defmodule ToileWeb.Layouts do
         class="flex p-2 cursor-pointer w-1/3"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="light"
-        aria-label="Ljust tema"
+        aria-label={gettext("Light theme")}
       >
         <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
@@ -175,7 +175,7 @@ defmodule ToileWeb.Layouts do
         class="flex p-2 cursor-pointer w-1/3"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="dark"
-        aria-label="Mörkt tema"
+        aria-label={gettext("Dark theme")}
       >
         <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>

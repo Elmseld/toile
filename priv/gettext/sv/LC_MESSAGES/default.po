@@ -146,3 +146,48 @@ msgstr "Internt serverfel"
 #, elixir-autogen, elixir-format
 msgid "Not Found"
 msgstr "Sidan hittades inte"
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Dark theme"
+msgstr "Mörkt tema"
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Light theme"
+msgstr "Ljust tema"
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Log in"
+msgstr "Logga in"
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Log out"
+msgstr "Logga ut"
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Main menu"
+msgstr "Huvudmeny"
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "My patterns"
+msgstr "Mina mönster"
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Register"
+msgstr "Registrera"
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Settings"
+msgstr "Inställningar"
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "System theme"
+msgstr "Systemtema"
