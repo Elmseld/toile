@@ -11,8 +11,8 @@ defmodule ToileWeb.UserLive.Settings do
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="text-center">
         <.header>
-          Inställningar
-          <:subtitle>Ändra e-postadress och lösenord för ditt konto</:subtitle>
+          {gettext("Settings")}
+          <:subtitle>{gettext("Change the email address and password for your account")}</:subtitle>
         </.header>
       </div>
 
@@ -20,12 +20,14 @@ defmodule ToileWeb.UserLive.Settings do
         <.input
           field={@email_form[:email]}
           type="email"
-          label="E-post"
+          label={gettext("Email")}
           autocomplete="username"
           spellcheck="false"
           required
         />
-        <.button variant="primary" phx-disable-with="Ändrar...">Ändra e-post</.button>
+        <.button variant="primary" phx-disable-with={gettext("Changing...")}>
+          {gettext("Change email")}
+        </.button>
       </.form>
 
       <div class="divider" />
@@ -49,7 +51,7 @@ defmodule ToileWeb.UserLive.Settings do
         <.input
           field={@password_form[:password]}
           type="password"
-          label="Nytt lösenord"
+          label={gettext("New password")}
           autocomplete="new-password"
           spellcheck="false"
           required
@@ -57,12 +59,12 @@ defmodule ToileWeb.UserLive.Settings do
         <.input
           field={@password_form[:password_confirmation]}
           type="password"
-          label="Bekräfta nytt lösenord"
+          label={gettext("Confirm new password")}
           autocomplete="new-password"
           spellcheck="false"
         />
-        <.button variant="primary" phx-disable-with="Sparar...">
-          Spara lösenord
+        <.button variant="primary" phx-disable-with={gettext("Saving...")}>
+          {gettext("Save password")}
         </.button>
       </.form>
     </Layouts.app>
@@ -74,10 +76,14 @@ defmodule ToileWeb.UserLive.Settings do
     socket =
       case Accounts.update_user_email(socket.assigns.current_scope.user, token) do
         {:ok, _user} ->
-          put_flash(socket, :info, "E-postadressen är ändrad.")
+          put_flash(socket, :info, gettext("Your email address has been changed."))
 
         {:error, _} ->
-          put_flash(socket, :error, "Länken för att ändra e-post är ogiltig eller har gått ut.")
+          put_flash(
+            socket,
+            :error,
+            gettext("The link to change your email is invalid or has expired.")
+          )
       end
 
     {:ok, push_navigate(socket, to: ~p"/users/settings")}
@@ -155,7 +161,7 @@ defmodule ToileWeb.UserLive.Settings do
          ) do
       {:ok, _email} ->
         info =
-          "Vi har skickat en länk till den nya adressen. Öppna den för att bekräfta ändringen."
+          gettext("We have sent a link to the new address. Open it to confirm the change.")
 
         {:noreply, socket |> put_flash(:info, info)}
 
@@ -179,7 +185,7 @@ defmodule ToileWeb.UserLive.Settings do
   # the settings page for an already signed-in user.
   defp require_reauthentication(socket) do
     socket
-    |> put_flash(:error, "Du måste logga in igen för att se den här sidan.")
+    |> put_flash(:error, gettext("You must log in again to access this page."))
     |> redirect(to: ~p"/users/log-in")
   end
 end

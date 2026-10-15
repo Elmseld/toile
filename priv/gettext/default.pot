@@ -1,0 +1,507 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+msgid ""
+msgstr ""
+
+#: lib/toile_web/components/core_components.ex
+#, elixir-autogen, elixir-format
+msgid "Actions"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Attempting to reconnect"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Something went wrong!"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "We can't find the internet"
+msgstr ""
+
+#: lib/toile_web/components/core_components.ex
+#, elixir-autogen, elixir-format
+msgid "close"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Change your email address for Toile"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Confirm your account on Toile"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Hi %{email},\n\nSomeone just tried to change the email address of another Toile account to your\naddress. Since the address already belongs to your account, nothing has changed.\n\nIf this wasn't you, you can ignore this email. Your account is unchanged.\n"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Hi %{email},\n\nSomeone just tried to create a new account on Toile with your email address.\nYou already have an account with us and can log in here:\n\n%{url}\n\nIf this wasn't you, you can ignore this email. Your account is unchanged.\n"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Hi %{email},\n\nYou can change your email address by visiting the link below:\n\n%{url}\n\nIf you didn't request this change, please ignore this email.\n"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Hi %{email},\n\nYou can confirm your account by visiting the link below:\n\n%{url}\n\nIf you didn't create an account with us, please ignore this email.\n"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Hi %{email},\n\nYou can log into your account by visiting the link below:\n\n%{url}\n\nForgot your password? Once you are logged in, you can choose a new\npassword under Settings.\n\nIf you didn't request this email, please ignore it.\n"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Log in to Toile"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Someone tried to create an account on Toile"
+msgstr ""
+
+#: lib/toile/accounts/user_notifier.ex
+#, elixir-autogen, elixir-format
+msgid "Someone tried to use your email address on Toile"
+msgstr ""
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Invalid email or password."
+msgstr ""
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "The link is invalid or has expired."
+msgstr ""
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "The password could not be changed. Check the details and try again."
+msgstr ""
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Welcome back!"
+msgstr ""
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "You have been logged out."
+msgstr ""
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#: lib/toile_web/live/user_live/settings.ex
+#: lib/toile_web/user_auth.ex
+#, elixir-autogen, elixir-format
+msgid "You must log in again to access this page."
+msgstr ""
+
+#: lib/toile_web/user_auth.ex
+#, elixir-autogen, elixir-format
+msgid "You must log in to access this page."
+msgstr ""
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Your account has been confirmed."
+msgstr ""
+
+#: lib/toile_web/controllers/user_session_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Your password has been changed."
+msgstr ""
+
+#: lib/toile_web/user_auth.ex
+#, elixir-autogen, elixir-format
+msgid "Your password was changed while you were logging in. Log in again."
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Internal Server Error"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Not Found"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Dark theme"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Light theme"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#: lib/toile_web/controllers/page_html/home.html.heex
+#: lib/toile_web/live/user_live/confirmation.ex
+#: lib/toile_web/live/user_live/login.ex
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgid "Log in"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Log out"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Main menu"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#: lib/toile_web/live/pattern_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "My patterns"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "Register"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Settings"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#, elixir-autogen, elixir-format
+msgid "System theme"
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Adaptable"
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgid "Create account"
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Made to your measurements"
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Move points, change formulas and add seam allowance."
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Print on A4 with page numbers and a test square."
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Printing at 1:1"
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Sewing patterns made to your own measurements"
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "The blocks are calculated from your measurements and follow along when you switch measurement profile."
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Toile is a web app for drafting and developing sewing patterns. You start from basic blocks (bodice, skirt, sleeve) calculated from your own measurements, adapt them and print them at 1:1 scale."
+msgstr ""
+
+#: lib/toile_web/controllers/page_html/home.html.heex
+#, elixir-autogen, elixir-format
+msgid "Toile is for both home sewists and small-scale pattern makers."
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "You don't have any patterns yet."
+msgstr ""
+
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgid "Already have an account?"
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Change email"
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Change the email address and password for your account"
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Changing..."
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Confirm and log in only this time"
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Confirm and stay logged in"
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Confirm new password"
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Confirming..."
+msgstr ""
+
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgid "Create an account"
+msgstr ""
+
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgid "Creating account..."
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Don't have an account?"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#: lib/toile_web/live/user_live/registration.ex
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Email"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Forgot your password? Enter your email above and choose 'Log in with email'. Once you are logged in, you can choose a new password under Settings."
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "If your email address is registered with us, you will shortly receive an email with instructions for logging in."
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Keep me logged in on this device"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Log in and stay logged in"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Log in only this time"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Log in with email"
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Log me in only this time"
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Logging in..."
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "New password"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Password"
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Save password"
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Saving..."
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Sign up"
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "The link to change your email is invalid or has expired."
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "The login link is invalid or has expired."
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Tip: If you prefer passwords, you can set one under Settings."
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "We have sent a link to the new address. Open it to confirm the change."
+msgstr ""
+
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgid "We have sent an email to %{email}. Open the link in the email to confirm your account."
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Welcome %{email}"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "You are running the local mail adapter."
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "You need to log in again to make sensitive changes to your account."
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Your email address has been changed."
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "or"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgctxt "login mailbox link"
+msgid "Sent emails are on the"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgctxt "login mailbox link"
+msgid "mailbox page"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgctxt "login sign-up link"
+msgid "now"
+msgstr ""
+
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgctxt "registration log-in link"
+msgid "here"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Bad Request"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Conflict"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Forbidden"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Method Not Allowed"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Not Acceptable"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Request Entity Too Large"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Something went wrong"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Unauthorized"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Unprocessable Entity"
+msgstr ""
+
+#: lib/toile_web/controllers/error_html.ex
+#, elixir-autogen, elixir-format
+msgid "Unsupported Media Type"
+msgstr ""

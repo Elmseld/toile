@@ -8,9 +8,9 @@ defmodule ToileWeb.UserLive.LoginTest do
     test "renders login page", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/users/log-in")
 
-      assert html =~ "Logga in"
-      assert html =~ "Registrera dig"
-      assert html =~ "Logga in med e-post"
+      assert html =~ "Log in"
+      assert html =~ "Sign up"
+      assert html =~ "Log in with email"
     end
   end
 
@@ -25,7 +25,7 @@ defmodule ToileWeb.UserLive.LoginTest do
         |> render_submit()
         |> follow_redirect(conn, ~p"/users/log-in")
 
-      assert html =~ "Om din e-postadress finns hos oss"
+      assert html =~ "If your email address is registered with us"
 
       assert Toile.Repo.get_by!(Toile.Accounts.UserToken, user_id: user.id).context ==
                "login"
@@ -39,7 +39,7 @@ defmodule ToileWeb.UserLive.LoginTest do
         |> render_submit()
         |> follow_redirect(conn, ~p"/users/log-in")
 
-      assert html =~ "Om din e-postadress finns hos oss"
+      assert html =~ "If your email address is registered with us"
     end
 
     test "gives the same flash and redirect whether or not the email exists", %{conn: conn} do
@@ -64,7 +64,7 @@ defmodule ToileWeb.UserLive.LoginTest do
       assert known_flash == unknown_flash
 
       assert known_flash["info"] ==
-               "Om din e-postadress finns hos oss får du snart ett mejl med instruktioner för att logga in."
+               "If your email address is registered with us, you will shortly receive an email with instructions for logging in."
 
       refute_received {:email, %Swoosh.Email{to: [{_, "nobody@example.com"}]}}
     end
@@ -97,7 +97,7 @@ defmodule ToileWeb.UserLive.LoginTest do
       render_submit(form, %{user: %{remember_me: true}})
 
       conn = follow_trigger_action(form, conn)
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Fel e-post eller lösenord."
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Invalid email or password."
       assert redirected_to(conn) == ~p"/users/log-in"
     end
   end
@@ -108,11 +108,11 @@ defmodule ToileWeb.UserLive.LoginTest do
 
       {:ok, _login_live, login_html} =
         lv
-        |> element("main a", "Registrera dig")
+        |> element("main a", "Sign up")
         |> render_click()
         |> follow_redirect(conn, ~p"/users/register")
 
-      assert login_html =~ "Skapa ett konto"
+      assert login_html =~ "Create an account"
     end
   end
 
@@ -125,9 +125,10 @@ defmodule ToileWeb.UserLive.LoginTest do
     test "shows login page with email filled in", %{conn: conn, user: user} do
       {:ok, _lv, html} = live(conn, ~p"/users/log-in")
 
-      assert html =~ "Du behöver logga in igen"
-      refute html =~ "Registrera"
-      assert html =~ "Logga in med e-post"
+      assert html =~ "You need to log in again"
+      refute html =~ "Sign up"
+      refute html =~ "Register"
+      assert html =~ "Log in with email"
 
       assert html =~
                ~s(<input type="email" name="user[email]" id="login_form_magic_email" value="#{user.email}")

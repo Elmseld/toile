@@ -11,7 +11,10 @@ defmodule Toile.MixProject do
       aliases: aliases(),
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
-      listeners: [Phoenix.CodeReloader]
+      listeners: [Phoenix.CodeReloader],
+      # Without line numbers, `gettext.extract --check-up-to-date` does not fail
+      # when a gettext call only moves to another line.
+      gettext: [write_reference_line_numbers: false]
     ]
   end
 
@@ -49,6 +52,7 @@ defmodule Toile.MixProject do
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:phoenix_live_view, "~> 1.2.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
+      {:expo, "~> 1.1"},
       {:phoenix_live_dashboard, "~> 0.9.0"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
@@ -89,7 +93,15 @@ defmodule Toile.MixProject do
         "esbuild toile --minify",
         "phx.digest"
       ],
-      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
+      precommit: [
+        "compile --warnings-as-errors",
+        "deps.unlock --unused",
+        "format",
+        # A separate VM: gettext.extract force-recompiles the app, which in this
+        # VM would redefine modules after protocol consolidation and fail.
+        "cmd env MIX_ENV=test mix gettext.extract --check-up-to-date",
+        "test"
+      ]
     ]
   end
 end

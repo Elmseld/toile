@@ -8,8 +8,8 @@ defmodule ToileWeb.LayoutsTest do
       {:ok, view, _html} = live(conn, ~p"/users/log-in")
 
       assert has_element?(view, ~s(#nav-home[href="/"]))
-      assert has_element?(view, ~s(#nav-log-in[href="/users/log-in"]), "Logga in")
-      assert has_element?(view, ~s(#nav-register[href="/users/register"]), "Registrera")
+      assert has_element?(view, ~s(#nav-log-in[href="/users/log-in"]), "Log in")
+      assert has_element?(view, ~s(#nav-register[href="/users/register"]), "Register")
       refute has_element?(view, "#nav-my-patterns")
       refute has_element?(view, "#nav-settings")
       refute has_element?(view, "#nav-log-out")
@@ -21,23 +21,22 @@ defmodule ToileWeb.LayoutsTest do
       refute html =~ "phoenixframework.org"
       refute html =~ "Get Started"
       refute html =~ "Phoenix Framework"
-      assert html =~ ~s(<html lang="sv")
     end
   end
 
   describe "header for logged-in users" do
     setup :register_and_log_in_user
 
-    test "links to Mina mönster, Inställningar and Logga ut", %{conn: conn, user: user} do
+    test "links to My patterns, Settings and Log out", %{conn: conn, user: user} do
       {:ok, view, _html} = live(conn, ~p"/patterns")
 
-      assert has_element?(view, ~s(#nav-my-patterns[href="/patterns"]), "Mina mönster")
-      assert has_element?(view, ~s(#nav-settings[href="/users/settings"]), "Inställningar")
+      assert has_element?(view, ~s(#nav-my-patterns[href="/patterns"]), "My patterns")
+      assert has_element?(view, ~s(#nav-settings[href="/users/settings"]), "Settings")
 
       assert has_element?(
                view,
                ~s(#nav-log-out[href="/users/log-out"][data-method="delete"]),
-               "Logga ut"
+               "Log out"
              )
 
       assert has_element?(view, "header", user.email)

@@ -21,7 +21,7 @@ defmodule ToileWeb.UserSessionControllerTest do
       assert redirected_to(conn) == ~p"/"
 
       # Now do a logged in request and assert on the menu.
-      # Logged-in users are sent from / to "Mina mönster".
+      # Logged-in users are sent from / to "My patterns".
       conn = get(conn, ~p"/")
       assert redirected_to(conn) == ~p"/patterns"
       conn = get(conn, ~p"/patterns")
@@ -61,7 +61,7 @@ defmodule ToileWeb.UserSessionControllerTest do
         })
 
       assert redirected_to(conn) == "/foo/bar"
-      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Välkommen tillbaka!"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Welcome back!"
     end
 
     test "redirects to login page with invalid credentials", %{conn: conn, user: user} do
@@ -70,7 +70,7 @@ defmodule ToileWeb.UserSessionControllerTest do
           "user" => %{"email" => user.email, "password" => "invalid_password"}
         })
 
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Fel e-post eller lösenord."
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Invalid email or password."
       assert redirected_to(conn) == ~p"/users/log-in"
     end
 
@@ -131,7 +131,7 @@ defmodule ToileWeb.UserSessionControllerTest do
       test "gives the generic login error when #{name}", %{conn: conn} do
         conn = post(conn, ~p"/users/log-in", @params)
 
-        assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Fel e-post eller lösenord."
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Invalid email or password."
         assert redirected_to(conn) == ~p"/users/log-in"
         refute get_session(conn, :user_token)
       end
@@ -149,7 +149,7 @@ defmodule ToileWeb.UserSessionControllerTest do
           }
         })
 
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Fel e-post eller lösenord."
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Invalid email or password."
       assert redirected_to(conn) == ~p"/users/log-in"
       refute get_session(conn, :user_token)
     end
@@ -168,7 +168,7 @@ defmodule ToileWeb.UserSessionControllerTest do
       assert redirected_to(conn) == ~p"/"
 
       # Now do a logged in request and assert on the menu.
-      # Logged-in users are sent from / to "Mina mönster".
+      # Logged-in users are sent from / to "My patterns".
       conn = get(conn, ~p"/")
       assert redirected_to(conn) == ~p"/patterns"
       conn = get(conn, ~p"/patterns")
@@ -190,12 +190,12 @@ defmodule ToileWeb.UserSessionControllerTest do
 
       assert get_session(conn, :user_token)
       assert redirected_to(conn) == ~p"/"
-      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Ditt konto är bekräftat."
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Your account has been confirmed."
 
       assert Accounts.get_user!(user.id).confirmed_at
 
       # Now do a logged in request and assert on the menu.
-      # Logged-in users are sent from / to "Mina mönster".
+      # Logged-in users are sent from / to "My patterns".
       conn = get(conn, ~p"/")
       assert redirected_to(conn) == ~p"/patterns"
       conn = get(conn, ~p"/patterns")
@@ -212,7 +212,7 @@ defmodule ToileWeb.UserSessionControllerTest do
         })
 
       assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
-               "Länken är ogiltig eller har gått ut."
+               "The link is invalid or has expired."
 
       assert redirected_to(conn) == ~p"/users/log-in"
     end
@@ -221,7 +221,7 @@ defmodule ToileWeb.UserSessionControllerTest do
       conn = post(conn, ~p"/users/log-in", %{"user" => %{"token" => "!"}})
 
       assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
-               "Länken är ogiltig eller har gått ut."
+               "The link is invalid or has expired."
 
       assert redirected_to(conn) == ~p"/users/log-in"
     end
@@ -244,7 +244,7 @@ defmodule ToileWeb.UserSessionControllerTest do
         })
 
       assert redirected_to(conn) == ~p"/users/settings"
-      assert Phoenix.Flash.get(conn.assigns.flash, :info) == "Lösenordet är ändrat."
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) == "Your password has been changed."
       assert get_session(conn, :user_token) != old_token
       refute Accounts.get_user_by_session_token(old_token)
       assert Accounts.get_user_by_email_and_password(user.email, @new_password)
@@ -267,7 +267,7 @@ defmodule ToileWeb.UserSessionControllerTest do
       assert redirected_to(conn) == ~p"/users/log-in"
 
       assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
-               "Du måste logga in igen för att se den här sidan."
+               "You must log in again to access this page."
 
       assert get_session(conn, :user_return_to) == ~p"/users/settings"
       refute Accounts.get_user_by_email_and_password(user.email, @new_password)
@@ -289,7 +289,7 @@ defmodule ToileWeb.UserSessionControllerTest do
         })
 
       assert redirected_to(conn) == ~p"/users/settings"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Lösenordet kunde inte ändras"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "The password could not be changed"
       refute Accounts.get_user_by_email_and_password(user.email, "short")
       # Failed attempts must not revoke the user's sessions.
       assert Accounts.get_user_by_session_token(token)
@@ -305,7 +305,7 @@ defmodule ToileWeb.UserSessionControllerTest do
         })
 
       assert redirected_to(conn) == ~p"/users/settings"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Lösenordet kunde inte ändras"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "The password could not be changed"
       refute Accounts.get_user_by_email_and_password(user.email, multi_byte)
     end
 
@@ -320,14 +320,14 @@ defmodule ToileWeb.UserSessionControllerTest do
       conn = conn |> log_in_user(user) |> delete(~p"/users/log-out")
       assert redirected_to(conn) == ~p"/"
       refute get_session(conn, :user_token)
-      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Du är utloggad"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "You have been logged out"
     end
 
     test "succeeds even if the user is not logged in", %{conn: conn} do
       conn = delete(conn, ~p"/users/log-out")
       assert redirected_to(conn) == ~p"/"
       refute get_session(conn, :user_token)
-      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Du är utloggad"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "You have been logged out"
     end
   end
 end

@@ -18,7 +18,7 @@ defmodule ToileWeb.UserLive.ConfirmationTest do
         end)
 
       {:ok, _lv, html} = live(conn, ~p"/users/log-in/#{token}")
-      assert html =~ "Bekräfta och förbli inloggad"
+      assert html =~ "Confirm and stay logged in"
     end
 
     test "renders login page for confirmed user", %{conn: conn, confirmed_user: user} do
@@ -28,8 +28,8 @@ defmodule ToileWeb.UserLive.ConfirmationTest do
         end)
 
       {:ok, _lv, html} = live(conn, ~p"/users/log-in/#{token}")
-      refute html =~ "Confirm my account"
-      assert html =~ "Håll mig inloggad på den här enheten"
+      refute html =~ "Confirm and stay logged in"
+      assert html =~ "Keep me logged in on this device"
     end
 
     test "renders login page for already logged in user", %{conn: conn, confirmed_user: user} do
@@ -41,8 +41,8 @@ defmodule ToileWeb.UserLive.ConfirmationTest do
         end)
 
       {:ok, _lv, html} = live(conn, ~p"/users/log-in/#{token}")
-      refute html =~ "Confirm my account"
-      assert html =~ "Logga in"
+      refute html =~ "Confirm and stay logged in"
+      assert html =~ "Log in"
     end
 
     test "confirms the given token once", %{conn: conn, unconfirmed_user: user} do
@@ -59,7 +59,7 @@ defmodule ToileWeb.UserLive.ConfirmationTest do
       conn = follow_trigger_action(form, conn)
 
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~
-               "Ditt konto är bekräftat"
+               "Your account has been confirmed"
 
       assert Accounts.get_user!(user.id).confirmed_at
       # we are logged in now
@@ -73,7 +73,7 @@ defmodule ToileWeb.UserLive.ConfirmationTest do
         live(conn, ~p"/users/log-in/#{token}")
         |> follow_redirect(conn, ~p"/users/log-in")
 
-      assert html =~ "Inloggningslänken är ogiltig eller har gått ut"
+      assert html =~ "The login link is invalid or has expired"
     end
 
     test "logs confirmed user in without changing confirmed_at", %{
@@ -93,7 +93,7 @@ defmodule ToileWeb.UserLive.ConfirmationTest do
       conn = follow_trigger_action(form, conn)
 
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~
-               "Välkommen tillbaka!"
+               "Welcome back!"
 
       assert Accounts.get_user!(user.id).confirmed_at == user.confirmed_at
 
@@ -104,7 +104,7 @@ defmodule ToileWeb.UserLive.ConfirmationTest do
         live(conn, ~p"/users/log-in/#{token}")
         |> follow_redirect(conn, ~p"/users/log-in")
 
-      assert html =~ "Inloggningslänken är ogiltig eller har gått ut"
+      assert html =~ "The login link is invalid or has expired"
     end
 
     test "raises error for invalid token", %{conn: conn} do
@@ -112,7 +112,7 @@ defmodule ToileWeb.UserLive.ConfirmationTest do
         live(conn, ~p"/users/log-in/invalid-token")
         |> follow_redirect(conn, ~p"/users/log-in")
 
-      assert html =~ "Inloggningslänken är ogiltig eller har gått ut"
+      assert html =~ "The login link is invalid or has expired"
     end
   end
 end

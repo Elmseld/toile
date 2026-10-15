@@ -17,7 +17,7 @@ defmodule ToileWeb.PageControllerTest do
                [~p"/users/log-in"]
     end
 
-    test "redirects logged-in users to Mina mönster", %{conn: conn} do
+    test "redirects logged-in users to My patterns", %{conn: conn} do
       conn =
         conn
         |> log_in_user(user_fixture())
