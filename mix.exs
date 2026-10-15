@@ -11,7 +11,10 @@ defmodule Toile.MixProject do
       aliases: aliases(),
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
-      listeners: [Phoenix.CodeReloader]
+      listeners: [Phoenix.CodeReloader],
+      # Without line numbers, `gettext.extract --check-up-to-date` does not fail
+      # when a gettext call only moves to another line.
+      gettext: [write_reference_line_numbers: false]
     ]
   end
 

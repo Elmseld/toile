@@ -85,7 +85,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
 
       for result <- [free_result, taken_result] do
         assert result =~ "Vi har skickat en länk till den nya adressen"
-        refute result =~ "has already been taken"
+        refute result =~ "används redan"
       end
 
       # Only the free address got a change link.
@@ -201,7 +201,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
         })
 
       assert result =~ "Spara lösenord"
-      assert result =~ "should be at least 12 character(s)"
+      assert result =~ "ska vara minst 12 tecken"
       assert result =~ "does not match password"
     end
 
@@ -219,7 +219,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
         |> render_submit()
 
       assert result =~ "Spara lösenord"
-      assert result =~ "should be at least 12 character(s)"
+      assert result =~ "ska vara minst 12 tecken"
       assert result =~ "does not match password"
     end
 
