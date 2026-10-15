@@ -115,7 +115,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
         })
 
       assert result =~ "Ändra e-post"
-      assert result =~ "must have the @ sign and no spaces"
+      assert result =~ "måste innehålla @ och får inte innehålla mellanslag"
     end
 
     test "renders errors with invalid data (phx-submit)", %{conn: conn, user: user} do
@@ -129,7 +129,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
         |> render_submit()
 
       assert result =~ "Ändra e-post"
-      assert result =~ "did not change"
+      assert result =~ "har inte ändrats"
     end
 
     test "redirects to log in when sudo mode expired while the page was open", %{
@@ -202,7 +202,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
 
       assert result =~ "Spara lösenord"
       assert result =~ "ska vara minst 12 tecken"
-      assert result =~ "does not match password"
+      assert result =~ "matchar inte lösenordet"
     end
 
     test "renders errors with invalid data (phx-submit)", %{conn: conn} do
@@ -220,7 +220,7 @@ defmodule ToileWeb.UserLive.SettingsTest do
 
       assert result =~ "Spara lösenord"
       assert result =~ "ska vara minst 12 tecken"
-      assert result =~ "does not match password"
+      assert result =~ "matchar inte lösenordet"
     end
 
     test "redirects to log in when sudo mode expired while the page was open", %{

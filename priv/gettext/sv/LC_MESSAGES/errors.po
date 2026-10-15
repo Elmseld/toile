@@ -100,3 +100,18 @@ msgstr "måste vara större än eller lika med %{number}"
 
 msgid "must be equal to %{number}"
 msgstr "måste vara lika med %{number}"
+
+#: lib/toile/accounts/user.ex
+#, elixir-autogen, elixir-format
+msgid "did not change"
+msgstr "har inte ändrats"
+
+#: lib/toile/accounts/user.ex
+#, elixir-autogen, elixir-format
+msgid "does not match password"
+msgstr "matchar inte lösenordet"
+
+#: lib/toile/accounts/user.ex
+#, elixir-autogen, elixir-format
+msgid "must have the @ sign and no spaces"
+msgstr "måste innehålla @ och får inte innehålla mellanslag"

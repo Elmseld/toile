@@ -33,7 +33,8 @@ defmodule ToileWeb.UserLive.RegistrationTest do
         |> render_change(user: %{"email" => "with spaces"})
 
       assert result =~ "Skapa ett konto"
-      assert result =~ "must have the @ sign and no spaces"
+      assert result =~ "måste innehålla @ och får inte innehålla mellanslag"
+      refute result =~ "must have the @ sign"
     end
   end
 
@@ -96,7 +97,8 @@ defmodule ToileWeb.UserLive.RegistrationTest do
         |> form("#registration_form", user: %{"email" => "with spaces"})
         |> render_submit()
 
-      assert result =~ "must have the @ sign and no spaces"
+      assert result =~ "måste innehålla @ och får inte innehålla mellanslag"
+      refute result =~ "must have the @ sign"
     end
   end
 
