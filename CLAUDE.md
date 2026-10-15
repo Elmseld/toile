@@ -16,6 +16,7 @@ Read `docs/product.md` for what the product is and its principles, and `AGENTS.m
 CI (`.github/workflows/ci.yml`) runs both sets of checks. Tool versions are pinned in `.tool-versions`.
 
 ## Conventions
+- The /ship agents load the `elixir-genius` skill for Elixir idioms. When it conflicts with this file, `AGENTS.md` (Phoenix 1.8 conventions) or the ADRs, those win: keep the standard Phoenix layout (contexts under `lib/toile`, web layer under `lib/toile_web`), with no umbrella apps, path-based sub-projects or `impl/` layers unless an ADR introduces them.
 - Language: everything another developer reads is in English: code, comments, commit messages, PRs, docs, ADRs, tickets and file names. Only the user-facing UI is Swedish. Quote Swedish UI text verbatim when a doc refers to it. Until ticket 0012 moves UI text to gettext (English source strings, `sv` default locale), existing Swedish UI strings stay hardcoded.
 - Lengths are millimeters everywhere in code and storage. Only the UI shows centimeters.
 - Coordinates follow SVG: origin top left, y down.
