@@ -112,6 +112,7 @@ msgid "You have been logged out."
 msgstr "Du är utloggad."
 
 #: lib/toile_web/controllers/user_session_controller.ex
+#: lib/toile_web/live/user_live/settings.ex
 #: lib/toile_web/user_auth.ex
 #, elixir-autogen, elixir-format
 msgid "You must log in again to access this page."
@@ -159,6 +160,9 @@ msgstr "Ljust tema"
 
 #: lib/toile_web/components/layouts.ex
 #: lib/toile_web/controllers/page_html/home.html.heex
+#: lib/toile_web/live/user_live/confirmation.ex
+#: lib/toile_web/live/user_live/login.ex
+#: lib/toile_web/live/user_live/registration.ex
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr "Logga in"
@@ -185,6 +189,7 @@ msgid "Register"
 msgstr "Registrera"
 
 #: lib/toile_web/components/layouts.ex
+#: lib/toile_web/live/user_live/settings.ex
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr "Inställningar"
@@ -200,6 +205,7 @@ msgid "Adaptable"
 msgstr "Anpassningsbart"
 
 #: lib/toile_web/controllers/page_html/home.html.heex
+#: lib/toile_web/live/user_live/registration.ex
 #, elixir-autogen, elixir-format
 msgid "Create account"
 msgstr "Skapa konto"
@@ -248,3 +254,200 @@ msgstr "Toile riktar sig både till hobbysömmare och till småskaliga mönsterk
 #, elixir-autogen, elixir-format
 msgid "You don't have any patterns yet."
 msgstr "Du har inga mönster än."
+
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgid "Already have an account?"
+msgstr "Har du redan ett konto?"
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Change email"
+msgstr "Ändra e-post"
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Change the email address and password for your account"
+msgstr "Ändra e-postadress och lösenord för ditt konto"
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Changing..."
+msgstr "Ändrar..."
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Confirm and log in only this time"
+msgstr "Bekräfta och logga in bara den här gången"
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Confirm and stay logged in"
+msgstr "Bekräfta och förbli inloggad"
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Confirm new password"
+msgstr "Bekräfta nytt lösenord"
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Confirming..."
+msgstr "Bekräftar..."
+
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgid "Create an account"
+msgstr "Skapa ett konto"
+
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgid "Creating account..."
+msgstr "Skapar konto..."
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Don't have an account?"
+msgstr "Har du inget konto?"
+
+#: lib/toile_web/live/user_live/login.ex
+#: lib/toile_web/live/user_live/registration.ex
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Email"
+msgstr "E-post"
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Forgot your password? Enter your email above and choose 'Log in with email'. Once you are logged in, you can choose a new password under Settings."
+msgstr "Glömt lösenordet? Ange din e-post ovan och välj 'Logga in med e-post'. När du är inloggad kan du välja ett nytt lösenord under Inställningar."
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "If your email address is registered with us, you will shortly receive an email with instructions for logging in."
+msgstr "Om din e-postadress finns hos oss får du snart ett mejl med instruktioner för att logga in."
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Keep me logged in on this device"
+msgstr "Håll mig inloggad på den här enheten"
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Log in and stay logged in"
+msgstr "Logga in och förbli inloggad"
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Log in only this time"
+msgstr "Logga in bara den här gången"
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Log in with email"
+msgstr "Logga in med e-post"
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Log me in only this time"
+msgstr "Logga in mig bara den här gången"
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Logging in..."
+msgstr "Loggar in..."
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "New password"
+msgstr "Nytt lösenord"
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Password"
+msgstr "Lösenord"
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Save password"
+msgstr "Spara lösenord"
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Saving..."
+msgstr "Sparar..."
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Sent emails are on the"
+msgstr "Skickade mejl finns på"
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Sign up"
+msgstr "Registrera dig"
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "The link to change your email is invalid or has expired."
+msgstr "Länken för att ändra e-post är ogiltig eller har gått ut."
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "The login link is invalid or has expired."
+msgstr "Inloggningslänken är ogiltig eller har gått ut."
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Tip: If you prefer passwords, you can set one under Settings."
+msgstr "Tips: Om du hellre använder lösenord kan du välja ett under Inställningar."
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "We have sent a link to the new address. Open it to confirm the change."
+msgstr "Vi har skickat en länk till den nya adressen. Öppna den för att bekräfta ändringen."
+
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgid "We have sent an email to %{email}. Open the link in the email to confirm your account."
+msgstr "Vi har skickat ett mejl till %{email}. Öppna länken i mejlet för att bekräfta ditt konto."
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Welcome %{email}"
+msgstr "Välkommen %{email}"
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "You are running the local mail adapter."
+msgstr "Du kör den lokala mejladaptern."
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "You need to log in again to make sensitive changes to your account."
+msgstr "Du behöver logga in igen för att göra känsliga ändringar i ditt konto."
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Your email address has been changed."
+msgstr "E-postadressen är ändrad."
+
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgid "here"
+msgstr "här"
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "mailbox page"
+msgstr "brevlådesidan"
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "now"
+msgstr "nu"
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "or"
+msgstr "eller"

@@ -11,13 +11,13 @@ defmodule ToileWeb.UserLive.Registration do
       <div class="mx-auto max-w-sm">
         <div class="text-center">
           <.header>
-            Skapa ett konto
+            {gettext("Create an account")}
             <:subtitle>
-              Har du redan ett konto?
+              {gettext("Already have an account?")}
               <.link navigate={~p"/users/log-in"} class="font-semibold text-brand hover:underline">
-                Logga in
+                {gettext("Log in")}
               </.link>
-              här.
+              {gettext("here")}.
             </:subtitle>
           </.header>
         </div>
@@ -26,15 +26,15 @@ defmodule ToileWeb.UserLive.Registration do
           <.input
             field={@form[:email]}
             type="email"
-            label="E-post"
+            label={gettext("Email")}
             autocomplete="username"
             spellcheck="false"
             required
             phx-mounted={JS.focus()}
           />
 
-          <.button phx-disable-with="Skapar konto..." class="btn btn-primary w-full">
-            Skapa konto
+          <.button phx-disable-with={gettext("Creating account...")} class="btn btn-primary w-full">
+            {gettext("Create account")}
           </.button>
         </.form>
       </div>
@@ -68,7 +68,10 @@ defmodule ToileWeb.UserLive.Registration do
          socket
          |> put_flash(
            :info,
-           "Vi har skickat ett mejl till #{email}. Öppna länken i mejlet för att bekräfta ditt konto."
+           gettext(
+             "We have sent an email to %{email}. Open the link in the email to confirm your account.",
+             email: email
+           )
          )
          |> push_navigate(to: ~p"/users/log-in")}
 

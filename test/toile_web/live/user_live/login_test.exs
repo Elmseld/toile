@@ -12,6 +12,23 @@ defmodule ToileWeb.UserLive.LoginTest do
       assert html =~ "Registrera dig"
       assert html =~ "Logga in med e-post"
     end
+
+    test "renders the sign-up sentence and form texts in Swedish", %{conn: conn} do
+      {:ok, lv, html} = live(conn, ~p"/users/log-in")
+
+      text = html |> LazyHTML.from_fragment() |> LazyHTML.text() |> String.replace(~r/\s+/, " ")
+
+      assert text =~ "Har du inget konto? Registrera dig nu."
+      assert has_element?(lv, ~s(label[for="login_form_password_password"]), "Lösenord")
+      assert has_element?(lv, "#login_form_password button", "Logga in bara den här gången")
+      assert has_element?(lv, ".divider", "eller")
+
+      assert has_element?(
+               lv,
+               "#forgot-password-hint",
+               "Ange din e-post ovan och välj 'Logga in med e-post'."
+             )
+    end
   end
 
   describe "user login - magic link" do

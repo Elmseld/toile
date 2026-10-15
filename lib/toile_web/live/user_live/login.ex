@@ -10,16 +10,16 @@ defmodule ToileWeb.UserLive.Login do
       <div class="mx-auto max-w-sm space-y-4">
         <div class="text-center">
           <.header>
-            <p>Logga in</p>
+            <p>{gettext("Log in")}</p>
             <:subtitle>
               <%= if @current_scope do %>
-                Du behöver logga in igen för att göra känsliga ändringar i ditt konto.
+                {gettext("You need to log in again to make sensitive changes to your account.")}
               <% else %>
-                Har du inget konto? <.link
+                {gettext("Don't have an account?")} <.link
                   navigate={~p"/users/register"}
                   class="font-semibold text-brand hover:underline"
                   phx-no-format
-                >Registrera dig</.link> nu.
+                >{gettext("Sign up")}</.link> {gettext("now")}.
               <% end %>
             </:subtitle>
           </.header>
@@ -28,9 +28,10 @@ defmodule ToileWeb.UserLive.Login do
         <div :if={local_mail_adapter?()} class="alert alert-info">
           <.icon name="hero-information-circle" class="size-6 shrink-0" />
           <div>
-            <p>Du kör den lokala mejladaptern.</p>
+            <p>{gettext("You are running the local mail adapter.")}</p>
             <p>
-              Skickade mejl finns på <.link href="/dev/mailbox" class="underline">brevlådesidan</.link>.
+              {gettext("Sent emails are on the")}
+              <.link href="/dev/mailbox" class="underline" phx-no-format>{gettext("mailbox page")}</.link>.
             </p>
           </div>
         </div>
@@ -45,18 +46,18 @@ defmodule ToileWeb.UserLive.Login do
             readonly={!!@current_scope}
             field={@magic_form[:email]}
             type="email"
-            label="E-post"
+            label={gettext("Email")}
             autocomplete="username"
             spellcheck="false"
             required
             phx-mounted={JS.focus()}
           />
           <.button class="btn btn-primary w-full">
-            Logga in med e-post <span aria-hidden="true">→</span>
+            {gettext("Log in with email")} <span aria-hidden="true">→</span>
           </.button>
         </.form>
 
-        <div class="divider">eller</div>
+        <div class="divider">{gettext("or")}</div>
 
         <.form
           for={@password_form}
@@ -69,7 +70,7 @@ defmodule ToileWeb.UserLive.Login do
             readonly={!!@current_scope}
             field={@password_form[:email]}
             type="email"
-            label="E-post"
+            label={gettext("Email")}
             autocomplete="username"
             spellcheck="false"
             required
@@ -77,7 +78,7 @@ defmodule ToileWeb.UserLive.Login do
           <.input
             field={@password_form[:password]}
             type="password"
-            label="Lösenord"
+            label={gettext("Password")}
             autocomplete="current-password"
             spellcheck="false"
           />
@@ -86,16 +87,17 @@ defmodule ToileWeb.UserLive.Login do
             name={@password_form[:remember_me].name}
             value="true"
           >
-            Logga in och förbli inloggad <span aria-hidden="true">→</span>
+            {gettext("Log in and stay logged in")} <span aria-hidden="true">→</span>
           </.button>
           <.button class="btn btn-primary btn-soft w-full mt-2">
-            Logga in bara den här gången
+            {gettext("Log in only this time")}
           </.button>
         </.form>
 
         <p id="forgot-password-hint" class="text-sm text-base-content/70">
-          Glömt lösenordet? Ange din e-post ovan och välj 'Logga in med e-post'. När du är
-          inloggad kan du välja ett nytt lösenord under Inställningar.
+          {gettext(
+            "Forgot your password? Enter your email above and choose 'Log in with email'. Once you are logged in, you can choose a new password under Settings."
+          )}
         </p>
       </div>
     </Layouts.app>
@@ -132,7 +134,9 @@ defmodule ToileWeb.UserLive.Login do
     end
 
     info =
-      "Om din e-postadress finns hos oss får du snart ett mejl med instruktioner för att logga in."
+      gettext(
+        "If your email address is registered with us, you will shortly receive an email with instructions for logging in."
+      )
 
     {:noreply,
      socket

@@ -112,6 +112,7 @@ msgid "You have been logged out."
 msgstr ""
 
 #: lib/toile_web/controllers/user_session_controller.ex
+#: lib/toile_web/live/user_live/settings.ex
 #: lib/toile_web/user_auth.ex
 #, elixir-autogen, elixir-format
 msgid "You must log in again to access this page."
@@ -159,6 +160,9 @@ msgstr ""
 
 #: lib/toile_web/components/layouts.ex
 #: lib/toile_web/controllers/page_html/home.html.heex
+#: lib/toile_web/live/user_live/confirmation.ex
+#: lib/toile_web/live/user_live/login.ex
+#: lib/toile_web/live/user_live/registration.ex
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr ""
@@ -185,6 +189,7 @@ msgid "Register"
 msgstr ""
 
 #: lib/toile_web/components/layouts.ex
+#: lib/toile_web/live/user_live/settings.ex
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
@@ -200,6 +205,7 @@ msgid "Adaptable"
 msgstr ""
 
 #: lib/toile_web/controllers/page_html/home.html.heex
+#: lib/toile_web/live/user_live/registration.ex
 #, elixir-autogen, elixir-format
 msgid "Create account"
 msgstr ""
@@ -247,4 +253,201 @@ msgstr ""
 #: lib/toile_web/live/pattern_live/index.ex
 #, elixir-autogen, elixir-format
 msgid "You don't have any patterns yet."
+msgstr ""
+
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgid "Already have an account?"
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Change email"
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Change the email address and password for your account"
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Changing..."
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Confirm and log in only this time"
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Confirm and stay logged in"
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Confirm new password"
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Confirming..."
+msgstr ""
+
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgid "Create an account"
+msgstr ""
+
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgid "Creating account..."
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Don't have an account?"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#: lib/toile_web/live/user_live/registration.ex
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Email"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Forgot your password? Enter your email above and choose 'Log in with email'. Once you are logged in, you can choose a new password under Settings."
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "If your email address is registered with us, you will shortly receive an email with instructions for logging in."
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Keep me logged in on this device"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Log in and stay logged in"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Log in only this time"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Log in with email"
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Log me in only this time"
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Logging in..."
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "New password"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Password"
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Save password"
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Saving..."
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Sent emails are on the"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "Sign up"
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "The link to change your email is invalid or has expired."
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "The login link is invalid or has expired."
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Tip: If you prefer passwords, you can set one under Settings."
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "We have sent a link to the new address. Open it to confirm the change."
+msgstr ""
+
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgid "We have sent an email to %{email}. Open the link in the email to confirm your account."
+msgstr ""
+
+#: lib/toile_web/live/user_live/confirmation.ex
+#, elixir-autogen, elixir-format
+msgid "Welcome %{email}"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "You are running the local mail adapter."
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "You need to log in again to make sensitive changes to your account."
+msgstr ""
+
+#: lib/toile_web/live/user_live/settings.ex
+#, elixir-autogen, elixir-format
+msgid "Your email address has been changed."
+msgstr ""
+
+#: lib/toile_web/live/user_live/registration.ex
+#, elixir-autogen, elixir-format
+msgid "here"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "mailbox page"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "now"
+msgstr ""
+
+#: lib/toile_web/live/user_live/login.ex
+#, elixir-autogen, elixir-format
+msgid "or"
 msgstr ""
