@@ -28,6 +28,17 @@ describe("formatNumber", () => {
     expect(formatNumber(-0.004)).toBe("0");
     expect(formatNumber(-1e-12)).toBe("0");
   });
+
+  test("huge finite values are written unrounded instead of overflowing to Infinity", () => {
+    expect(formatNumber(1e307)).toBe("1e+307");
+    expect(formatNumber(-Number.MAX_VALUE)).toBe(String(-Number.MAX_VALUE));
+  });
+
+  test("non-finite values (only hand-built) give 0", () => {
+    expect(formatNumber(Number.NaN)).toBe("0");
+    expect(formatNumber(Infinity)).toBe("0");
+    expect(formatNumber(-Infinity)).toBe("0");
+  });
 });
 
 describe("curvePathData", () => {
@@ -46,6 +57,11 @@ describe("curvePathData", () => {
       length: 0,
     };
     expect(curvePathData(curve)).toBe("M 0 0 C 0 33.33 50 100 100 100");
+  });
+
+  test("a curve of another type (only hand-built) gives an empty string without throwing", () => {
+    const odd = { name: "o", type: "arc", from: p(0, 0), to: p(1, 1), length: 1 };
+    expect(curvePathData(odd as unknown as ComputedCurve)).toBe("");
   });
 });
 
@@ -71,6 +87,13 @@ describe("piecePathData", () => {
       grainline: { from: a, to: b },
     };
     expect(piecePathData(piece)).toBe("M 0 0 L 100 0 C 100 50 0 50 0 0 Z");
+  });
+
+  test("curves of another type (only hand-built) are skipped", () => {
+    const [a, b] = [p(0, 0), p(100, 0)];
+    const odd = { name: "o", type: "arc", from: b, to: a, length: 1 } as unknown as ComputedCurve;
+    const piece: ComputedPiece = { name: "x", outline: [line("ab", a, b), odd], grainline: { from: a, to: b } };
+    expect(piecePathData(piece)).toBe("M 0 0 L 100 0 Z");
   });
 
   test("an empty outline (only hand-built) gives an empty string", () => {
