@@ -125,3 +125,13 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "must have the @ sign and no spaces"
 msgstr ""
+
+#: lib/toile/measurements/values.ex
+#, elixir-autogen, elixir-format
+msgid "must be a number in cm with at most one decimal"
+msgstr ""
+
+#: lib/toile/measurements/values.ex
+#, elixir-autogen, elixir-format
+msgid "must be more than 0 and at most 300 cm"
+msgstr ""
