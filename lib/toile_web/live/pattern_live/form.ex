@@ -2,10 +2,10 @@ defmodule ToileWeb.PatternLive.Form do
   @moduledoc """
   Creates (`:new`) or renames (`:edit`) a pattern project of the current user.
 
-  `:new` asks for a name, a block (`Toile.Patterns.Blocks`, chosen from a select with a prompt, nothing preselected)
-  and one of the user's measurement profiles. A user without profiles sees `#no-profiles` with a
-  link to create one instead of the form, since a project needs a profile. `:edit` only changes
-  the name; the block and definition of a project never change here.
+  `:new` asks for a name, a block (`Toile.Patterns.Blocks`, chosen from a select with a prompt,
+  nothing preselected) and one of the user's measurement profiles. A user without profiles sees
+  `#no-profiles` with a link to create one instead of the form, since a project needs a profile.
+  `:edit` only changes the name; the block and definition of a project never change here.
 
   Saving goes to the project page. The inputs follow the measurement form's touch sizes:
   `input-lg`/`select-lg` and buttons with a 44 px minimum height (`min-h-11`).
@@ -55,6 +55,7 @@ defmodule ToileWeb.PatternLive.Form do
             field={@form[:block]}
             type="select"
             label={gettext("Block")}
+            prompt={gettext("Choose a block")}
             options={@block_options}
             class="w-full select select-lg min-h-11"
           />
@@ -118,12 +119,8 @@ defmodule ToileWeb.PatternLive.Form do
     |> assign(:page_title, gettext("New pattern"))
     |> assign(:block_options, block_options)
     |> assign(:profile_options, profile_options)
-    |> assign_project(project, default_block(Blocks.keys()))
+    |> assign_project(project, %{})
   end
-
-  # With a single block there is nothing to choose, so it starts selected.
-  defp default_block([key]), do: %{"block" => key}
-  defp default_block(_keys), do: %{}
 
   defp assign_project(socket, project, attrs) do
     changeset = Patterns.change_pattern_project(socket.assigns.current_scope, project, attrs)

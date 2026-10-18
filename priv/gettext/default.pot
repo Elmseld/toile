@@ -941,3 +941,8 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Bodice"
 msgstr ""
+
+#: lib/toile_web/live/pattern_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Choose a block"
+msgstr ""

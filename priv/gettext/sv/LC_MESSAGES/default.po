@@ -941,3 +941,8 @@ msgstr "Från den utstående nackkotan rakt ned längs ryggraden till en linjal 
 #, elixir-autogen, elixir-format
 msgid "Bodice"
 msgstr "Livstycke"
+
+#: lib/toile_web/live/pattern_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Choose a block"
+msgstr "Välj ett grundmönster"
