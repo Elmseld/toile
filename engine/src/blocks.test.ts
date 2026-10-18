@@ -622,3 +622,45 @@ describe("bodice: missing measurements", () => {
     );
   });
 });
+
+for (const [label, measurements] of [
+  ["A", BODICE_A],
+  ["B", BODICE_B],
+] as const) {
+  describe(`bodice: waist suppression, measurement set ${label}`, () => {
+    const result = expectOk(compilePattern(bodice()).evaluate({ measurements }));
+    const wedge =
+      point(result, "f_bp").y > point(result, "f_underarm_cf").y
+        ? xAtY(
+            point(result, "f_bp"),
+            point(result, "f_bdart_neck"),
+            point(result, "f_underarm_cf").y,
+          ) -
+          xAtY(
+            point(result, "f_bp"),
+            point(result, "f_bdart_arm"),
+            point(result, "f_underarm_cf").y,
+          )
+        : 0;
+
+    test("the back and front side seams have the same length and slant", () => {
+      expectWithin(curveLength(result, "b_side"), curveLength(result, "f_side"), 0.01);
+      const backSlant = point(result, "b_side_top").x - point(result, "b_waist_side").x;
+      const frontSlant = point(result, "f_waist_side").x - point(result, "f_side_top").x;
+      expectWithin(backSlant, frontSlant, 0.01);
+    });
+
+    test("the back waist dart takes as much as the side seam slant", () => {
+      const dart = point(result, "b_wdart_side").x - point(result, "b_wdart_cb").x;
+      const slant = point(result, "b_side_top").x - point(result, "b_waist_side").x;
+      expect(dart).toBeGreaterThan(0);
+      expectWithin(dart, slant, 0.01);
+    });
+
+    test("the front waist dart also takes the width of the bust dart on the bust line", () => {
+      const front = point(result, "f_wdart_cf").x - point(result, "f_wdart_side").x;
+      const back = point(result, "b_wdart_side").x - point(result, "b_wdart_cb").x;
+      expectWithin(front - back, wedge, 0.01);
+    });
+  });
+}
