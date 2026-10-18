@@ -270,6 +270,31 @@ describe("evaluateExpression with a custom function table", () => {
     }
   });
 
+  test("a hand-built call without a well-formed args array is an invalid result", () => {
+    const span = { start: 0, end: 1 };
+    const callSpan = { start: 2, end: 9 };
+    const one: Expr = { type: "number", value: 1, span };
+    const a: Expr = { type: "reference", name: "A", span };
+    const calls = [
+      { type: "call", function: "sqrt", span: callSpan },
+      { type: "call", function: "sqrt", args: null, span: callSpan },
+      { type: "call", function: "distance", args: [a, null], span: callSpan },
+      { type: "call", function: "max", args: [one, 2], span: callSpan },
+      // A sparse array: the hole must not be skipped, which would also leave the count wrong.
+      { type: "call", function: "max", args: [one, , one], span: callSpan },
+    ] as unknown as Expr[];
+    for (const call of calls) {
+      const nested: Expr = { type: "negate", operand: call, span };
+      for (const expr of [call, nested]) {
+        expect(() => evaluateExpression(expr, () => 1, { functions })).not.toThrow();
+        expect(evaluateExpression(expr, () => 1, { functions })).toEqual({
+          ok: false,
+          error: expect.objectContaining({ kind: "invalid_result", function: null, span: callSpan }),
+        });
+      }
+    }
+  });
+
   test("a function missing from the table given is unknown", () => {
     const parsed = parseFormula("twice(1)", { functions });
     if (!parsed.ok) throw new Error("unexpected parse error");

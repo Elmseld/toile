@@ -34,8 +34,8 @@ type Task =
  * (span of the divisor), a non-finite result such as `sqrt(-1)` (span of the operation), or a call
  * that does not match the function table. A function from the table that throws is an
  * `invalid_result` error for that call. Never throws, also not for hand-built ASTs of any depth
- * (the walk uses an explicit stack instead of recursion) or with nodes of an unknown type
- * (`invalid_result`).
+ * (the walk uses an explicit stack instead of recursion) or with malformed nodes, such as nodes of
+ * an unknown type or calls without an `args` array of nodes (`invalid_result`).
  */
 export function evaluateExpression(
   expr: Expr,
@@ -83,13 +83,16 @@ export function evaluateExpression(
             break;
 
           case "call": {
+            // Hand-built calls may lack an `args` array or hold holes and non-objects in it;
+            // checking here keeps `checkCall` and the argument count below sound.
+            if (!wellFormedArgs(node.args)) return fail(invalidResultError(null, spanOf(node)));
             const spec = checkCall(node, functions);
             if (!spec.ok) return spec;
             tasks.push({ step: "call", expr: node, spec: spec.value });
             if (spec.value.takes !== "names") {
               for (let i = node.args.length - 1; i >= 0; i--) {
-                const arg = node.args[i];
-                if (arg !== undefined) tasks.push({ step: "visit", expr: arg });
+                // `wellFormedArgs` checked every index; `as Expr` is only for the type checker.
+                tasks.push({ step: "visit", expr: node.args[i] as Expr });
               }
             }
             break;
@@ -136,6 +139,19 @@ export function evaluateExpression(
     return fail(invalidResultError(null, spanOf(expr)));
   }
   return { ok: true, value };
+}
+
+/**
+ * Whether `args` is an array whose every index holds an object. A plain loop rather than `every`,
+ * which skips the holes of a sparse array.
+ */
+function wellFormedArgs(args: unknown): boolean {
+  if (!Array.isArray(args)) return false;
+  for (let i = 0; i < args.length; i++) {
+    const arg: unknown = args[i];
+    if (typeof arg !== "object" || arg === null) return false;
+  }
+  return true;
 }
 
 /** Checks a call against the function table, as the parser does for parsed formulas. */
