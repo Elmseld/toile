@@ -86,6 +86,15 @@ a drag. The definition and its formulas are untrusted user input. This ADR build
     result. Measured for a 300-point block: about 0.4 ms per compiled evaluation against 2.5 ms
     for `evaluatePattern` (Bun, one core), so per-node allocation in the expression evaluator
     (about a third of the remaining time) is not worth optimising yet.
+16. **Limits on untrusted definitions.** The validator rejects, as `invalid_definition` at the
+    section's path, any section (`measurements`, `parameters`, `formulas`, `points`, `curves`,
+    `pieces`) with more than `MAX_SECTION_ENTRIES` (20 000) entries and any outline with more than
+    `MAX_OUTLINE_ENTRIES` (1 000); a block has a few hundred points, so these only bound the work
+    a hostile definition can cause. Formulas keep the limits of ADR 0003 (10 000 characters,
+    nesting depth 100). A computed position more than `MAX_COORDINATE` (1e7 mm, 10 km) from the
+    origin on either axis is `degenerate_geometry`, which keeps every length and SVG number finite.
+    Limits on the stored size of a definition (bytes per project, projects per user) belong to the
+    Phoenix app and are set in 0005.
 
 Rejected alternatives:
 - A schema/validation dependency (zod, a JSON Schema validator): a new dependency for a small

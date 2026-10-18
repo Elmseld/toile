@@ -14,6 +14,16 @@ import type {
 /** The only definition format version this engine reads. */
 export const PATTERN_FORMAT_VERSION = 1;
 
+/**
+ * The most entries one section (`measurements`, `parameters`, `formulas`, `points`, `curves`,
+ * `pieces`) may have. Far above any garment (a block has a few hundred points), but it bounds the
+ * work an untrusted definition can cause.
+ */
+export const MAX_SECTION_ENTRIES = 20_000;
+
+/** The most entries the outline of one piece may have. */
+export const MAX_OUTLINE_ENTRIES = 1_000;
+
 export type ValidationResult =
   | { ok: true; definition: PatternDefinition }
   | { ok: false; errors: DefinitionError[] };
@@ -40,9 +50,10 @@ type JsonObject = Readonly<Record<string, unknown>>;
  * Never throws. Every structural problem is reported at once as `invalid_definition` with a JSON
  * pointer `path` (`""` is the root, `/points/3/distnce` an unknown field). A `version` other than
  * `1` is a single `unsupported_version` error (path `/version`) and nothing else is checked.
- * Unknown fields, formulas that are not strings and arrays with empty slots are rejected. An
- * object that throws while being read (a hostile getter or proxy) is reported as
- * `invalid_definition` at the root.
+ * Unknown fields, formulas that are not strings and arrays with empty slots are rejected, and so
+ * are sections with more than `MAX_SECTION_ENTRIES` entries and outlines with more than
+ * `MAX_OUTLINE_ENTRIES` (their items are then not checked). An object that throws while being
+ * read (a hostile getter or proxy) is reported as `invalid_definition` at the root.
  */
 export function validateDefinition(value: unknown): ValidationResult {
   try {
@@ -205,8 +216,11 @@ class Validator {
     if (!Object.hasOwn(value, "outline")) {
       this.problem(`${path}/outline`, 'Missing required field "outline"');
     } else {
-      outline = this.array(value.outline, `${path}/outline`, (item, itemPath) =>
-        this.outlineEntry(item, itemPath),
+      outline = this.array(
+        value.outline,
+        `${path}/outline`,
+        MAX_OUTLINE_ENTRIES,
+        (item, itemPath) => this.outlineEntry(item, itemPath),
       );
       // `outline` only holds the valid entries, so emptiness is judged on the input.
       if (Array.isArray(value.outline) && value.outline.length === 0) {
@@ -245,16 +259,19 @@ class Validator {
     item: (value: unknown, path: string) => T | undefined,
   ): T[] {
     if (!Object.hasOwn(value, key)) return [];
-    return this.array(value[key], `/${key}`, item) ?? [];
+    return this.array(value[key], `/${key}`, MAX_SECTION_ENTRIES, item) ?? [];
   }
 
+  /** An array of at most `max` items; each item is checked by `item`. */
   private array<T>(
     value: unknown,
     path: string,
+    max: number,
     item: (value: unknown, path: string) => T | undefined,
   ): T[] | undefined {
     if (!Array.isArray(value)) return this.problem(path, "must be an array");
     const items: readonly unknown[] = value;
+    if (items.length > max) return this.problem(path, `must have at most ${max} items`);
     // A sparse array (only from a JavaScript caller) could claim a huge length; checking the own
     // keys first keeps the loop below linear in the data actually present.
     if (Object.keys(items).length < items.length) {
@@ -281,6 +298,11 @@ class Validator {
     const record = value[key];
     if (!isObject(record)) {
       this.problem(`/${key}`, "must be an object");
+      return {};
+    }
+    const keys = Object.keys(record);
+    if (keys.length > MAX_SECTION_ENTRIES) {
+      this.problem(`/${key}`, `must have at most ${MAX_SECTION_ENTRIES} entries`);
       return {};
     }
     const entries: [string, T][] = [];

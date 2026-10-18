@@ -24,5 +24,11 @@ export type {
 } from "./types";
 export { compilePattern, evaluatePattern } from "./evaluate";
 export { curvePathData, formatNumber, piecePathData } from "./svg";
-export { PATTERN_FORMAT_VERSION, type ValidationResult, validateDefinition } from "./validate";
+export {
+  MAX_OUTLINE_ENTRIES,
+  MAX_SECTION_ENTRIES,
+  PATTERN_FORMAT_VERSION,
+  type ValidationResult,
+  validateDefinition,
+} from "./validate";
 export { distance, MAX_COORDINATE, type Point } from "./vector";

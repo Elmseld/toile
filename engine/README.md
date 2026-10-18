@@ -87,6 +87,9 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   problem at once as `invalid_definition` with a JSON-pointer `path` (`/points/3/distnce`), or
   `unsupported_version` (path `/version`) for any version other than `1`. `evaluatePattern` runs
   it first.
+- **Limits.** At most `MAX_SECTION_ENTRIES` (20 000) entries per section and
+  `MAX_OUTLINE_ENTRIES` (1 000) per outline, else `invalid_definition` at that path; formulas
+  keep their own limits (see Formulas). Storage limits are up to the app (0005).
 - **Points.** `name`, `op`, the op's fields and an optional `user_offset: { dx, dy }`. Name fields
   hold point names; formula fields hold formulas (ADR 0003) that may also call the geometry
   functions below. Lengths are mm.

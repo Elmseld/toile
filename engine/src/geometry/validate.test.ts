@@ -2,7 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DefinitionError } from "./types";
-import { PATTERN_FORMAT_VERSION, validateDefinition } from "./validate";
+import {
+  MAX_OUTLINE_ENTRIES,
+  MAX_SECTION_ENTRIES,
+  PATTERN_FORMAT_VERSION,
+  validateDefinition,
+} from "./validate";
 
 const EXAMPLE_PATH = join(import.meta.dir, "..", "..", "examples", "rectangle-with-dart.json");
 const example = (): Record<string, unknown> => JSON.parse(readFileSync(EXAMPLE_PATH, "utf8"));
@@ -257,5 +262,39 @@ describe("validateDefinition", () => {
     }
     expect(pathsOf({ version: 1, points: sparse })).toEqual(["/points"]);
     expect(pathsOf({ version: 1, points: [, startPoint] })).toEqual(["/points"]);
+  });
+
+  test("sections may have up to MAX_SECTION_ENTRIES entries, outlines up to MAX_OUTLINE_ENTRIES", () => {
+    expect(MAX_SECTION_ENTRIES).toBe(20_000);
+    expect(MAX_OUTLINE_ENTRIES).toBe(1_000);
+    const names = (count: number): string[] => Array.from({ length: count }, (_, i) => `n${i}`);
+    const record = (count: number): Record<string, string> =>
+      Object.fromEntries(names(count).map((name) => [name, "1"]));
+    const points = (count: number): unknown[] =>
+      names(count).map((name) => ({ ...startPoint, name }));
+    const piece = (count: number): unknown => ({
+      name: "p",
+      outline: Array.from({ length: count }, () => ({ curve: "c" })),
+      grainline: { from: "A", to: "B" },
+    });
+
+    expect(validateDefinition(minimal({ measurements: names(MAX_SECTION_ENTRIES) })).ok).toBe(true);
+    expect(validateDefinition(minimal({ formulas: record(MAX_SECTION_ENTRIES) })).ok).toBe(true);
+    expect(validateDefinition(minimal({ points: points(MAX_SECTION_ENTRIES) })).ok).toBe(true);
+    expect(validateDefinition(minimal({ pieces: [piece(MAX_OUTLINE_ENTRIES)] })).ok).toBe(true);
+
+    const over = MAX_SECTION_ENTRIES + 1;
+    expect(errorsOf(minimal({ measurements: names(over) }))).toEqual([
+      { kind: "invalid_definition", path: "/measurements", message: "must have at most 20000 items" },
+    ]);
+    expect(pathsOf(minimal({ parameters: Object.fromEntries(names(over).map((n) => [n, 1])) }))).toEqual([
+      "/parameters",
+    ]);
+    expect(pathsOf(minimal({ formulas: record(over) }))).toEqual(["/formulas"]);
+    // The items of an oversized section are not checked one by one.
+    expect(pathsOf(minimal({ points: Array.from({ length: over }, () => null) }))).toEqual(["/points"]);
+    expect(pathsOf(minimal({ curves: Array.from({ length: over }, () => null) }))).toEqual(["/curves"]);
+    expect(pathsOf(minimal({ pieces: Array.from({ length: over }, () => null) }))).toEqual(["/pieces"]);
+    expect(pathsOf(minimal({ pieces: [piece(MAX_OUTLINE_ENTRIES + 1)] }))).toEqual(["/pieces/0/outline"]);
   });
 });
