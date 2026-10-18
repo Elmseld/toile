@@ -23,15 +23,13 @@ defmodule Toile.Patterns.Blocks.Loader do
   def load!(path) do
     key = Path.basename(path, ".json")
 
-    unless Regex.match?(@key_format, key) do
+    if not Regex.match?(@key_format, key) do
       raise CompileError, description: "#{path}: #{inspect(key)} is not a snake_case block key"
     end
 
     definition = path |> File.read!() |> JSON.decode!()
 
-    unless is_map(definition) and is_integer(definition["version"]) and
-             is_list(definition["measurements"]) and
-             Enum.all?(definition["measurements"], &is_binary/1) do
+    if not valid_shape?(definition) do
       raise CompileError,
         description:
           "#{path} must be a JSON object with an integer \"version\" and a " <>
@@ -47,4 +45,10 @@ defmodule Toile.Patterns.Blocks.Loader do
 
     {key, definition}
   end
+
+  defp valid_shape?(%{"version" => version, "measurements" => measurements})
+       when is_integer(version) and is_list(measurements),
+       do: Enum.all?(measurements, &is_binary/1)
+
+  defp valid_shape?(_definition), do: false
 end
