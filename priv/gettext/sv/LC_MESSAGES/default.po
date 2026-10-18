@@ -552,7 +552,7 @@ msgstr "Runt bystens fylligaste del, med måttbandet vågrätt över ryggen."
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
 msgid "Around the fullest part of the hips and seat, with the tape level."
-msgstr "Runt höfternas och stjärtens bredaste del, med måttbandet vågrätt."
+msgstr "Runt stussens bredaste del, där rumpan är som bredast, med måttbandet vågrätt."
 
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
@@ -577,7 +577,7 @@ msgstr "Vid sidan, från midjan ned till önskad fållkant."
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
 msgid "At the side, from the waist down to the fullest part of the hips."
-msgstr "Vid sidan, från midjan ned till höfternas bredaste del."
+msgstr "Vid sidan, från midjebandet rakt ned till stussens bredaste del."
 
 #: lib/toile_web/live/measurement_profile_live/show.ex
 #, elixir-autogen, elixir-format
@@ -673,12 +673,12 @@ msgstr "Kroppslängd"
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
 msgid "Hip circumference"
-msgstr "Höftvidd"
+msgstr "Stussvidd"
 
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
 msgid "Hip height"
-msgstr "Höfthöjd"
+msgstr "Midja till stuss"
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
 #, elixir-autogen, elixir-format
