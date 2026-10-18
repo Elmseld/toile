@@ -1,7 +1,7 @@
 ---
 id: 0002
 title: Pattern engine - formulas, measurements and parameters
-status: todo
+status: in-review
 type: feature
 ---
 
@@ -15,13 +15,13 @@ The engine (`engine/`) can take a set of measurements, parameters and named form
 all values, in the correct dependency order, with understandable errors.
 
 ## Acceptance criteria
-- [ ] A formula language with numbers, `+ - * /`, parentheses, unary minus and references to measurements and parameters.
-- [ ] At least the functions `sqrt`, `min`, `max`, `abs`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan2`, `rad`, `deg`.
-- [ ] Formulas can reference other formulas. Dependencies are evaluated in the correct order regardless of declaration order.
-- [ ] Circular dependencies produce a clear error that names the cycle.
-- [ ] Unknown references, syntax errors and division by zero produce errors with position and name, not a crashing exception.
-- [ ] Formulas are interpreted without `eval`/`Function` (a custom parser).
-- [ ] Everything is pure functions with unit tests (`bun test`) and strict typing (`bun run typecheck`).
+- [x] A formula language with numbers, `+ - * /`, parentheses, unary minus and references to measurements and parameters.
+- [x] At least the functions `sqrt`, `min`, `max`, `abs`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan2`, `rad`, `deg`.
+- [x] Formulas can reference other formulas. Dependencies are evaluated in the correct order regardless of declaration order.
+- [x] Circular dependencies produce a clear error that names the cycle.
+- [x] Unknown references, syntax errors and division by zero produce errors with position and name, not a crashing exception.
+- [x] Formulas are interpreted without `eval`/`Function` (a custom parser).
+- [x] Everything is pure functions with unit tests (`bun test`) and strict typing (`bun run typecheck`).
 
 ## Out of scope
 - Geometry (points, curves). That comes in 0003.
