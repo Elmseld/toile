@@ -49,8 +49,10 @@ a drag. The definition and its formulas are untrusted user input. This ADR build
 8. **Geometry functions via the injectable table** (ADR 0003 decision 8): `distance(A, B)`,
    `angle(A, B)` and `length(curve)` with `takes: "names"`, in a table that reads the points and
    curves of the running evaluation from a state holder when applied (so parsed formulas can be
-   reused across evaluations, decision 15). Not added: `x(A)` / `y(A)`; `length` takes one curve
-   (sum with `+`).
+   reused across evaluations, decision 15). Each evaluation saves the holder's previous state and
+   restores it when it ends, so an evaluation nested inside another (not possible today, but
+   cheap to rule out) leaves the outer one its own geometry. Not added: `x(A)` / `y(A)`;
+   `length` takes one curve (sum with `+`).
 9. **One dependency graph.** Formulas, points, curves and pieces are nodes of the same dependency
    graph (`planGraph`/`runGraphPlan`, the split form of `evaluateGraph`, ADR 0003 decision 4):
    ordering by dependency, one `circular_dependency` per

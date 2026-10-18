@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { compilePattern, evaluatePattern } from "./evaluate";
-import type { PatternError, PatternInput, PatternResult, UserOffset } from "./types";
+import type { FunctionSpec } from "../formula/functions";
+import { compilePattern, compileWithFunctions, evaluatePattern } from "./evaluate";
+import type {
+  CompiledPattern,
+  PatternError,
+  PatternInput,
+  PatternResult,
+  UserOffset,
+} from "./types";
 
 type Json = Record<string, unknown>;
 
@@ -777,6 +784,61 @@ describe("compilePattern", () => {
     if (first.ok) throw new Error("must not validate");
     (first.errors[0] as { path: string }).path = "changed";
     expect(compiled.evaluate(NO_INPUT)).toEqual(evaluatePattern(invalid, NO_INPUT));
+  });
+
+  test("an evaluation nested inside another leaves the outer one its own geometry", () => {
+    // `nested()` evaluates the same compiled pattern again from inside a formula, between the
+    // geometry function calls of the outer run (formulas evaluate left to right, and D comes after
+    // C). The outer run, the nested run and later runs must equal runs without nesting.
+    const nestedDefinition = def({
+      measurements: ["m"],
+      formulas: { before: "distance(A, B) + length(ab)" },
+      points: [
+        start("A", 0, 0),
+        start("B", "m", 0, { user_offset: { dx: 0, dy: 5 } }),
+        {
+          name: "C",
+          op: "offset",
+          from: "A",
+          dx: "nested() + distance(A, B) + length(ab) + angle(A, B)",
+          dy: "before",
+        },
+        { name: "D", op: "along_line", from: "A", to: "C", distance: "distance(A, C) / 2" },
+      ],
+      curves: [line("ab", "A", "B")],
+    });
+    const outer: PatternInput = { measurements: { m: 10 } };
+    const inner: PatternInput = { measurements: { m: 40 }, parameters: {} };
+    let compiled: CompiledPattern | undefined;
+    let nesting = false;
+    const innerResults: PatternResult[] = [];
+    const nested: FunctionSpec = {
+      min: 0,
+      max: 0,
+      apply: () => {
+        // Only the outer run nests, once; the nested run's own nested() call returns at once.
+        if (!nesting && innerResults.length === 0 && compiled !== undefined) {
+          nesting = true;
+          innerResults.push(compiled.evaluate(inner, { offsets: { A: { dx: 3, dy: 4 } } }));
+          nesting = false;
+        }
+        return 0;
+      },
+    };
+    compiled = compileWithFunctions(nestedDefinition, new Map([["nested", nested]]));
+    const plain = compileWithFunctions(
+      nestedDefinition,
+      new Map([["nested", { min: 0, max: 0, apply: () => 0 }]]),
+    );
+
+    const result = compiled.evaluate(outer);
+    expect(innerResults).toHaveLength(1);
+    expect(result).toEqual(plain.evaluate(outer));
+    expect(result.ok).toBe(true);
+    expect(innerResults[0]).toEqual(plain.evaluate(inner, { offsets: { A: { dx: 3, dy: 4 } } }));
+    expect(innerResults[0]?.ok).toBe(true);
+    // The holder is back to its state before any run: a later run sees nothing of either.
+    expect(compiled.evaluate(inner)).toEqual(plain.evaluate(inner));
   });
 
   test("the definition is not read after compiling", () => {

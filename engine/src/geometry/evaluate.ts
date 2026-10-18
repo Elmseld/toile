@@ -11,6 +11,7 @@ import {
   unknownReferenceError,
 } from "../formula/errors";
 import { evaluateExpression } from "../formula/evaluate";
+import type { FunctionTable } from "../formula/functions";
 import { type Edge, type GraphPlan, planGraph, runGraphPlan } from "../formula/graph";
 import { Namespace } from "../formula/namespace";
 import { type Expr, type FormulaOptions, parseFormula } from "../formula/parser";
@@ -87,6 +88,19 @@ const NAN_POINT: Point = Object.freeze({ x: Number.NaN, y: Number.NaN });
  * one input is visible in the next. `definition` is not read again after this call.
  */
 export function compilePattern(definition: unknown): CompiledPattern {
+  return compileWithFunctions(definition, new Map());
+}
+
+/**
+ * `compilePattern` with `extraFunctions` added to the formula function table (after the geometry
+ * functions, so it can replace them). Engine-internal, not exported from the package: a seam for
+ * tests that need a function with side effects, such as one that evaluates a compiled pattern
+ * again from inside an evaluation.
+ */
+export function compileWithFunctions(
+  definition: unknown,
+  extraFunctions: FunctionTable,
+): CompiledPattern {
   const validated = validateDefinition(definition);
   if (!validated.ok) {
     const errors = validated.errors;
@@ -98,7 +112,7 @@ export function compilePattern(definition: unknown): CompiledPattern {
       }),
     });
   }
-  const compiled = compileValid(validated.definition);
+  const compiled = compileValid(validated.definition, extraFunctions);
   return Object.freeze({
     evaluate: (input: PatternInput, options?: EvaluateOptions): PatternResult =>
       evaluateCompiled(compiled, readInput(input), readOffsets(options)),
@@ -134,7 +148,7 @@ export function evaluatePattern(definition: unknown, input: PatternInput): Patte
   return compilePattern(definition).evaluate(input);
 }
 
-function compileValid(definition: PatternDefinition): Compiled {
+function compileValid(definition: PatternDefinition, extraFunctions: FunctionTable): Compiled {
   // 1. Names: declaration position (first occurrence) and every source of each name.
   const namespace = new Namespace<ElementSource>();
   for (const name of definition.measurements) namespace.declare(name, "measurement");
@@ -150,8 +164,11 @@ function compileValid(definition: PatternDefinition): Compiled {
   // 2. Parse every formula and collect each element's edges, checking every reference. The
   // function table reads the geometry of the evaluation that is running from `holder`, so parsed
   // formulas stay valid across evaluations.
-  const holder: GeometryState = { points: new Map(), curves: new Map() };
-  const functions = geometryFunctions(holder);
+  const holder: GeometryState = { points: EMPTY_POINTS, curves: EMPTY_CURVES };
+  const functions =
+    extraFunctions.size === 0
+      ? geometryFunctions(holder)
+      : new Map([...geometryFunctions(holder), ...extraFunctions]);
   const formulaOptions: FormulaOptions = { functions };
 
   const checkReference = (
@@ -400,8 +417,11 @@ function evaluateCompiled(
     return null;
   };
 
-  // Evaluation is synchronous and never calls back into a compiled pattern, so the holder belongs
-  // to this run until it is cleared again below.
+  // The holder shows this run's geometry until the run ends. Evaluation is synchronous, so only a
+  // nested run (a function that evaluates this compiled pattern again) can see the holder in
+  // between; it restores what it found, so this run reads its own maps again afterwards.
+  const previousPoints = holder.points;
+  const previousCurves = holder.curves;
   holder.points = points;
   holder.curves = curves;
   let graphErrors: ElementError[];
@@ -429,8 +449,8 @@ function evaluateCompiled(
       },
     });
   } finally {
-    holder.points = EMPTY_POINTS;
-    holder.curves = EMPTY_CURVES;
+    holder.points = previousPoints;
+    holder.curves = previousCurves;
   }
 
   // 3. Errors in the order they would be found by a single pass (name, value, collection, graph

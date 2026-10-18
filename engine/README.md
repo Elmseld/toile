@@ -145,8 +145,8 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   definition once (validation, names and references, parsing, outline closure, dependency order
   and cycles) and returns `{ evaluate(input, options?) }`, which gives exactly what
   `evaluatePattern(definition, input)` gives. Keep it while the definition is unchanged (a drag,
-  switching measurement profiles); evaluations share no state or result objects. `options.offsets`
-  (`{ [point]: { dx, dy } | null }`) replaces the definition's `user_offset` of those points for
+  switching measurement profiles); evaluations share no state or result objects, also when one
+  runs inside another. `options.offsets` (`{ [point]: { dx, dy } | null }`) replaces the definition's `user_offset` of those points for
   one evaluation (`null` removes it; other names are ignored; an entry without numeric `dx`/`dy`
   makes the point `degenerate_geometry`). For a 300-point block a compiled evaluation takes about
   0.4 ms, `evaluatePattern` about 2.5 ms.
