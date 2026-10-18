@@ -297,4 +297,34 @@ describe("validateDefinition", () => {
     expect(pathsOf(minimal({ pieces: Array.from({ length: over }, () => null) }))).toEqual(["/pieces"]);
     expect(pathsOf(minimal({ pieces: [piece(MAX_OUTLINE_ENTRIES + 1)] }))).toEqual(["/pieces/0/outline"]);
   });
+
+  test("all outlines together may have up to MAX_SECTION_ENTRIES entries", () => {
+    const outline = Array.from({ length: MAX_OUTLINE_ENTRIES }, () => ({ curve: "c" }));
+    const pieces = (count: number, last: unknown[] = outline): unknown[] =>
+      Array.from({ length: count }, (_, i) => ({
+        name: `p${i}`,
+        outline: i === count - 1 ? last : outline,
+        grainline: { from: "A", to: "B" },
+      }));
+    const full = MAX_SECTION_ENTRIES / MAX_OUTLINE_ENTRIES;
+
+    expect(validateDefinition(minimal({ pieces: pieces(full) })).ok).toBe(true);
+    expect(errorsOf(minimal({ pieces: pieces(full + 1, [{ curve: "c" }]) }))).toEqual([
+      {
+        kind: "invalid_definition",
+        path: "/pieces",
+        message: "The outlines must have at most 20000 entries in total",
+      },
+    ]);
+    // Reported once, and the outlines past the total are not checked: this stays fast although
+    // the definition claims 20 million entries (one shared array).
+    const started = performance.now();
+    expect(pathsOf(minimal({ pieces: pieces(MAX_SECTION_ENTRIES, [null]) }))).toEqual(["/pieces"]);
+    expect(performance.now() - started).toBeLessThan(2_000);
+    // Outlines rejected on their own do not count toward the total.
+    const oversized = Array.from({ length: MAX_OUTLINE_ENTRIES + 1 }, () => ({ curve: "c" }));
+    expect(pathsOf(minimal({ pieces: [...pieces(full), ...pieces(1, oversized)] }))).toEqual([
+      `/pieces/${full}/outline`,
+    ]);
+  });
 });

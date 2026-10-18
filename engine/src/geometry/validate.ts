@@ -21,7 +21,10 @@ export const PATTERN_FORMAT_VERSION = 1;
  */
 export const MAX_SECTION_ENTRIES = 20_000;
 
-/** The most entries the outline of one piece may have. */
+/**
+ * The most entries the outline of one piece may have. All outlines together may have at most
+ * `MAX_SECTION_ENTRIES`.
+ */
 export const MAX_OUTLINE_ENTRIES = 1_000;
 
 export type ValidationResult =
@@ -51,8 +54,9 @@ type JsonObject = Readonly<Record<string, unknown>>;
  * pointer `path` (`""` is the root, `/points/3/distnce` an unknown field). A `version` other than
  * `1` is a single `unsupported_version` error (path `/version`) and nothing else is checked.
  * Unknown fields, formulas that are not strings and arrays with empty slots are rejected, and so
- * are sections with more than `MAX_SECTION_ENTRIES` entries and outlines with more than
- * `MAX_OUTLINE_ENTRIES` (their items are then not checked). An object that throws while being
+ * are sections with more than `MAX_SECTION_ENTRIES` entries, outlines with more than
+ * `MAX_OUTLINE_ENTRIES` and pieces whose outlines have more than `MAX_SECTION_ENTRIES` entries in
+ * total (at `/pieces`; the items are then not checked). An object that throws while being
  * read (a hostile getter or proxy) is reported as `invalid_definition` at the root.
  */
 export function validateDefinition(value: unknown): ValidationResult {
@@ -68,6 +72,8 @@ export function validateDefinition(value: unknown): ValidationResult {
 
 class Validator {
   private readonly errors: DefinitionError[] = [];
+  /** Outline entries counted so far across all pieces. */
+  private outlineEntries = 0;
 
   definition(value: unknown): ValidationResult {
     if (!isObject(value)) {
@@ -215,7 +221,7 @@ class Validator {
     let outline: OutlineEntry[] | undefined;
     if (!Object.hasOwn(value, "outline")) {
       this.problem(`${path}/outline`, 'Missing required field "outline"');
-    } else {
+    } else if (this.withinOutlineTotal(value.outline)) {
       outline = this.array(
         value.outline,
         `${path}/outline`,
@@ -243,6 +249,26 @@ class Validator {
       };
     }
     return { name, outline, grainline } as PieceDefinition;
+  }
+
+  /**
+   * Adds the entries of one outline to the total of all pieces and reports, once, at `/pieces`
+   * when that goes over `MAX_SECTION_ENTRIES`; from then on outlines are not checked, which bounds
+   * the work of many large outlines. Anything `array` rejects on its own (not an array, more than
+   * `MAX_OUTLINE_ENTRIES`) is not counted.
+   */
+  private withinOutlineTotal(outline: unknown): boolean {
+    if (!Array.isArray(outline) || outline.length > MAX_OUTLINE_ENTRIES) return true;
+    const before = this.outlineEntries;
+    this.outlineEntries += outline.length;
+    if (this.outlineEntries <= MAX_SECTION_ENTRIES) return true;
+    if (before <= MAX_SECTION_ENTRIES) {
+      this.problem(
+        "/pieces",
+        `The outlines must have at most ${MAX_SECTION_ENTRIES} entries in total`,
+      );
+    }
+    return false;
   }
 
   private outlineEntry(value: unknown, path: string): OutlineEntry | undefined {
