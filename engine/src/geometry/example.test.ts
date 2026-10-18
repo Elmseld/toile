@@ -26,7 +26,7 @@ type Expected = {
 };
 
 const SET_1: Expected = {
-  measurements: { waist: 680, hip: 940, waist_to_hip: 200 },
+  measurements: { waist: 680, hip: 940, hip_height: 200 },
   width: 245,
   dartIntake: 65,
   points: {
@@ -50,7 +50,7 @@ const SET_1: Expected = {
 };
 
 const SET_2: Expected = {
-  measurements: { waist: 800, hip: 1080, waist_to_hip: 210 },
+  measurements: { waist: 800, hip: 1080, hip_height: 210 },
   width: 280,
   dartIntake: 70,
   points: {

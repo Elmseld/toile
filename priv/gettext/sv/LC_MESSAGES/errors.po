@@ -115,3 +115,18 @@ msgstr "matchar inte lösenordet"
 #, elixir-autogen, elixir-format
 msgid "must have the @ sign and no spaces"
 msgstr "måste innehålla @ och får inte innehålla mellanslag"
+
+#: lib/toile/measurements/values.ex
+#, elixir-autogen, elixir-format
+msgid "must be a number in cm with at most one decimal"
+msgstr "måste vara ett tal i cm med högst en decimal"
+
+#: lib/toile/measurements/values.ex
+#, elixir-autogen, elixir-format
+msgid "must be more than 0 and at most 300 cm"
+msgstr "måste vara större än 0 och högst 300 cm"
+
+#: lib/toile/measurements.ex
+#, elixir-autogen, elixir-format
+msgid "you can have at most %{limit} measurement profiles"
+msgstr "du kan ha högst %{limit} måttprofiler"
