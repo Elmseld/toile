@@ -131,7 +131,8 @@ export function computePoint(
       return ok(add(pointOf(point.from), scale(direction(number("angle")), number("distance"))));
 
     case "perpendicular": {
-      const result = perpendicularOffset(pointOf(point.from), pointOf(point.to), number("distance"));
+      const from = pointOf(point.from);
+      const result = perpendicularOffset(from, pointOf(point.to), number("distance"));
       return result === null ? coincident("to", point.from, point.to) : ok(result);
     }
 

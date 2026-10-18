@@ -122,7 +122,8 @@ class Validator {
 
     const point: Record<string, unknown> = { name, op };
     if (fields !== undefined) {
-      this.unknownFields(value, path, new Set(["name", "op", "user_offset", ...fields.map(([f]) => f)]));
+      const allowed = new Set(["name", "op", "user_offset", ...fields.map(([field]) => field)]);
+      this.unknownFields(value, path, allowed);
       for (const [field, kind] of fields) point[field] = this.pointField(value, field, kind, path);
     }
     if (Object.hasOwn(value, "user_offset")) {
@@ -256,7 +257,10 @@ class Validator {
     return result;
   }
 
-  /** An optional top-level `{ name: value }` object, rebuilt with `fromEntries` (safe for `__proto__`). */
+  /**
+   * An optional top-level `{ name: value }` object, rebuilt with `fromEntries` (safe for
+   * `__proto__`).
+   */
   private record<T>(
     value: JsonObject,
     key: string,
