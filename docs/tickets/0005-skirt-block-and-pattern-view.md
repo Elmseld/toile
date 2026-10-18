@@ -26,6 +26,14 @@ correct proportions, with zoom and pan.
 ## Out of scope
 - Editing points (0008). Seam allowance (0009). Printing (0010).
 
+## Open questions
+- **Angle convention (decide before the first block is stored).** The engine uses degrees with
+  0 = right and 90 = down (clockwise on screen, `atan2(dy, dx)` in SVG coordinates), for
+  `angle(A, B)`, `along_angle` and `perpendicular` (ADR 0004 decision 6). Seamly2D and Valentina
+  use 90 = up. Confirm the current default or switch before "Rak kjol" is written: afterwards a
+  switch changes the meaning of stored definitions and needs a format version bump and a migration.
+  Switching touches only `engine/src/geometry/vector.ts`, `functions.ts`, their tests and ADR 0004.
+
 ## Notes
 The blocks live as data in the repo (e.g. `engine/blocks/`) and are copied into the project when it is created.
 Later changes to a block therefore do not affect existing projects.

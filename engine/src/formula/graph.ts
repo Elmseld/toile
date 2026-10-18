@@ -19,7 +19,11 @@ export type Edge = { name: string; span: Span };
  */
 export type DependencyGraph = ReadonlyMap<string, readonly Edge[]>;
 
-export type EvaluateGraphOptions = {
+/**
+ * Options for `evaluateGraph`. `E` is the error type `evaluate` returns (default `FormulaError`);
+ * geometry passes its own error type. The graph's own errors are always `FormulaError`s.
+ */
+export type EvaluateGraphOptions<E extends { name: string } = FormulaError> = {
   /** Declaration position of a name; the first-declared member of a cycle group heads it. */
   position: (name: string) => number;
   /** Names (nodes or not) that already have an error. Not mutated. */
@@ -28,7 +32,7 @@ export type EvaluateGraphOptions = {
    * Evaluates one node and returns its error, or `null` on success. Called at most once per node,
    * after all its dependencies, and only when none of its references has failed.
    */
-  evaluate: (name: string) => FormulaError | null;
+  evaluate: (name: string) => E | null;
 };
 
 /**
@@ -46,32 +50,77 @@ export type EvaluateGraphOptions = {
  *   first-declared member that has not failed; a group whose members have all failed gets no new
  *   errors.
  *
- * Iterative and linear in nodes plus edges, so the call stack does not grow with the graph.
+ * Iterative and linear in nodes plus edges, so the call stack does not grow with the graph. The
+ * same as `runGraphPlan(planGraph(graph, options), options)`.
  */
-export function evaluateGraph(
+export function evaluateGraph<E extends { name: string } = FormulaError>(
   graph: DependencyGraph,
-  options: EvaluateGraphOptions,
-): FormulaError[] {
-  const { position, evaluate } = options;
-  const errors: FormulaError[] = [];
+  options: EvaluateGraphOptions<E>,
+): (E | FormulaError)[] {
+  return runGraphPlan(planGraph(graph, options), options);
+}
+
+/** One step of a `GraphPlan`: a cycle group with its errors, or a single node to evaluate. */
+type PlanStep =
+  | { type: "group"; members: readonly string[]; errors: readonly FormulaError[] }
+  | { type: "node"; name: string; edges: readonly Edge[] };
+
+/**
+ * The evaluation order of a graph (its strongly connected groups, dependencies first) with the
+ * errors of every cycle group already worked out. Immutable and reusable across runs.
+ */
+export type GraphPlan = { readonly steps: readonly PlanStep[] };
+
+/**
+ * Plans the evaluation of `graph` (see `evaluateGraph`): orders it and computes the cycle errors,
+ * which depend only on the graph, `position` and which of the graph's own nodes are in `failed`.
+ * The plan is therefore valid for every `runGraphPlan` whose `failed` holds the same nodes of the
+ * graph (typically none: names that failed before the graph was built are not nodes), whatever
+ * other names it holds.
+ */
+export function planGraph(
+  graph: DependencyGraph,
+  options: Pick<EvaluateGraphOptions, "position" | "failed">,
+): GraphPlan {
+  const steps: PlanStep[] = [];
+  for (const group of components(graph)) {
+    const errors = groupErrors(group, graph, options.position, options.failed);
+    const [name] = group;
+    if (errors !== null) steps.push({ type: "group", members: group, errors });
+    else if (name !== undefined) steps.push({ type: "node", name, edges: graph.get(name) ?? [] });
+  }
+  return Object.freeze({ steps: Object.freeze(steps) });
+}
+
+/**
+ * Runs `plan`: records the planned cycle errors (fresh copies on every run) and evaluates every
+ * other node once, in dependency order, unless it already failed or one of its references failed
+ * (`failed_dependency` on the first such reference). Returns the new errors, in no particular
+ * order.
+ */
+export function runGraphPlan<E extends { name: string } = FormulaError>(
+  plan: GraphPlan,
+  options: Pick<EvaluateGraphOptions<E>, "failed" | "evaluate">,
+): (E | FormulaError)[] {
+  const { evaluate } = options;
+  const errors: (E | FormulaError)[] = [];
   const failed = new Set(options.failed);
-  const fail = (error: FormulaError): void => {
+  const fail = (error: E | FormulaError): void => {
     errors.push(error);
     failed.add(error.name);
   };
 
-  for (const group of components(graph)) {
-    const cycleErrors = groupErrors(group, graph, position, failed);
-    if (cycleErrors !== null) {
-      for (const error of cycleErrors) fail(error);
-      for (const member of group) failed.add(member);
+  for (const step of plan.steps) {
+    if (step.type === "group") {
+      for (const error of step.errors) fail(structuredClone(error));
+      for (const member of step.members) failed.add(member);
       continue;
     }
 
     // A single node that does not reference itself.
-    const [name] = group;
-    if (name === undefined || failed.has(name)) continue;
-    const failedRef = graph.get(name)?.find((edge) => failed.has(edge.name));
+    const { name, edges } = step;
+    if (failed.has(name)) continue;
+    const failedRef = edges.find((edge) => failed.has(edge.name));
     if (failedRef !== undefined) {
       fail(failedDependencyError(name, failedRef.name, failedRef.span));
       continue;

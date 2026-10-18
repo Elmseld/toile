@@ -44,9 +44,25 @@ export type FormulaError =
   | (ExpressionError & { name: string })
   | { kind: "circular_dependency"; name: string; cycle: string[]; span: Span; message: string }
   | { kind: "failed_dependency"; name: string; dependency: string; span: Span; message: string }
-  | { kind: "invalid_name"; name: string; source: InputSource; message: string }
-  | { kind: "duplicate_name"; name: string; sources: InputSource[]; message: string }
+  | InvalidNameError<InputSource>
+  | DuplicateNameError<InputSource>
   | { kind: "invalid_value"; name: string; source: "measurement" | "parameter"; message: string };
+
+/** A declared name that is not an identifier, once per source it is declared in. */
+export type InvalidNameError<S extends string> = {
+  kind: "invalid_name";
+  name: string;
+  source: S;
+  message: string;
+};
+
+/** A name declared more than once, with every source in declaration order. */
+export type DuplicateNameError<S extends string> = {
+  kind: "duplicate_name";
+  name: string;
+  sources: S[];
+  message: string;
+};
 
 export function syntaxError(message: string, span: Span): ParseError {
   return { kind: "syntax", span, message };
@@ -124,7 +140,11 @@ export function circularDependencyError(cycle: string[], span: Span): FormulaErr
   };
 }
 
-export function failedDependencyError(name: string, dependency: string, span: Span): FormulaError {
+export function failedDependencyError(
+  name: string,
+  dependency: string,
+  span: Span,
+): Extract<FormulaError, { kind: "failed_dependency" }> {
   return {
     kind: "failed_dependency",
     name,
@@ -134,7 +154,7 @@ export function failedDependencyError(name: string, dependency: string, span: Sp
   };
 }
 
-export function invalidNameError(name: string, source: InputSource): FormulaError {
+export function invalidNameError<S extends string>(name: string, source: S): InvalidNameError<S> {
   return {
     kind: "invalid_name",
     name,
@@ -143,7 +163,10 @@ export function invalidNameError(name: string, source: InputSource): FormulaErro
   };
 }
 
-export function duplicateNameError(name: string, sources: InputSource[]): FormulaError {
+export function duplicateNameError<S extends string>(
+  name: string,
+  sources: S[],
+): DuplicateNameError<S> {
   return {
     kind: "duplicate_name",
     name,
