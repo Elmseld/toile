@@ -27,9 +27,16 @@ formulas such as `waist / 4 + ease_waist` with a custom parser (no `eval`). See
   measurement and parameter plus every formula that evaluated, even when others failed.
 - **Errors** are values, never thrown. Each has `kind`, `name` and (mostly) a `span` of 0-based
   offsets into the formula source: `syntax`, `unknown_function`, `wrong_argument_count`,
-  `unknown_reference`, `division_by_zero`, `invalid_result`, `circular_dependency` (with `cycle`,
-  e.g. `["a", "b", "c", "a"]`), `failed_dependency`, `invalid_name`, `duplicate_name`,
-  `invalid_value`. `message` is English developer text; build UI text from `kind` and the fields.
+  `invalid_argument`, `unknown_reference`, `division_by_zero`, `invalid_result`,
+  `circular_dependency`, `failed_dependency`, `invalid_name`, `duplicate_name`, `invalid_value`.
+  `message` is English developer text; build UI text from `kind` and the fields.
+- **Cycles.** Each group of mutually dependent formulas gets one `circular_dependency`, whose
+  `cycle` is the group's shortest cycle through its first-declared member (e.g.
+  `["a", "b", "c", "a"]`). Every other member of the group gets `failed_dependency` (on the next
+  member of the cycle when it is on it), as does every formula that depends on a failed name.
 - **Limits.** Formulas over 10 000 characters or nested deeper than 100 levels are `syntax` errors.
-- **Lower level.** `parseFormula`, `references` and `evaluateExpression(expr, lookup)` are exported
-  for callers (such as geometry) that resolve names themselves.
+- **Lower level.** `parseFormula(source, options?)`, `references` and
+  `evaluateExpression(expr, lookup, options?)` are exported for callers (such as geometry) that
+  resolve names themselves. `options.functions` replaces the function table (default `FUNCTIONS`);
+  a `FunctionSpec` with `takes: "names"` receives its arguments as bare names, unevaluated (for
+  example `distance(A, B)`). Use the same table for parsing and evaluation.
