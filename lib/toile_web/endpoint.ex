@@ -13,6 +13,13 @@ defmodule ToileWeb.Endpoint do
 
   # LiveView messages here are small form payloads; the frame limit (default 10 MB in
   # WebSockAdapter) is lowered so a client cannot push multi-megabyte events.
+  #
+  # Known gap: the long-poll fallback (kept for networks that block websockets) is not
+  # covered by this limit. Phoenix reads long-poll bodies with `read_body/2` defaults
+  # (about 8 MB) and dispatches sockets before any plug in this module runs, so the app
+  # cannot cap them cleanly. This is accepted because event parsing is bounded (form
+  # params are cast and validated, centimetre input has a length cap). Production must
+  # set a request body size limit in the reverse proxy, which also covers chunked bodies.
   socket "/live", Phoenix.LiveView.Socket,
     websocket: [connect_info: [session: @session_options], max_frame_size: 256_000],
     longpoll: [connect_info: [session: @session_options]]
