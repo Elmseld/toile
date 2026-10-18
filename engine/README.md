@@ -95,6 +95,10 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   | `line_circle_intersection` | `line` `[name, name]`, `center`, `radius`, `which` (`"first"` or `"second"`) | Intersection of the infinite line with the circle; `first` has the smaller parameter along `line[0] -> line[1]` (a tangent gives the same point for both). |
   | `midpoint` | `from`, `to` | `(from + to) / 2` |
 
+  Coincident points where a direction is needed (`along_line`, `perpendicular`, either line of
+  an intersection) and a negative radius are `degenerate_geometry` with the `field`; parallel
+  lines and a line that misses the circle are `no_intersection`. Field order in the table is the
+  order of the point's dependency edges, which decides the `field` of a `failed_dependency`.
 - **Angles.** Degrees, 0 = right, 90 = down (clockwise on screen, since y points down),
   normalised to `[0, 360)`. `angle(A, B)`, `along_angle` and `perpendicular` all use this.
 - **Curves.** `{ name, type: "line", from, to }` or `{ name, type: "cubic", from, c1, c2, to }`;
@@ -117,7 +121,9 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   `outline/2`) and `span` into that field. Kinds are those of Formulas plus `invalid_definition`,
   `unsupported_version`, `missing_measurement`, `unknown_parameter`, `wrong_reference_kind`,
   `degenerate_geometry`, `no_intersection` and `open_outline`. Errors are sorted by declaration
-  order.
+  order (measurements, parameters, formulas, points, curves, pieces), with `unknown_parameter`
+  for undeclared overrides last; an override never fails the element that has its name.
 - **SVG.** `curvePathData(curve)` and `piecePathData(piece)` return path `d` strings (`M`, `L`, `C`,
   `Z`, single spaces, numbers rounded to 0.01 mm, no `-0`) in mm user units. The caller chooses the
-  `viewBox` and draws the grainline from `piece.grainline`.
+  `viewBox` and draws the grainline from `piece.grainline`. `formatNumber(value)` is the number
+  formatting they use.
