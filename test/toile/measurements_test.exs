@@ -348,6 +348,38 @@ defmodule Toile.MeasurementsTest do
     end
   end
 
+  describe "measurement_values/1" do
+    test "maps string keys to millimetres and drops missing values" do
+      scope = user_scope_fixture()
+
+      measurement_profile =
+        measurement_profile_fixture(scope, measurements: %{waist: 725, hip: 980})
+
+      assert Measurements.measurement_values(measurement_profile) == %{
+               "waist" => 725,
+               "hip" => 980
+             }
+    end
+
+    test "is empty for a profile without measurements" do
+      measurement_profile = measurement_profile_fixture(user_scope_fixture())
+
+      assert Measurements.measurement_values(measurement_profile) == %{}
+    end
+
+    test "has every catalogue key for a complete profile" do
+      measurement_profile =
+        measurement_profile_fixture(user_scope_fixture(), measurements: complete_measurements())
+
+      values = Measurements.measurement_values(measurement_profile)
+
+      assert Map.keys(values) |> Enum.sort() ==
+               Catalog.keys() |> Enum.map(&Atom.to_string/1) |> Enum.sort()
+
+      assert Enum.all?(Map.values(values), &(&1 == 500))
+    end
+  end
+
   # Inserts profiles directly so the limit tests do not run a hundred transactions.
   defp insert_profiles(scope, count) do
     now = DateTime.utc_now(:second)
