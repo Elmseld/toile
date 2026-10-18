@@ -1,7 +1,7 @@
 ---
 id: 0004
 title: Measurement profiles
-status: todo
+status: in-progress
 type: feature
 ---
 

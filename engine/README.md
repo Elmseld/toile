@@ -9,6 +9,13 @@ bun test
 bun run typecheck
 ```
 
+## Measurements
+`MEASUREMENT_KEYS` (readonly array, display order) and `isMeasurementKey(name)` come from
+`src/measurements.json`, the single list of body measurement keys. The Phoenix app reads the same
+file at compile time for its measurement profiles (`docs/adr/0005-measurement-keys.md`). Blocks
+should use these keys in their `measurements` list and formulas. The engine does not reject other
+names. Renaming a key is a breaking change for stored data.
+
 ## Formulas
 
 `evaluateFormulas({ measurements, parameters, formulas })` (in `src/formula/`) evaluates named
