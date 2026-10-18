@@ -6,7 +6,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { compilePattern, distance, evaluatePattern, validateDefinition } from "./geometry";
 import type { ComputedPattern, ComputedPiece, PatternResult } from "./geometry";
-import { isMeasurementKey } from "./measurements";
+import { isMeasurementKey, MEASUREMENT_KEYS } from "./measurements";
 
 const BLOCKS_DIR = join(import.meta.dir, "..", "blocks");
 const SKIRT_PATH = join(BLOCKS_DIR, "straight_skirt.json");
@@ -18,6 +18,28 @@ const SET_A: Measurements = { waist: 680, hip: 940, hip_height: 206, skirt_lengt
 const SET_B: Measurements = { waist: 840, hip: 1080, hip_height: 220, skirt_length: 700 };
 
 const DEFAULTS = { ease_waist: 10, ease_hip: 40, length_adjustment: 0 };
+
+/** A plausible value for every catalogue key, so any block file can evaluate against it. */
+const FULL_PROFILE: Measurements = {
+  bust: 880,
+  waist: 680,
+  hip: 940,
+  neck: 370,
+  shoulder_width: 122,
+  back_width: 344,
+  chest_width: 324,
+  back_length: 410,
+  armhole_depth: 210,
+  front_length: 445,
+  bust_height: 265,
+  bust_distance: 190,
+  hip_height: 206,
+  skirt_length: 600,
+  arm_length: 580,
+  upper_arm: 280,
+  wrist: 160,
+  height: 1650,
+};
 
 function blockFiles(): string[] {
   return readdirSync(BLOCKS_DIR)
@@ -95,12 +117,24 @@ describe("every block file", () => {
     expect(blockFiles()).toContain("straight_skirt.json");
   });
 
+  test("the full profile has a value for every catalogue key", () => {
+    expect(Object.keys(FULL_PROFILE).sort()).toEqual([...MEASUREMENT_KEYS].sort());
+  });
+
   for (const file of blockFiles()) {
-    test(`${file} has a valid key, validates and evaluates against measurement set A`, () => {
+    test(`${file} has a valid key, validates and evaluates against the full profile`, () => {
       expect(file).toMatch(/^[a-z][a-z0-9_]*\.json$/);
       const definition = readJson(join(BLOCKS_DIR, file));
       expect(validateDefinition(definition).ok).toBe(true);
-      expectOk(evaluatePattern(definition, { measurements: SET_A }));
+      expectOk(evaluatePattern(definition, { measurements: FULL_PROFILE }));
+    });
+
+    test(`${file} declares only catalogue measurement keys`, () => {
+      const { measurements } = readJson(join(BLOCKS_DIR, file)) as { measurements: unknown };
+      expect(Array.isArray(measurements)).toBe(true);
+      for (const key of measurements as unknown[]) {
+        expect(typeof key === "string" && isMeasurementKey(key)).toBe(true);
+      }
     });
   }
 });
