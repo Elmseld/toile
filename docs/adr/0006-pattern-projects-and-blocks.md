@@ -33,9 +33,12 @@ engine in the browser.
   `measurements` with the profile's nil values (names, not geometry); the page then draws nothing.
   Nulls are dropped when building engine input (ADR 0005).
 - **Client.** A LiveView external hook (`PatternView`) imports the engine from `engine/src` through
-  esbuild, compiles the definition once and computes the pattern once per mount. Zoom and pan change
-  only the SVG `viewBox`. Switching profile remounts the hook (keyed wrapper element), with no
-  `push_event`. CI builds the JS bundle so a broken engine import fails.
+  esbuild and computes the pattern once per input. Zoom and pan change only the SVG `viewBox`. The
+  hook element is `phx-update="ignore"`, but LiveView still patches its data attributes: switching
+  profile changes `data-key` and `data-input`, and the hook's `updated()` callback redraws when
+  `data-key`, `data-definition` or `data-input` differ from what it last drew. No `push_event`. A
+  wrapper keyed by the profile id is only an extra measure; LiveView may move the hook element by
+  its id instead of mounting it again. CI builds the JS bundle so a broken engine import fails.
 - jsonb does not preserve object key order. The engine's results do not depend on it; only the
   order of reported errors can differ. Arrays keep their order.
 
@@ -43,8 +46,9 @@ engine in the browser.
 - Blocks in the database: seed drift between environments.
 - Blocks as Elixir code: geometry definitions in two languages.
 - Server-side rendering of geometry: violates "all geometry in the engine".
-- `push_event` for profile switching: a keyed remount is simpler and does not depend on patching an
-  element LiveView ignores.
+- `push_event` for profile switching: the input already travels in the data attributes LiveView
+  patches, so redrawing in `updated()` needs no second channel that could drift from the rendered
+  state.
 
 ## Consequences
 - Improving a block never updates existing projects; a future "update to the latest block" would be

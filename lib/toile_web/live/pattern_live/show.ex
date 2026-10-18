@@ -12,8 +12,11 @@ defmodule ToileWeb.PatternLive.Show do
     * `#no-profile`: the project has no measurement profile (it was deleted); the user picks one.
     * `#missing-measurements`: the profile lacks measurements the definition declares; they are
       listed with a link to edit the profile, and nothing is drawn.
-    * `#pattern`: the drawing. The hook element sits in a wrapper keyed by the profile id, so a
-      profile switch replaces it and the hook mounts again with the new input.
+    * `#pattern`: the drawing. The hook computes the pattern once per input: when a profile
+      switch changes `data-key`, `data-definition` or `data-input`, its `updated()` callback
+      redraws (LiveView still patches the attributes of a `phx-update="ignore"` element). The
+      wrapper keyed by the profile id is only an extra measure; LiveView may keep and move the
+      hook element by its id rather than mount it again.
 
   Choosing another profile in `#profile-form` saves it on the project. A rejected profile (not
   the user's own) reloads the page with an error, so the select shows the stored profile again.
@@ -168,8 +171,8 @@ defmodule ToileWeb.PatternLive.Show do
     project = socket.assigns.project
 
     case Patterns.update_pattern_project(scope, project, %{"measurement_profile_id" => id}) do
-      {:ok, _project} ->
-        {:noreply, assign_project(socket, Patterns.get_pattern_project!(scope, project.id))}
+      {:ok, project} ->
+        {:noreply, assign_project(socket, project)}
 
       {:error, %Ecto.Changeset{}} ->
         # Reload so the select shows the stored profile again, not the rejected choice.
