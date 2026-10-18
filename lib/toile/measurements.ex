@@ -13,7 +13,6 @@ defmodule Toile.Measurements do
   alias Toile.Repo
 
   alias Toile.Accounts.Scope
-  alias Toile.Accounts.User
   alias Toile.Measurements.Catalog
   alias Toile.Measurements.MeasurementProfile
 
@@ -81,8 +80,8 @@ defmodule Toile.Measurements do
 
   A user can have at most #{@max_profiles_per_user} profiles (`max_measurement_profiles/0`).
   Above that the changeset gets an error on `:name`, so the form shows it next to the only
-  required field. The user row is locked while counting, so concurrent creates cannot overshoot
-  the limit.
+  required field. Creates for the same user are serialized by a transaction-scoped advisory lock
+  while counting, so concurrent creates cannot overshoot the limit.
 
   ## Examples
 
@@ -103,8 +102,11 @@ defmodule Toile.Measurements do
     end
   end
 
-  defp insert_within_limit(%Scope{user: %User{id: user_id}}, changeset) do
-    Repo.one!(from u in User, where: u.id == ^user_id, select: u.id, lock: "FOR UPDATE")
+  defp insert_within_limit(%Scope{user: %{id: user_id}}, changeset) do
+    # An advisory lock rather than `FOR UPDATE` on the user row: it keeps this context out of
+    # Accounts' schema and does not block Accounts' writes that lock that row. A `hashtext`
+    # collision between two users only serializes their creates; it never breaks the limit.
+    Repo.query!("SELECT pg_advisory_xact_lock(hashtext($1))", ["measurement_profiles:#{user_id}"])
 
     count = Repo.aggregate(from(p in MeasurementProfile, where: p.user_id == ^user_id), :count)
 
