@@ -88,8 +88,9 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   `unsupported_version` (path `/version`) for any version other than `1`. `evaluatePattern` runs
   it first.
 - **Limits.** At most `MAX_SECTION_ENTRIES` (20 000) entries per section and
-  `MAX_OUTLINE_ENTRIES` (1 000) per outline, else `invalid_definition` at that path; formulas
-  keep their own limits (see Formulas). Storage limits are up to the app (0005).
+  `MAX_OUTLINE_ENTRIES` (1 000) per outline, else `invalid_definition` at that path, and at most
+  `MAX_SECTION_ENTRIES` outline entries across all pieces, else `invalid_definition` at `/pieces`;
+  formulas keep their own limits (see Formulas). Storage limits are up to the app (0005).
 - **Points.** `name`, `op`, the op's fields and an optional `user_offset: { dx, dy }`. Name fields
   hold point names; formula fields hold formulas (ADR 0003) that may also call the geometry
   functions below. Lengths are mm.
@@ -107,10 +108,10 @@ A complete example (a rectangle with a dart, tested against two measurement sets
 
   Coincident points where a direction is needed (`along_line`, `perpendicular`, either line of
   an intersection) and a negative radius are `degenerate_geometry` with the `field`; parallel
-  lines and a line that misses the circle are `no_intersection`. A final position (user offset
-  included) that is not finite or lies more than `MAX_COORDINATE` (1e7 mm, 10 km) from the origin
-  on either axis is `degenerate_geometry` without a `field`; the bound keeps every length and SVG
-  number finite. Field order in the table is the order of the point's dependency edges, which
+  lines and a line that misses the circle are `no_intersection`. A position, before or after the
+  user offset, that is not finite or lies more than `MAX_COORDINATE` (1e7 mm, 10 km) from the
+  origin on either axis is `degenerate_geometry` without a `field` (an offset cannot bring an
+  out-of-bounds base position back); the bound keeps every length and SVG number finite. Field order in the table is the order of the point's dependency edges, which
   decides the `field` of a `failed_dependency`.
 - **Angles.** Degrees, 0 = right, 90 = down (clockwise on screen, since y points down),
   normalised to `[0, 360)`. `angle(A, B)`, `along_angle` and `perpendicular` all use this. The
@@ -132,10 +133,13 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   everywhere downstream (dependent points, curves, `distance`/`angle`, pieces).
 - **Result.** `{ ok: true, values, points, basePoints, curves, pieces }` or the same plus
   `errors`. All records hold what computed, in declaration order, even when other parts failed.
-  `points` are final positions; `basePoints` are positions before the user offset (for every point
-  whose operation computed, also when the offset position did not), so an editor turns a pointer
-  position `p` into the offset `p - basePoints[name]`. Curves and pieces hold computed points and
-  `length`.
+  `points` are final positions; `basePoints` are positions before the user offset, for every point
+  in `points` and also for a point whose operation computed within bounds but whose offset
+  position did not, so an editor turns a pointer position `p` into the offset
+  `p - basePoints[name]`. Curves and pieces hold computed points and `length`. Results are
+  read-only (typed `Readonly`): within one result the same point and curve objects appear in
+  `points`, `basePoints`, `curves` and `pieces`. Results share no objects with each other or with
+  a compiled pattern, so a caller that does mutate one (its errors, say) affects nothing else.
 - **Compiling.** `compilePattern(definition)` does all the work that depends only on the
   definition once (validation, names and references, parsing, outline closure, dependency order
   and cycles) and returns `{ evaluate(input, options?) }`, which gives exactly what

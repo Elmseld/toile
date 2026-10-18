@@ -51,8 +51,9 @@ a drag. The definition and its formulas are untrusted user input. This ADR build
    curves of the running evaluation from a state holder when applied (so parsed formulas can be
    reused across evaluations, decision 15). Not added: `x(A)` / `y(A)`; `length` takes one curve
    (sum with `+`).
-9. **One dependency graph.** Formulas, points, curves and pieces are nodes of the same
-   `evaluateGraph` (ADR 0003 decision 4): ordering by dependency, one `circular_dependency` per
+9. **One dependency graph.** Formulas, points, curves and pieces are nodes of the same dependency
+   graph (`planGraph`/`runGraphPlan`, the split form of `evaluateGraph`, ADR 0003 decision 4):
+   ordering by dependency, one `circular_dependency` per
    cycle, `failed_dependency` for dependants, partial results. Pieces are leaves that fail through
    their curves and grainline points.
 10. **Error model.** Errors are values. Structural errors (`invalid_definition`,
@@ -89,10 +90,14 @@ a drag. The definition and its formulas are untrusted user input. This ADR build
 16. **Limits on untrusted definitions.** The validator rejects, as `invalid_definition` at the
     section's path, any section (`measurements`, `parameters`, `formulas`, `points`, `curves`,
     `pieces`) with more than `MAX_SECTION_ENTRIES` (20 000) entries and any outline with more than
-    `MAX_OUTLINE_ENTRIES` (1 000); a block has a few hundred points, so these only bound the work
-    a hostile definition can cause. Formulas keep the limits of ADR 0003 (10 000 characters,
-    nesting depth 100). A computed position more than `MAX_COORDINATE` (1e7 mm, 10 km) from the
-    origin on either axis is `degenerate_geometry`, which keeps every length and SVG number finite.
+    `MAX_OUTLINE_ENTRIES` (1 000), and, at `/pieces`, outlines with more than
+    `MAX_SECTION_ENTRIES` entries in total across all pieces (so many large outlines cannot add up
+    to millions of entries); a block has a few hundred points, so these only bound the work a
+    hostile definition can cause. Formulas keep the limits of ADR 0003 (10 000 characters,
+    nesting depth 100). A computed position, before or after the user offset, more than
+    `MAX_COORDINATE` (1e7 mm, 10 km) from the origin on either axis is `degenerate_geometry`, which
+    keeps every length and SVG number finite and gives every point in `points` a `basePoints`
+    entry.
     Limits on the stored size of a definition (bytes per project, projects per user) belong to the
     Phoenix app and are set in 0005.
 
