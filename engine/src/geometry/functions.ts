@@ -6,11 +6,12 @@ import { angleOf, distance, type Point } from "./vector";
 
 /**
  * The geometry computed so far, read by the geometry functions each time they are applied (never
- * captured), so a caller may swap in fresh maps for every evaluation and reuse one table.
+ * captured), so a caller may swap in fresh maps for every evaluation and reuse one table. The
+ * properties are writable for that; the functions only read them.
  */
 export type GeometryState = {
-  readonly points: ReadonlyMap<string, Point>;
-  readonly curves: ReadonlyMap<string, ComputedCurve>;
+  points: ReadonlyMap<string, Point>;
+  curves: ReadonlyMap<string, ComputedCurve>;
 };
 
 /** What the name arguments of a geometry function must refer to. */

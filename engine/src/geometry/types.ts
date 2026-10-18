@@ -97,30 +97,51 @@ export type PatternInput = {
   parameters?: Readonly<Record<string, number>>;
 };
 
+/** A computed position in a result; results share these objects, so they are read-only. */
+type ResultPoint = Readonly<Point>;
+
 export type ComputedCurve =
-  | { name: string; type: "line"; from: Point; to: Point; length: number }
-  | { name: string; type: "cubic"; from: Point; c1: Point; c2: Point; to: Point; length: number };
+  | {
+      readonly name: string;
+      readonly type: "line";
+      readonly from: ResultPoint;
+      readonly to: ResultPoint;
+      readonly length: number;
+    }
+  | {
+      readonly name: string;
+      readonly type: "cubic";
+      readonly from: ResultPoint;
+      readonly c1: ResultPoint;
+      readonly c2: ResultPoint;
+      readonly to: ResultPoint;
+      readonly length: number;
+    };
 
 export type ComputedPiece = {
-  name: string;
-  outline: ComputedCurve[];
-  grainline: { from: Point; to: Point };
+  readonly name: string;
+  readonly outline: readonly ComputedCurve[];
+  readonly grainline: { readonly from: ResultPoint; readonly to: ResultPoint };
 };
 
-/** Everything that computed, in declaration order, also when other parts failed. */
+/**
+ * Everything that computed, in declaration order, also when other parts failed. Read-only: within
+ * one result the same point and curve objects appear in several places (`points`, `basePoints`,
+ * `curves`, `pieces`). Results never share objects with each other or with a compiled pattern.
+ */
 export type ComputedPattern = {
   /** Measurements, parameters and formulas that evaluated. */
-  values: Record<string, number>;
+  readonly values: Readonly<Record<string, number>>;
   /** Final positions, user offsets included. */
-  points: Record<string, Point>;
+  readonly points: Readonly<Record<string, ResultPoint>>;
   /**
-   * Positions before the user offset (the operation's result), for every point whose operation
-   * computed within bounds, also when its offset position did not. The editor turns a pointer
-   * position `p` into the offset `p - basePoints[name]`.
+   * Positions before the user offset (the operation's result), for every point in `points`, and
+   * also for a point whose operation computed but whose offset position is out of bounds. The
+   * editor turns a pointer position `p` into the offset `p - basePoints[name]`.
    */
-  basePoints: Record<string, Point>;
-  curves: Record<string, ComputedCurve>;
-  pieces: Record<string, ComputedPiece>;
+  readonly basePoints: Readonly<Record<string, ResultPoint>>;
+  readonly curves: Readonly<Record<string, ComputedCurve>>;
+  readonly pieces: Readonly<Record<string, ComputedPiece>>;
 };
 
 export type PatternResult =

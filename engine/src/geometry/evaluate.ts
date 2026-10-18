@@ -15,7 +15,7 @@ import { type Edge, type GraphPlan, planGraph, runGraphPlan } from "../formula/g
 import { Namespace } from "../formula/namespace";
 import { type Expr, type FormulaOptions, parseFormula } from "../formula/parser";
 import { cubicLength } from "./bezier";
-import { geometryFunctions } from "./functions";
+import { type GeometryState, geometryFunctions } from "./functions";
 import { computePoint, curveFields, pointFields } from "./operations";
 import { classifyReferences } from "./references";
 import type {
@@ -46,12 +46,6 @@ type Node =
   | { type: "curve"; definition: CurveDefinition }
   | { type: "piece"; definition: PieceDefinition };
 
-/** The computed geometry of one evaluation, read by the geometry functions while it runs. */
-type GeometryHolder = {
-  points: ReadonlyMap<string, Point>;
-  curves: ReadonlyMap<string, ComputedCurve>;
-};
-
 /** Everything about a valid definition that does not depend on the input. */
 type Compiled = {
   definition: PatternDefinition;
@@ -60,14 +54,13 @@ type Compiled = {
   nameErrors: readonly ElementError[];
   /** Parse, reference and outline errors, in the order they were found. */
   collectionErrors: readonly ElementError[];
-  /** Names with a name or collection error. */
+  /** Names with a name or collection error; the values among them never resolve. */
   failed: ReadonlySet<string>;
-  /** Names with a name error: their values never resolve. */
-  nameFailed: ReadonlySet<string>;
   nodes: ReadonlyMap<string, Node>;
   graph: ReadonlyMap<string, readonly FieldEdge[]>;
   plan: GraphPlan;
-  holder: GeometryHolder;
+  /** The computed geometry of the running evaluation, read by the geometry functions. */
+  holder: GeometryState;
   formulaOptions: FormulaOptions;
 };
 
@@ -151,14 +144,13 @@ function compileValid(definition: PatternDefinition): Compiled {
   for (const curve of definition.curves) namespace.declare(curve.name, "curve");
   for (const piece of definition.pieces) namespace.declare(piece.name, "piece");
   const nameErrors: ElementError[] = namespace.nameErrors();
-  const nameFailed = new Set(nameErrors.map((error) => error.name));
-  const failed = new Set(nameFailed);
+  const failed = new Set(nameErrors.map((error) => error.name));
   const collectionErrors: ElementError[] = [];
 
   // 2. Parse every formula and collect each element's edges, checking every reference. The
   // function table reads the geometry of the evaluation that is running from `holder`, so parsed
   // formulas stay valid across evaluations.
-  const holder: GeometryHolder = { points: new Map(), curves: new Map() };
+  const holder: GeometryState = { points: new Map(), curves: new Map() };
   const functions = geometryFunctions(holder);
   const formulaOptions: FormulaOptions = { functions };
 
@@ -281,7 +273,6 @@ function compileValid(definition: PatternDefinition): Compiled {
     nameErrors,
     collectionErrors,
     failed,
-    nameFailed,
     nodes,
     graph,
     plan,
@@ -300,11 +291,13 @@ function evaluateCompiled(
   const { definition, namespace, nodes, graph, holder, formulaOptions } = compiled;
   const valueErrors: ElementError[] = [];
   const overrideErrors: ElementError[] = [];
-  // Name and value failures; only names without an error resolve.
-  const valueFailed = new Set(compiled.nameFailed);
+  // Names that failed when compiling or through a value; only values without an error resolve (a
+  // measurement or parameter can only fail when compiling through its name). Handed to the graph
+  // as is, which copies it.
+  const failed = new Set(compiled.failed);
   const failValue = (error: ElementError): void => {
     valueErrors.push(error);
-    valueFailed.add(error.name);
+    failed.add(error.name);
   };
 
   // 1. Values. Every value is checked, also for a name that already failed, so an independent bad
@@ -320,12 +313,12 @@ function evaluateCompiled(
     }
     const value = input.measurements.get(name);
     if (!isFiniteNumber(value)) failValue(invalidValueError(name, "measurement"));
-    else if (!valueFailed.has(name)) resolved.set(name, value);
+    else if (!failed.has(name)) resolved.set(name, value);
   }
   for (const [name, fallback] of Object.entries(definition.parameters)) {
     const value = input.parameters.has(name) ? input.parameters.get(name) : fallback;
     if (!isFiniteNumber(value)) failValue(invalidValueError(name, "parameter"));
-    else if (!valueFailed.has(name)) resolved.set(name, value);
+    else if (!failed.has(name)) resolved.set(name, value);
   }
   for (const name of input.parameters.keys()) {
     // Not `failValue`: the name may belong to another element (a measurement, say), which must not
@@ -357,18 +350,15 @@ function evaluateCompiled(
     const result = computePoint(node.definition, numbers, pointOf);
     if (!result.ok) return { ...result.error, name };
     const base = result.point;
-    if (withinBounds(base)) basePoints.set(name, base);
+    // Checked before the offset, so every point in `points` also has its base position.
+    if (!withinBounds(base)) return outOfBoundsError(name, "before the user offset ");
+    basePoints.set(name, base);
     const offset = offsets.has(name) ? offsets.get(name) : node.definition.user_offset;
     const point =
       offset === undefined || offset === null
         ? base
         : { x: base.x + offset.dx, y: base.y + offset.dy };
-    if (!withinBounds(point)) {
-      return degenerateError(
-        name,
-        `The computed position is not a finite number within ${MAX_COORDINATE} mm of the origin`,
-      );
-    }
+    if (!withinBounds(point)) return outOfBoundsError(name, "");
     points.set(name, point);
     return null;
   };
@@ -417,7 +407,7 @@ function evaluateCompiled(
   let graphErrors: ElementError[];
   try {
     graphErrors = runGraphPlan<ElementError>(compiled.plan, {
-      failed: new Set([...compiled.failed, ...valueFailed]),
+      failed,
       evaluate: (name) => {
         const node = nodes.get(name);
         switch (node?.type) {
@@ -444,12 +434,12 @@ function evaluateCompiled(
   }
 
   // 3. Errors in the order they would be found by a single pass (name, value, collection, graph
-  // errors), then sorted by declaration order. Errors of the compiled definition are copied, so
-  // results never share objects. Graph errors get the field of the edge the graph chose: the
-  // first edge of the element to the dependency it names (`cycle[1]` for the head of a cycle).
-  const errors: ElementError[] = structuredClone([...compiled.nameErrors]);
+  // errors), then sorted by declaration order. Graph errors get the field of the edge the graph
+  // chose: the first edge of the element to the dependency it names (`cycle[1]` for the head of a
+  // cycle).
+  const errors: ElementError[] = [...compiled.nameErrors];
   appendAll(errors, valueErrors);
-  appendAll(errors, structuredClone([...compiled.collectionErrors]));
+  appendAll(errors, compiled.collectionErrors);
   for (const error of graphErrors) {
     if (error.kind !== "circular_dependency" && error.kind !== "failed_dependency") {
       errors.push(error);
@@ -461,6 +451,9 @@ function evaluateCompiled(
   }
   namespace.sortByPosition(errors);
   appendAll(errors, overrideErrors);
+  // The compiled errors, and the spans of the others (from parsed formulas and graph edges), are
+  // objects of the compiled pattern. One deep copy here keeps every result's errors its own.
+  const ownErrors = structuredClone(errors);
 
   // 4. Records in declaration order, built in one pass over the names. `fromEntries` defines own
   // data properties, so names such as `__proto__` are stored safely.
@@ -490,7 +483,9 @@ function evaluateCompiled(
     curves: Object.fromEntries(entries.curves),
     pieces: Object.fromEntries(entries.pieces),
   };
-  return errors.length === 0 ? { ok: true, ...computed } : { ok: false, ...computed, errors };
+  return ownErrors.length === 0
+    ? { ok: true, ...computed }
+    : { ok: false, ...computed, errors: ownErrors };
 }
 
 const EMPTY_POINTS: ReadonlyMap<string, Point> = new Map();
@@ -601,6 +596,14 @@ function wrongReferenceKindError(
 
 function degenerateError(name: string, message: string): ElementError {
   return { kind: "degenerate_geometry", name, message };
+}
+
+/** `degenerate_geometry` for a position out of bounds; `where` is "" or "before the user offset ". */
+function outOfBoundsError(name: string, where: string): ElementError {
+  return degenerateError(
+    name,
+    `The computed position ${where}is not a finite number within ${MAX_COORDINATE} mm of the origin`,
+  );
 }
 
 /**

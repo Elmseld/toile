@@ -25,6 +25,22 @@ function errorsOf(result: PatternResult): PatternError[] {
   return result.ok ? [] : result.errors;
 }
 
+/**
+ * Overwrites every number and string reachable from `value` and appends to every array, the way a
+ * careless caller might reuse a result.
+ */
+function scribble(value: unknown, seen = new Set<object>()): void {
+  if (typeof value !== "object" || value === null || seen.has(value)) return;
+  seen.add(value);
+  const record = value as Record<string, unknown>;
+  for (const [key, item] of Object.entries(record)) {
+    scribble(item, seen);
+    if (typeof item === "number") record[key] = 999;
+    else if (typeof item === "string") record[key] = "changed";
+  }
+  if (Array.isArray(value)) value.push("changed");
+}
+
 /** `kind:name[:field]` of every error, for compact assertions. */
 function summary(result: PatternResult): string[] {
   return errorsOf(result).map((error) => {
@@ -649,8 +665,36 @@ describe("compilePattern", () => {
       if (error.kind === "circular_dependency") error.cycle.push("changed");
     }
     (first.points.B as { x: number }).x = 999;
-    first.values.f = 999;
+    (first.values as Record<string, number>).f = 999;
     expect(compiled.evaluate(FIRST)).toEqual(expected);
+  });
+
+  test("mutating every object of a result changes no later evaluation", () => {
+    // Errors with spans from parsed formulas (invalid_result, unknown_reference), from graph edges
+    // (failed_dependency, circular_dependency) and from name fields (failed_dependency of a curve).
+    const compiled = compilePattern(
+      def({
+        measurements: ["w"],
+        formulas: { f: "w / 0", g: "w + 1", h: "f + 1", c1: "c2", c2: "c1" },
+        points: [
+          start("A", "w", "0"),
+          start("B", "g", "nope"),
+          start("C", "1", "2"),
+          start("D", "3", "4"),
+          { name: "E", op: "offset", from: "A", dx: "1", dy: "1" },
+        ],
+        curves: [line("ae", "A", "E"), line("cd", "C", "D"), line("dc", "D", "C")],
+        pieces: [piece("p", ["ae"], "A", "E"), piece("q", ["cd", "dc"], "C", "D")],
+      }),
+    );
+    const inputs: PatternInput[] = [{ measurements: {} }, { measurements: { w: 5 } }];
+    const expected = inputs.map((input) => compiled.evaluate(input));
+    for (const input of inputs) {
+      const result = compiled.evaluate(input);
+      expect(errorsOf(result).length).toBeGreaterThan(0);
+      scribble(result);
+    }
+    inputs.forEach((input, i) => expect(compiled.evaluate(input)).toEqual(expected[i] as PatternResult));
   });
 
   test("offsets replace user offsets for one evaluation; null removes one", () => {
@@ -690,6 +734,26 @@ describe("compilePattern", () => {
     expect(summary(result)).toEqual(["degenerate_geometry:A"]);
     expect(result.points).toEqual({});
     expect(result.basePoints).toEqual({ A: { x: 3, y: 4 } });
+  });
+
+  test("a base position beyond the bound fails even when the offset brings it back", () => {
+    const definition = def({ points: [start("A", 2e7, 0, { user_offset: { dx: -1.5e7, dy: 0 } })] });
+    const compiled = compilePattern(definition);
+    for (const result of [
+      compiled.evaluate(NO_INPUT),
+      compiled.evaluate(NO_INPUT, { offsets: { A: { dx: -2e7, dy: 0 } } }),
+    ]) {
+      expect(summary(result)).toEqual(["degenerate_geometry:A"]);
+      expect(errorsOf(result)[0]?.message).toContain("before the user offset");
+      expect(result.points).toEqual({});
+      expect(result.basePoints).toEqual({});
+    }
+  });
+
+  test("every point in points has a base position", () => {
+    const result = compilePattern(definition).evaluate(FIRST, { offsets: { C: { dx: 1, dy: 1 } } });
+    expect(Object.keys(result.points).length).toBeGreaterThan(0);
+    for (const name of Object.keys(result.points)) expect(result.basePoints[name]).toBeDefined();
   });
 
   test("unreadable options count as none", () => {
