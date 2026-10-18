@@ -179,7 +179,8 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   formatting they use. Hand-built input never makes them throw: curves of an unknown type are
   skipped (or give `""`), and non-finite numbers are written as `0`.
   `patternBounds(pattern)` returns `{ minX, minY, maxX, maxY }` over every outline curve's end and
-  control points and the grainline points (null without pieces, non-finite numbers skipped), so a
+  control points and the grainline points (null without pieces or when no coordinate is finite, non-finite numbers skipped; the result type
+  `Bounds` is exported), so a
   caller can fit the `viewBox` without doing geometry itself.
 
 ## Blocks
@@ -192,7 +193,7 @@ The engine has no block registry.
 
 - **`straight_skirt.json`** ("Rak kjol"): front and back pieces, each with one waist dart and a
   hip curve. Measurements `waist`, `hip`, `hip_height`, `skirt_length`; parameters `ease_waist`
-  (10 mm), `ease_hip` (40 mm), `length_adjustment` (0 mm, added to `skirt_length`) and the draft
+  (10 mm), `ease_hip` (40 mm), `length_adjustment` (0 mm, added to `skirt_length` in the formula `finished_length`) and the draft
   constants `side_shift`, `side_rise`, `back_dart_length`, `front_dart_length`. The `source` field
   names the method: Winifred Aldrich, *Metric Pattern Cutting for Women's Wear*, 6th ed., the close
   fitting skirt block. The constants are not yet checked against the book. The waist and hip seam

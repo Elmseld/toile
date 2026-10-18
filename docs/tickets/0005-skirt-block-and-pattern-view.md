@@ -1,7 +1,7 @@
 ---
 id: 0005
 title: Skirt block and viewing pattern projects
-status: in-progress
+status: in-review
 type: feature
 ---
 
@@ -15,13 +15,13 @@ measurement profile, and gets a project that shows the front and back pieces dra
 correct proportions, with zoom and pan.
 
 ## Acceptance criteria
-- [ ] The block "Rak kjol" as a pattern definition: front and back pieces with waist darts and a hip curve, following an established metric drafting method (the source is stated in the definition).
-- [ ] Ease at waist and hip, and skirt length, are parameters with sensible defaults.
-- [ ] Pattern projects are stored per user: name, block, measurement profile, pattern definition (JSON) and parameter values.
-- [ ] "Mina mönster" lists the projects. Projects can be created, renamed and deleted.
-- [ ] The project page draws the pattern with the engine on the client (JS hook), with zoom (wheel/pinch) and pan (drag), and shows a grid in cm.
-- [ ] Switching measurement profile recomputes the pattern. If measurements the pattern needs are missing, it shows which ones instead of a broken pattern.
-- [ ] An engine test verifies that the skirt's waist and hip (seam line, without darts) equal measurement + ease within 1 mm.
+- [x] The block "Rak kjol" as a pattern definition: front and back pieces with waist darts and a hip curve, following an established metric drafting method (the source is stated in the definition).
+- [x] Ease at waist and hip, and skirt length, are parameters with sensible defaults.
+- [x] Pattern projects are stored per user: name, block, measurement profile, pattern definition (JSON) and parameter values.
+- [x] "Mina mönster" lists the projects. Projects can be created, renamed and deleted.
+- [x] The project page draws the pattern with the engine on the client (JS hook), with zoom (wheel/pinch) and pan (drag), and shows a grid in cm.
+- [x] Switching measurement profile recomputes the pattern. If measurements the pattern needs are missing, it shows which ones instead of a broken pattern.
+- [x] An engine test verifies that the skirt's waist and hip (seam line, without darts) equal measurement + ease within 1 mm.
 
 ## Out of scope
 - Editing points (0008). Seam allowance (0009). Printing (0010).

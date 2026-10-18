@@ -36,6 +36,7 @@ Expected: (1) the Swedish length error "ska vara minst 12 tecken"; (2) the flash
 ### Logout
 1. Click `#nav-log-out`.
 Expected: `/` with "Du är utloggad." and no logged-in nav.
+Note: a flash toast in the top right can cover `#nav-log-out` until it closes; wait for it or close it first.
 
 ### Password login
 1. On `/users/log-in`, submit the password form with a wrong password.
@@ -48,3 +49,12 @@ Expected: (1) "Fel e-post eller lösenord." and still logged out; (2) `/patterns
 3. Save a new profile with only a name.
 4. Delete a profile and confirm.
 Expected: (1) the profile page shows "72,5 cm" (stored as 725 mm); (2) "måste vara större än 0 och högst 300 cm" for 0 and 301, "måste vara ett tal i cm med högst en decimal" for 72,55; (3) saved, with "Saknas" markers on the profile page and "N mått saknas" on the index; (4) the confirm "Vill du ta bort måttprofilen?" and the flash "Måttprofilen har tagits bort".
+
+### Pattern projects
+1. Create a complete measurement profile (Midjevidd, Stussvidd, Midja till stuss, Kjollängd).
+2. On `/patterns` click "Nytt mönster", enter a name, choose "Rak kjol" and that profile, and save.
+3. On the project page, zoom with the wheel, drag to pan, then click "Anpassa till skärmen".
+4. Switch the profile select to a profile missing measurements.
+5. Rename the project.
+6. Delete the project from the list and confirm.
+Expected: (2) the project page with "Bakstycke" and "Framstycke" drawn over a cm grid; (3) the view zooms, pans and returns to the fitted view; (4) "Mått som saknas för det här mönstret" lists the missing measurements and nothing is drawn; (5) the flash "Mönstret har bytt namn"; (6) the confirm "Vill du ta bort mönstret?" and the flash "Mönstret har tagits bort".
