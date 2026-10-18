@@ -10,7 +10,7 @@ import {
 } from "../formula/errors";
 import { evaluateExpression } from "../formula/evaluate";
 import { type Edge, evaluateGraph } from "../formula/graph";
-import { isIdentifier } from "../formula/lexer";
+import { Namespace } from "../formula/namespace";
 import { type Expr, parseFormula } from "../formula/parser";
 import { cubicLength } from "./bezier";
 import { geometryFunctions } from "./functions";
@@ -93,29 +93,15 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
     failed.add(error.name);
   };
 
-  // 1. Names: declaration index (first occurrence) and every source of each name.
-  const index = new Map<string, number>();
-  const sources = new Map<string, ElementSource[]>();
-  const declare = (name: string, source: ElementSource): void => {
-    if (!index.has(name)) index.set(name, index.size);
-    const list = sources.get(name);
-    if (list === undefined) sources.set(name, [source]);
-    else list.push(source);
-  };
-  for (const name of definition.measurements) declare(name, "measurement");
-  for (const name of Object.keys(definition.parameters)) declare(name, "parameter");
-  for (const name of Object.keys(definition.formulas)) declare(name, "formula");
-  for (const point of definition.points) declare(point.name, "point");
-  for (const curve of definition.curves) declare(curve.name, "curve");
-  for (const piece of definition.pieces) declare(piece.name, "piece");
-
-  for (const [name, list] of sources) {
-    if (!isIdentifier(name)) {
-      for (const source of list) fail(invalidNameError(name, source));
-    } else if (list.length > 1) {
-      fail(duplicateNameError(name, list));
-    }
-  }
+  // 1. Names: declaration position (first occurrence) and every source of each name.
+  const namespace = new Namespace<ElementSource>();
+  for (const name of definition.measurements) namespace.declare(name, "measurement");
+  for (const name of Object.keys(definition.parameters)) namespace.declare(name, "parameter");
+  for (const name of Object.keys(definition.formulas)) namespace.declare(name, "formula");
+  for (const point of definition.points) namespace.declare(point.name, "point");
+  for (const curve of definition.curves) namespace.declare(curve.name, "curve");
+  for (const piece of definition.pieces) namespace.declare(piece.name, "piece");
+  for (const error of namespace.nameErrors()) fail(error);
 
   // 2. Values. Every value is checked, also for a name that already failed, so an independent bad
   // value is not hidden; only names without an error resolve.
@@ -158,7 +144,7 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
     expected: ReferenceKind,
     field: string | undefined,
   ): ElementError | null => {
-    const list = sources.get(reference);
+    const list = namespace.sourcesOf(reference);
     if (list === undefined) {
       return { ...unknownReferenceError(reference, span), name: owner, ...located(field) };
     }
@@ -326,7 +312,7 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
   };
 
   const graphErrors = evaluateGraph<ElementError>(graph, {
-    position: (name) => index.get(name) ?? Infinity,
+    position: (name) => namespace.position(name),
     failed,
     evaluate: (name) => {
       const node = nodes.get(name);
@@ -361,24 +347,32 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
     errors.push(field === undefined ? error : { ...error, field });
   }
 
-  const position = (error: ElementError): number => index.get(error.name) ?? Infinity;
-  errors.sort((a, b) => position(a) - position(b));
+  namespace.sortByPosition(errors);
   appendAll(errors, overrideErrors);
 
-  // 6. Records in declaration order. `fromEntries` defines own data properties, so names such as
-  // `__proto__` are stored safely.
-  const inOrder = <T>(map: ReadonlyMap<string, T>): Record<string, T> =>
-    Object.fromEntries(
-      [...index.keys()].flatMap((name) => {
-        const value = map.get(name);
-        return value === undefined ? [] : [[name, value] as const];
-      }),
-    );
+  // 6. Records in declaration order, built in one pass over the names. `fromEntries` defines own
+  // data properties, so names such as `__proto__` are stored safely.
+  const entries = {
+    values: [] as [string, number][],
+    points: [] as [string, Point][],
+    curves: [] as [string, ComputedCurve][],
+    pieces: [] as [string, ComputedPiece][],
+  };
+  for (const name of namespace.names()) {
+    const value = resolved.get(name);
+    if (value !== undefined) entries.values.push([name, value]);
+    const point = points.get(name);
+    if (point !== undefined) entries.points.push([name, point]);
+    const curve = curves.get(name);
+    if (curve !== undefined) entries.curves.push([name, curve]);
+    const piece = pieces.get(name);
+    if (piece !== undefined) entries.pieces.push([name, piece]);
+  }
   const computed = {
-    values: inOrder(resolved),
-    points: inOrder(points),
-    curves: inOrder(curves),
-    pieces: inOrder(pieces),
+    values: Object.fromEntries(entries.values),
+    points: Object.fromEntries(entries.points),
+    curves: Object.fromEntries(entries.curves),
+    pieces: Object.fromEntries(entries.pieces),
   };
   return errors.length === 0 ? { ok: true, ...computed } : { ok: false, ...computed, errors };
 }
@@ -409,24 +403,6 @@ function isFiniteNumber(value: unknown): value is number {
 /** `{ field }` when there is one, so elements without fields (named formulas) carry none. */
 function located(field: string | undefined): { field?: string } {
   return field === undefined ? {} : { field };
-}
-
-function invalidNameError(name: string, source: ElementSource): ElementError {
-  return {
-    kind: "invalid_name",
-    name,
-    source,
-    message: `"${name}" is not a valid name (use letters, digits and _, not starting with a digit)`,
-  };
-}
-
-function duplicateNameError(name: string, sources: ElementSource[]): ElementError {
-  return {
-    kind: "duplicate_name",
-    name,
-    sources,
-    message: `"${name}" is declared more than once (${sources.join(", ")})`,
-  };
 }
 
 function missingMeasurementError(name: string): ElementError {

@@ -1,7 +1,12 @@
 // Types of the pattern definition format (version 1, ADR 0004), of the computed geometry and of
 // the errors `evaluatePattern` returns. Types only.
 
-import type { FormulaError, Span } from "../formula/errors";
+import type {
+  DuplicateNameError,
+  FormulaError,
+  InvalidNameError,
+  Span,
+} from "../formula/errors";
 import type { Point } from "./vector";
 
 /** A user's manual adjustment of a point, in mm, added after its operation is computed. */
@@ -115,8 +120,8 @@ type Located = { field?: string };
 /** An error that belongs to a named element of the definition. */
 export type ElementError =
   | (Exclude<FormulaError, { kind: "invalid_name" | "duplicate_name" }> & Located)
-  | { kind: "invalid_name"; name: string; source: ElementSource; message: string }
-  | { kind: "duplicate_name"; name: string; sources: ElementSource[]; message: string }
+  | InvalidNameError<ElementSource>
+  | DuplicateNameError<ElementSource>
   | { kind: "missing_measurement"; name: string; message: string }
   | { kind: "unknown_parameter"; name: string; message: string }
   | {

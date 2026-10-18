@@ -2,17 +2,15 @@
 
 import { appendAll } from "./arrays";
 import {
-  duplicateNameError,
   type FormulaError,
   type InputSource,
-  invalidNameError,
   invalidValueError,
   syntaxError,
   unknownReferenceError,
 } from "./errors";
 import { evaluateExpression } from "./evaluate";
 import { type Edge, evaluateGraph } from "./graph";
-import { isIdentifier } from "./lexer";
+import { Namespace } from "./namespace";
 import { type Expr, parseFormula, references } from "./parser";
 
 export type FormulaInput = {
@@ -57,16 +55,10 @@ export function evaluateFormulas(input: FormulaInput): EvaluationResult {
   const parameters = entries(input?.parameters);
   const formulas = entries(input?.formulas);
 
-  // Declaration index of each name (first occurrence) and every source it is declared in.
-  const declarationIndex = new Map<string, number>();
-  const sources = new Map<string, InputSource[]>();
+  // Declaration position of each name (first occurrence) and every source it is declared in.
+  const namespace = new Namespace<InputSource>();
   const declare = (entries: [string, unknown][], source: InputSource): void => {
-    for (const [name] of entries) {
-      if (!declarationIndex.has(name)) declarationIndex.set(name, declarationIndex.size);
-      const list = sources.get(name);
-      if (list === undefined) sources.set(name, [source]);
-      else list.push(source);
-    }
+    for (const [name] of entries) namespace.declare(name, source);
   };
   declare(measurements, "measurement");
   declare(parameters, "parameter");
@@ -78,13 +70,7 @@ export function evaluateFormulas(input: FormulaInput): EvaluationResult {
   };
 
   // 1. Names and values.
-  for (const [name, list] of sources) {
-    if (!isIdentifier(name)) {
-      for (const source of list) fail(invalidNameError(name, source));
-    } else if (list.length > 1) {
-      fail(duplicateNameError(name, list));
-    }
-  }
+  for (const error of namespace.nameErrors()) fail(error);
 
   // Every value is checked, also for a name that already failed (invalid or duplicate), so an
   // independent bad value is not hidden; only names without an error resolve.
@@ -115,7 +101,7 @@ export function evaluateFormulas(input: FormulaInput): EvaluationResult {
 
     const refs = references(result.expr);
     for (const ref of refs) {
-      if (!sources.has(ref.name)) fail({ ...unknownReferenceError(ref.name, ref.span), name });
+      if (namespace.sourcesOf(ref.name) === undefined) fail({ ...unknownReferenceError(ref.name, ref.span), name });
     }
     parsed.set(name, { expr: result.expr, refs });
   }
@@ -124,7 +110,7 @@ export function evaluateFormulas(input: FormulaInput): EvaluationResult {
   const lookup = (name: string): number | undefined => resolved.get(name);
   const graph = new Map([...parsed].map(([name, formula]) => [name, formula.refs] as const));
   const graphErrors = evaluateGraph(graph, {
-    position: (name) => declarationIndex.get(name) ?? Infinity,
+    position: (name) => namespace.position(name),
     failed,
     evaluate: (name) => {
       const formula = parsed.get(name);
@@ -137,16 +123,9 @@ export function evaluateFormulas(input: FormulaInput): EvaluationResult {
   });
   appendAll(errors, graphErrors);
 
-  // 5. Deterministic output: values and errors in declaration order. `fromEntries` defines own
-  // data properties, so a name such as `__proto__` is stored safely.
-  const values = Object.fromEntries(
-    [...declarationIndex.keys()].flatMap((name) => {
-      const value = resolved.get(name);
-      return value === undefined ? [] : [[name, value] as const];
-    }),
-  );
-  const index = (error: FormulaError): number => declarationIndex.get(error.name) ?? Infinity;
-  errors.sort((a, b) => index(a) - index(b));
+  // 5. Deterministic output: values and errors in declaration order.
+  const values = namespace.inOrder(resolved);
+  namespace.sortByPosition(errors);
 
   return errors.length === 0 ? { ok: true, values } : { ok: false, values, errors };
 }
