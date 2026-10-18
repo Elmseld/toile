@@ -64,11 +64,16 @@ describe("evaluateFormulas", () => {
     const result = evaluateFormulas(input({ formulas }));
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.errors).toHaveLength(1);
+      expect(result.errors).toHaveLength(count);
       expect(result.errors[0]).toMatchObject({ kind: "circular_dependency", name: "f0" });
       if (result.errors[0]?.kind === "circular_dependency") {
         expect(result.errors[0].cycle).toHaveLength(count + 1);
       }
+      expect(result.errors.at(-1)).toMatchObject({
+        kind: "failed_dependency",
+        name: `f${count - 1}`,
+        dependency: "f0",
+      });
     }
   });
 
@@ -87,12 +92,13 @@ describe("evaluateFormulas", () => {
       expect(result.errors.filter((e) => e.kind === "circular_dependency")).toEqual([
         expect.objectContaining({ cycle: ["f0", "f1", "f0"] }),
       ]);
-      expect(result.errors).toHaveLength(count - 1);
+      // One error per formula: the cycle error on f0, a failed dependency on every other.
+      expect(result.errors).toHaveLength(count);
     }
   });
 
   describe("circular dependencies", () => {
-    test("a cycle is reported once, naming it", () => {
+    test("a cycle is reported once, naming it; its other members fail on the next member", () => {
       const result = evaluateFormulas(
         input({ formulas: { a: "b + 1", b: "c * 2", c: "1 + a" } }),
       );
@@ -107,8 +113,40 @@ describe("evaluateFormulas", () => {
             span: { start: 0, end: 1 },
             message: "Circular dependency: a -> b -> c -> a",
           },
+          {
+            kind: "failed_dependency",
+            name: "b",
+            dependency: "c",
+            span: { start: 0, end: 1 },
+            message: '"b" depends on "c", which has an error',
+          },
+          {
+            kind: "failed_dependency",
+            name: "c",
+            dependency: "a",
+            span: { start: 4, end: 5 },
+            message: '"c" depends on "a", which has an error',
+          },
         ],
       });
+    });
+
+    test("every name on or depending on a cycle has an error, and dependencies point at errors", () => {
+      const result = evaluateFormulas(
+        input({ formulas: { a: "b + 1", b: "c + 1", c: "a + 1", d: "b" } }),
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        const named = new Set(result.errors.map((e) => e.name));
+        expect([...named]).toEqual(["a", "b", "c", "d"]);
+        for (const error of result.errors) {
+          if (error.kind === "failed_dependency") expect(named.has(error.dependency)).toBe(true);
+        }
+        expect(result.errors.find((e) => e.name === "d")).toMatchObject({
+          kind: "failed_dependency",
+          dependency: "b",
+        });
+      }
     });
 
     test("the cycle starts at its first-declared member", () => {
@@ -117,7 +155,11 @@ describe("evaluateFormulas", () => {
       );
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.errors).toHaveLength(1);
+        expect(result.errors.map((e) => e.kind)).toEqual([
+          "circular_dependency",
+          "failed_dependency",
+          "failed_dependency",
+        ]);
         expect(result.errors[0]).toMatchObject({
           kind: "circular_dependency",
           name: "c",
@@ -160,6 +202,13 @@ describe("evaluateFormulas", () => {
             span: { start: 0, end: 1 },
             message: "Circular dependency: a -> b -> a",
           },
+          {
+            kind: "failed_dependency",
+            name: "b",
+            dependency: "a",
+            span: { start: 0, end: 1 },
+            message: '"b" depends on "a", which has an error',
+          },
         ],
       });
     });
@@ -170,6 +219,7 @@ describe("evaluateFormulas", () => {
       if (!result.ok) {
         expect(result.errors).toEqual([
           expect.objectContaining({ kind: "circular_dependency", name: "a", cycle: ["a", "b", "a"] }),
+          expect.objectContaining({ kind: "failed_dependency", name: "b", dependency: "a" }),
           expect.objectContaining({ kind: "failed_dependency", name: "c", dependency: "b" }),
         ]);
       }
@@ -179,7 +229,9 @@ describe("evaluateFormulas", () => {
       const result = evaluateFormulas(input({ formulas: { a: "b", b: "a", x: "x" } }));
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.errors.map((e) => e.kind === "circular_dependency" && e.cycle)).toEqual([
+        expect(
+          result.errors.flatMap((e) => (e.kind === "circular_dependency" ? [e.cycle] : [])),
+        ).toEqual([
           ["a", "b", "a"],
           ["x", "x"],
         ]);
@@ -326,6 +378,14 @@ describe("evaluateFormulas", () => {
           { kind: "syntax", name: "f", message: "Formula must be a string" },
         ],
       });
+    });
+
+    test("missing or null sections from untyped callers count as empty", () => {
+      const partial = { measurements: null, formulas: { f: "1 + 1" } } as unknown as FormulaInput;
+      expect(evaluateFormulas(partial)).toEqual({ ok: true, values: { f: 2 } });
+      expect(evaluateFormulas(null as unknown as FormulaInput)).toEqual({ ok: true, values: {} });
+      const primitives = { measurements: 3, parameters: "x", formulas: undefined } as unknown as FormulaInput;
+      expect(evaluateFormulas(primitives)).toEqual({ ok: true, values: {} });
     });
 
     test("a name in more than one source", () => {
