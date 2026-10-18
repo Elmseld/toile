@@ -936,3 +936,8 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "From the prominent neck bone straight down the spine to a ruler held level under both armpits."
 msgstr ""
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Bodice"
+msgstr ""

@@ -23,6 +23,7 @@ defmodule ToileWeb.BlockTexts do
       "Straight skirt"
   """
   @spec label(String.t()) :: String.t()
+  def label("bodice"), do: gettext("Bodice")
   def label("straight_skirt"), do: gettext("Straight skirt")
 
   @doc """

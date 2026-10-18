@@ -936,3 +936,8 @@ msgstr "Ärmhålsdjup"
 #, elixir-autogen, elixir-format
 msgid "From the prominent neck bone straight down the spine to a ruler held level under both armpits."
 msgstr "Från den utstående nackkotan rakt ned längs ryggraden till en linjal som hålls vågrätt under båda armhålorna."
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Bodice"
+msgstr "Livstycke"
