@@ -98,8 +98,11 @@ A complete example (a rectangle with a dart, tested against two measurement sets
 
   Coincident points where a direction is needed (`along_line`, `perpendicular`, either line of
   an intersection) and a negative radius are `degenerate_geometry` with the `field`; parallel
-  lines and a line that misses the circle are `no_intersection`. Field order in the table is the
-  order of the point's dependency edges, which decides the `field` of a `failed_dependency`.
+  lines and a line that misses the circle are `no_intersection`. A final position (user offset
+  included) that is not finite or lies more than `MAX_COORDINATE` (1e7 mm, 10 km) from the origin
+  on either axis is `degenerate_geometry` without a `field`; the bound keeps every length and SVG
+  number finite. Field order in the table is the order of the point's dependency edges, which
+  decides the `field` of a `failed_dependency`.
 - **Angles.** Degrees, 0 = right, 90 = down (clockwise on screen, since y points down),
   normalised to `[0, 360)`. `angle(A, B)`, `along_angle` and `perpendicular` all use this.
 - **Curves.** `{ name, type: "line", from, to }` or `{ name, type: "cubic", from, c1, c2, to }`;

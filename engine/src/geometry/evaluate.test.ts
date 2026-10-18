@@ -439,6 +439,29 @@ describe("partial results and pieces", () => {
     );
     expect(summary(result)).toEqual(["no_intersection:X", "invalid_result:H:x", "degenerate_geometry:Y"]);
   });
+
+  test("a position more than 10 km (1e7 mm) from the origin is degenerate_geometry", () => {
+    const result = evaluatePattern(
+      def({
+        points: [
+          start("A", 10_000_000, -10_000_000),
+          start("B", 10_000_001, 0),
+          start("C", 0, 0, { user_offset: { dx: 0, dy: -1e300 } }),
+          // Finite, but far beyond what SVG formatting could round (1e306 * 100 overflows).
+          start("D", `1${"0".repeat(306)}`, 0),
+          { name: "E", op: "offset", from: "A", dx: "0", dy: "-1" },
+        ],
+      }),
+      NO_INPUT,
+    );
+    expect(summary(result)).toEqual([
+      "degenerate_geometry:B",
+      "degenerate_geometry:C",
+      "degenerate_geometry:D",
+      "degenerate_geometry:E",
+    ]);
+    expect(result.points).toEqual({ A: { x: 10_000_000, y: -10_000_000 } });
+  });
 });
 
 describe("user offsets", () => {

@@ -25,7 +25,7 @@ import type {
   ReferenceKind,
 } from "./types";
 import { validateDefinition } from "./validate";
-import { distance, type Point } from "./vector";
+import { distance, MAX_COORDINATE, type Point } from "./vector";
 
 /** A dependency edge with the field of the element it comes from (absent for named formulas). */
 type FieldEdge = Edge & { field?: string };
@@ -267,8 +267,12 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
       offset === undefined
         ? result.point
         : { x: result.point.x + offset.dx, y: result.point.y + offset.dy };
-    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) {
-      return degenerateError(name, "The computed position is not a finite number");
+    // `!(<=)` also catches NaN.
+    if (!(Math.abs(point.x) <= MAX_COORDINATE && Math.abs(point.y) <= MAX_COORDINATE)) {
+      return degenerateError(
+        name,
+        `The computed position is not a finite number within ${MAX_COORDINATE} mm of the origin`,
+      );
     }
     points.set(name, point);
     return null;

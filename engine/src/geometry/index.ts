@@ -22,4 +22,4 @@ export type {
 export { evaluatePattern } from "./evaluate";
 export { curvePathData, formatNumber, piecePathData } from "./svg";
 export { PATTERN_FORMAT_VERSION, type ValidationResult, validateDefinition } from "./validate";
-export { distance, type Point } from "./vector";
+export { distance, MAX_COORDINATE, type Point } from "./vector";

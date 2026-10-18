@@ -7,6 +7,13 @@ export type Point = { x: number; y: number };
 /** Points closer than this (mm) count as coincident; also the tangent tolerance of a circle. */
 export const EPSILON = 1e-9;
 
+/**
+ * The largest absolute coordinate (mm, i.e. 10 km) a computed point may have. Anything further out
+ * is `degenerate_geometry`: no garment is that large, and bounded coordinates keep every derived
+ * length, curve and SVG number finite.
+ */
+export const MAX_COORDINATE = 1e7;
+
 /** Two lines are parallel when `|cross(d1, d2)| <= PARALLEL_TOLERANCE * |d1| * |d2|`. */
 const PARALLEL_TOLERANCE = 1e-12;
 
