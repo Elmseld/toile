@@ -236,6 +236,26 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
       assert Measurements.list_measurement_profiles(scope) == []
     end
 
+    test "shows the format error and an empty input for a non-string measurement", %{
+      conn: conn,
+      scope: scope
+    } do
+      {:ok, view, _html} = live(conn, ~p"/measurements/new")
+
+      params = %{
+        "measurement_profile" => %{"name" => "Me", "measurements" => %{"waist" => ["72"]}}
+      }
+
+      for {render, event} <- [{&render_change/3, "validate"}, {&render_submit/3, "save"}] do
+        html = render.(view, event, params)
+
+        assert html =~ "must be a number in cm with at most one decimal"
+        assert has_element?(view, ~s(#measurement-field-waist input[value=""]))
+      end
+
+      assert Measurements.list_measurement_profiles(scope) == []
+    end
+
     test "every measurement input is a touch-friendly decimal text field with help", %{
       conn: conn
     } do

@@ -118,7 +118,9 @@ defmodule ToileWeb.Centimeters do
   Returns the value to show in a centimetre input.
 
   Millimetres are formatted with `format/1`; a string (what the user typed, kept after a
-  failed validation) is shown as is; `nil` (missing) is the empty string.
+  failed validation) is shown as is; `nil` (missing) and any other value (such as a list or
+  map from forged params, which fails the integer cast with the format error) is the empty
+  string.
 
       iex> ToileWeb.Centimeters.input_value(725)
       "72.5"
@@ -128,9 +130,13 @@ defmodule ToileWeb.Centimeters do
 
       iex> ToileWeb.Centimeters.input_value(nil)
       ""
+
+      iex> ToileWeb.Centimeters.input_value(["72"])
+      ""
   """
-  @spec input_value(integer() | String.t() | nil) :: String.t()
+  @spec input_value(term()) :: String.t()
   def input_value(mm) when is_integer(mm), do: format(mm)
   def input_value(value) when is_binary(value), do: value
   def input_value(nil), do: ""
+  def input_value(_other), do: ""
 end

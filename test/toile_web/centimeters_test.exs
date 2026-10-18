@@ -96,5 +96,10 @@ defmodule ToileWeb.CentimetersTest do
       assert Centimeters.input_value("72.55") == "72.55"
       assert Centimeters.input_value(nil) == ""
     end
+
+    test "shows any other value, such as a list or map, as empty" do
+      assert Centimeters.input_value(["72"]) == ""
+      assert Centimeters.input_value(%{"nested" => "72"}) == ""
+    end
   end
 end
