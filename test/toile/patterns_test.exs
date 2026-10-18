@@ -386,6 +386,75 @@ defmodule Toile.PatternsTest do
       assert reloaded.measurement_profile_id == nil
       assert reloaded.measurement_profile == nil
     end
+
+    test "clears only the profile id in the database, not the user id" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+
+      {:ok, _} =
+        Measurements.delete_measurement_profile(scope, pattern_project.measurement_profile)
+
+      stored = Repo.get!(PatternProject, pattern_project.id)
+      assert stored.measurement_profile_id == nil
+      assert stored.user_id == scope.user.id
+    end
+  end
+
+  describe "database constraints" do
+    # These bypass `Toile.Patterns`, which checks ownership itself, to prove the database does too.
+
+    test "a project cannot be inserted with another user's profile" do
+      scope = user_scope_fixture()
+      other_profile = measurement_profile_fixture(user_scope_fixture())
+
+      changeset =
+        PatternProject.create_changeset(
+          %PatternProject{},
+          %{name: "Skirt", block: "straight_skirt", measurement_profile_id: other_profile.id},
+          scope
+        )
+
+      assert {:error, changeset} = Repo.insert(changeset)
+      assert %{measurement_profile_id: ["does not exist"]} = errors_on(changeset)
+    end
+
+    test "a project cannot be pointed at another user's profile" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      other_profile = measurement_profile_fixture(user_scope_fixture())
+
+      error =
+        assert_raise Postgrex.Error, fn ->
+          Repo.update_all(
+            from(p in PatternProject, where: p.id == ^pattern_project.id),
+            set: [measurement_profile_id: other_profile.id]
+          )
+        end
+
+      assert error.postgres.code == :foreign_key_violation
+      assert error.postgres.constraint == "pattern_projects_measurement_profile_id_fkey"
+    end
+
+    test "a project without a profile needs no matching profile" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+
+      assert {1, _} =
+               Repo.update_all(
+                 from(p in PatternProject, where: p.id == ^pattern_project.id),
+                 set: [measurement_profile_id: nil]
+               )
+    end
+
+    test "deleting the user deletes their projects and profiles" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+
+      assert {:ok, _} = Repo.delete(scope.user)
+
+      refute Repo.get(PatternProject, pattern_project.id)
+      refute Repo.get(Measurements.MeasurementProfile, pattern_project.measurement_profile_id)
+    end
   end
 
   describe "definition size" do

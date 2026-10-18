@@ -311,10 +311,11 @@ defmodule Toile.Patterns do
       %{"measurements" => %{"waist" => 680, ...}, "parameters" => %{}}
 
   """
-  def engine_input(%PatternProject{parameters: parameters}, %MeasurementProfile{} = profile) do
+  def engine_input(%PatternProject{parameters: parameters}, %MeasurementProfile{} = profile)
+      when is_map(parameters) do
     %{
       "measurements" => Measurements.measurement_values(profile),
-      "parameters" => parameters || %{}
+      "parameters" => parameters
     }
   end
 end

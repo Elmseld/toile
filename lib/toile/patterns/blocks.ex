@@ -4,16 +4,16 @@ defmodule Toile.Patterns.Blocks do
 
   Blocks are data in `engine/blocks/<key>.json`, read here at compile time
   (`docs/adr/0006-pattern-projects-and-blocks.md`). Editing a file recompiles this module, and so
-  does adding or removing one. Only the shape is checked: the key (file name) must be a
-  snake_case identifier (`^[a-z][a-z0-9_]*$`) and the content a JSON object with an integer
-  `"version"` and a `"measurements"` list of strings; otherwise compilation fails. The geometry is
+  does adding or removing one. Each file is checked by `Toile.Patterns.Blocks.Loader`: a
+  snake_case key, a JSON object with an integer `"version"` and a `"measurements"` list of
+  strings, and no larger than a project may store; otherwise compilation fails. The geometry is
   never interpreted here: the engine validates and evaluates the definition in the browser.
   """
 
+  alias Toile.Patterns.Blocks.Loader
+
   @dir Path.expand("../../../engine/blocks", __DIR__)
   @pattern Path.join(@dir, "*.json")
-
-  @key_format ~r/\A[a-z][a-z0-9_]*\z/
 
   @paths @pattern |> Path.wildcard() |> Enum.sort()
 
@@ -25,27 +25,7 @@ defmodule Toile.Patterns.Blocks do
     raise CompileError, description: "#{@dir} has no block definitions (*.json)"
   end
 
-  @blocks Map.new(@paths, fn path ->
-            key = Path.basename(path, ".json")
-
-            unless Regex.match?(@key_format, key) do
-              raise CompileError,
-                description: "#{path}: #{inspect(key)} is not a snake_case block key"
-            end
-
-            definition = path |> File.read!() |> JSON.decode!()
-
-            unless is_map(definition) and is_integer(definition["version"]) and
-                     is_list(definition["measurements"]) and
-                     Enum.all?(definition["measurements"], &is_binary/1) do
-              raise CompileError,
-                description:
-                  "#{path} must be a JSON object with an integer \"version\" and a " <>
-                    "\"measurements\" list of strings"
-            end
-
-            {key, definition}
-          end)
+  @blocks Map.new(@paths, &Loader.load!/1)
 
   @keys @blocks |> Map.keys() |> Enum.sort()
 

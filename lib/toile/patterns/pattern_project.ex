@@ -17,8 +17,7 @@ defmodule Toile.Patterns.PatternProject do
 
   alias Toile.Measurements.MeasurementProfile
   alias Toile.Patterns.Blocks
-
-  @max_definition_bytes 1_000_000
+  alias Toile.Patterns.DefinitionSize
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -68,9 +67,10 @@ defmodule Toile.Patterns.PatternProject do
   end
 
   @doc """
-  Returns the maximum size of a stored definition, in bytes of encoded JSON.
+  Returns the maximum size of a stored definition, in bytes of encoded JSON
+  (`Toile.Patterns.DefinitionSize.max_bytes/0`).
   """
-  def max_definition_bytes, do: @max_definition_bytes
+  defdelegate max_definition_bytes, to: DefinitionSize, as: :max_bytes
 
   defp put_block_definition(changeset) do
     block = get_change(changeset, :block)
@@ -87,11 +87,12 @@ defmodule Toile.Patterns.PatternProject do
   `max_definition_bytes/0` bytes of JSON.
 
   Only a change is measured, so renaming a project does not encode its definition. Both
-  changesets run it; it matters once definitions are edited (ticket 0008).
+  changesets run it; it matters once definitions are edited (ticket 0008). Blocks over the cap
+  already fail to compile (`Toile.Patterns.Blocks.Loader`), so a create never hits it.
   """
   def validate_definition_size(changeset) do
     validate_change(changeset, :definition, fn :definition, definition ->
-      if byte_size(JSON.encode!(definition)) > @max_definition_bytes do
+      if DefinitionSize.too_large?(definition) do
         [definition: dgettext_noop("errors", "is too large")]
       else
         []

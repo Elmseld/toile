@@ -21,10 +21,14 @@ engine in the browser.
   The engine validates the definition on the client. Any release image build must include
   `engine/blocks` and `engine/src`.
 - **Limits.** At most 100 projects per user (advisory lock, as for measurement profiles) and a
-  definition of at most 1 000 000 bytes encoded.
+  definition of at most 1 000 000 bytes encoded (`Toile.Patterns.DefinitionSize`). A block file
+  over that cap fails to compile, so creating a project from a block never hits it.
 - **Ownership.** Scoped per user (ADR 0001). The chosen `measurement_profile_id` must belong to the
-  same user (checked in the context, since a foreign key only proves existence). Deleting a profile
-  sets it to null (`nilify_all`) instead of deleting projects; the page then asks for a profile.
+  same user: the context checks it (for a form error), and the database enforces it with a
+  composite foreign key `(measurement_profile_id, user_id)` onto a unique index on
+  `measurement_profiles (id, user_id)` (`MATCH SIMPLE`, so a null profile id is allowed). Deleting
+  a profile sets only `measurement_profile_id` to null (`ON DELETE SET NULL (measurement_profile_id)`,
+  Postgres 15+) instead of deleting projects; the page then asks for a profile.
 - **Missing measurements** are determined in Elixir only by comparing the definition's declared
   `measurements` with the profile's nil values (names, not geometry); the page then draws nothing.
   Nulls are dropped when building engine input (ADR 0005).
