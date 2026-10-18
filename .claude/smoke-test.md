@@ -41,3 +41,10 @@ Expected: `/` with "Du är utloggad." and no logged-in nav.
 1. On `/users/log-in`, submit the password form with a wrong password.
 2. Submit it with the right password.
 Expected: (1) "Fel e-post eller lösenord." and still logged out; (2) `/patterns` with "Välkommen tillbaka!"
+
+### Measurement profiles
+1. Logged in, click `#nav-measurements` ("Mått") and create a profile with a name and "72,5" for Midjevidd.
+2. Edit it and enter "0", then "301", then "72,55" for Midjevidd.
+3. Save a new profile with only a name.
+4. Delete a profile and confirm.
+Expected: (1) the profile page shows "72,5 cm" (stored as 725 mm); (2) "måste vara större än 0 och högst 300 cm" for 0 and 301, "måste vara ett tal i cm med högst en decimal" for 72,55; (3) saved, with "Saknas" markers on the profile page and "N mått saknas" on the index; (4) the confirm "Vill du ta bort måttprofilen?" and the flash "Måttprofilen har tagits bort".

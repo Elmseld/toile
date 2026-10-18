@@ -16,7 +16,8 @@ Keys also have to be valid formula identifiers (ADR 0003), so they are snake_cas
 - The file sits in `engine/src/` so the engine stays self-contained. The engine imports it
   statically (`MEASUREMENT_KEYS`, `isMeasurementKey` in `engine/src/measurements.ts`; no I/O).
   The Phoenix app reads it at compile time in `Toile.Measurements.Catalog`
-  (`@external_resource` plus `JSON.decode!/1`), so editing the file recompiles dependents.
+  (`@external_resource` plus `JSON.decode!/1`), so editing the file recompiles dependents. Code
+  outside the context uses `Toile.Measurements.keys/0`, not `Catalog` directly.
 - Both sides validate the file: non-empty, unique, each key matches `^[a-z][a-z0-9_]*$`. Elixir
   raises at compile time; the engine checks it in tests.
 - Profiles store `measurements` as a jsonb map `{ "waist": 725, ... }` of integer millimetres.

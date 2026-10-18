@@ -23,7 +23,9 @@ Both groups use the same engine but get different amounts of it exposed.
 1. **Measurements**: under "Mått" (`/measurements`) the user creates a measurement profile ("Jag",
    "Kund Anna") and fills in a fixed list of 17 measurements with help texts. Input is in cm with
    one decimal (`.` or `,`), stored in mm. A profile can be saved incomplete; the list shows how
-   many measurements are missing and the profile page marks each missing one.
+   many measurements are missing and the profile page marks each missing one. Values of 0 or over
+   300 cm are rejected. A user can have at most 100 profiles; the 101st shows a form error. The
+   form is touch-friendly: one field per row, 44 px minimum height, numeric keyboard.
 2. **New pattern**: the user picks a block and a measurement profile. The app calculates the pattern
    and displays it.
 3. **Modify**: the user drags points, edits formulas or parameters (e.g. ease), and the pattern is
