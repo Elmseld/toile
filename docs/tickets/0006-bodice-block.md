@@ -36,13 +36,27 @@ Builds on the engine (0002, 0003) and the project view (0005).
 - **Bust dart from `front_length`:** the front neck point is placed so that neck point, bust point
   and waist add up to `front_length`. The dart is the rotation about the bust point that brings the
   front shoulder point level with the back shoulder point. Needs `bust_height` and `bust_distance`.
+- **Bust dart cap and sensitivity:** the dart width at the shoulder grows by about 2 mm per mm of
+  `front_length`, so a large figure (bust 1200 mm, `front_length` 80 mm over `back_length`) would
+  get a 23 degree dart, 120 mm wide on a 135 mm shoulder. The angle is therefore capped by the
+  parameter `max_bust_dart_angle` (15 degrees, a draft constant, not from the book); the uncapped
+  value stays visible as `bust_dart_balance_angle`. Above the cap the front shoulder point lies
+  higher than the back one; seam lengths, bust and waist are unaffected, so the AC tests hold
+  (a large measurement set is in the tests, with a plausibility bound on the dart width). The dart
+  is zero, without an error, when the front neck point lies no higher than the back neck point,
+  e.g. for the size 12 test set when `front_length` is at most about 21 mm over `back_length`.
 - **Ease defaults:** bust 80 mm, waist 40 mm, armhole depth 10 mm. These and the draft constants are
   parameters, not yet checked against the book.
-- **Armhole length:** exposed as formula values `armhole_length`, `back_armhole_length` and
-  `front_armhole_length` in the evaluation result (`length(curve)`, ADR 0004 decision 8). No engine
-  change; the sleeve (0007) reads them.
+- **Armhole length:** the bodice exposes three `values` keys, `armhole_length`,
+  `back_armhole_length` and `front_armhole_length` (formulas using `length(curve)`, ADR 0004
+  decision 8). No engine change. How the sleeve consumes them is left to 0007. The three names are
+  a stable interface: renaming one requires migrating the block copies stored in pattern projects
+  (ADR 0006); an engine test pins them.
 - **Measurement definitions in tests:** the bust line is the horizontal line through the underarm
   points, net of any dart it crosses; the waist is the sum of the waist seam segments (dart legs
-  excluded); a shoulder seam is the sum of its two segments (dart closed).
+  excluded); a shoulder seam is the sum of its two segments (dart closed). AC4's "including any
+  shoulder dart" is read as the seam once the dart is sewn closed, which is what is joined to the
+  other piece; the drafted back shoulder line is longer than the front by the back shoulder dart
+  intake (`back_shoulder_dart`) by design.
 - **Block select:** with two blocks nothing is preselected; the select has the prompt
-  "Choose a block".
+  "Välj ett grundmönster" (msgid "Choose a block").

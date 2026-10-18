@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "Bodice",
-  "source": "Based on Winifred Aldrich, Metric Pattern Cutting for Women's Wear, 6th ed. (Wiley-Blackwell, 2015), \"The close fitting bodice block\". Deviations: back and front are drafted in separate frames 50 mm apart; instead of the book's size-chart dart, the front neck point and the bust dart follow from the front_length, bust_height and bust_distance measurements (the front neck point is placed so that neck point, bust point and waist add up to front_length, and the bust dart is the rotation about the bust point that brings the front shoulder point level with the back shoulder point); the bust dart stays in the shoulder and the waist suppression is split equally between the waist dart and the side seam; the ease and the draft constants (side_shift, back_neck_rise, front_neck_extra, back_shoulder_drop, front_shoulder_drop, back_shoulder_dart, back_shoulder_dart_length, back_waist_dart_gap, front_waist_dart_gap, ease_back_width) are parameters whose defaults are not yet checked against the book.",
+  "source": "Based on Winifred Aldrich, Metric Pattern Cutting for Women's Wear, 6th ed. (Wiley-Blackwell, 2015), \"The close fitting bodice block\". Deviations: back and front are drafted in separate frames 50 mm apart; instead of the book's size-chart dart, the front neck point and the bust dart follow from the front_length, bust_height and bust_distance measurements (the front neck point is placed so that neck point, bust point and waist add up to front_length, and the bust dart is the rotation about the bust point that brings the front shoulder point level with the back shoulder point, capped at max_bust_dart_angle); the bust dart stays in the shoulder and the waist suppression is split equally between the waist dart and the side seam; the ease and the draft constants (side_shift, back_neck_rise, front_neck_extra, back_shoulder_drop, front_shoulder_drop, back_shoulder_dart, back_shoulder_dart_length, back_waist_dart_gap, front_waist_dart_gap, ease_back_width, max_bust_dart_angle) are parameters whose defaults are not yet checked against the book.",
   "measurements": ["bust", "waist", "neck", "shoulder_width", "back_width", "chest_width", "back_length", "armhole_depth", "front_length", "bust_height", "bust_distance"],
   "parameters": {
     "ease_bust": 80,
@@ -16,7 +16,8 @@
     "back_shoulder_dart": 10,
     "back_shoulder_dart_length": 80,
     "back_waist_dart_gap": 20,
-    "front_waist_dart_gap": 20
+    "front_waist_dart_gap": 20,
+    "max_bust_dart_angle": 15
   },
   "formulas": {
     "underarm_y": "armhole_depth + ease_armhole_depth",
@@ -36,7 +37,8 @@
     "back_shoulder_length": "shoulder_width + back_shoulder_dart",
     "bp_y": "back_length - front_length + bust_height",
     "shoulder_y": "back_shoulder_drop - back_neck_rise",
-    "bust_dart_angle": "max(0, angle(f_bp, f_shoulder_closed) - 180 - asin(max(-1, min(1, (bp_y - shoulder_y) / distance(f_bp, f_shoulder_closed)))))",
+    "bust_dart_balance_angle": "max(0, angle(f_bp, f_shoulder_closed) - 180 - asin(max(-1, min(1, (bp_y - shoulder_y) / distance(f_bp, f_shoulder_closed)))))",
+    "bust_dart_angle": "min(max_bust_dart_angle, bust_dart_balance_angle)",
     "bust_dart_neck_angle": "angle(f_bp, f_bdart_neck)",
     "bust_dart_at_underarm": "max(0, bp_y - underarm_y) * (cos(bust_dart_neck_angle - bust_dart_angle) / sin(bust_dart_neck_angle - bust_dart_angle) - cos(bust_dart_neck_angle) / sin(bust_dart_neck_angle))",
     "front_waist_dart": "waist_dart + bust_dart_at_underarm",

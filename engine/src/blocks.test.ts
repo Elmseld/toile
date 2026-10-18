@@ -310,7 +310,28 @@ const BODICE_B: Measurements = {
   bust_distance: 220,
 };
 
+/**
+ * A large figure whose front_length exceeds back_length by much more than in sets A and B. The
+ * balance-derived bust dart would be about 23 degrees and 120 mm wide on a 135 mm shoulder, so the
+ * max_bust_dart_angle cap applies.
+ */
+const BODICE_LARGE: Measurements = {
+  bust: 1200,
+  waist: 1000,
+  neck: 420,
+  shoulder_width: 135,
+  back_width: 400,
+  chest_width: 390,
+  back_length: 430,
+  armhole_depth: 240,
+  front_length: 510,
+  bust_height: 320,
+  bust_distance: 240,
+};
+
 const BODICE_DEFAULTS = { ease_bust: 80, ease_waist: 40, ease_armhole_depth: 10 };
+
+const MAX_BUST_DART_ANGLE = 15;
 
 const BODICE_ARMHOLES = ["b_armhole_upper", "b_armhole_lower", "f_armhole_lower", "f_armhole_upper"];
 
@@ -407,6 +428,7 @@ describe("bodice: definition", () => {
       back_shoulder_dart_length: 80,
       back_waist_dart_gap: 20,
       front_waist_dart_gap: 20,
+      max_bust_dart_angle: MAX_BUST_DART_ANGLE,
     });
   });
 
@@ -474,6 +496,7 @@ describe("bodice: definition", () => {
 for (const [label, measurements] of [
   ["A", BODICE_A],
   ["B", BODICE_B],
+  ["large", BODICE_LARGE],
 ] as const) {
   describe(`bodice: measurement set ${label}`, () => {
     const result = expectOk(compilePattern(bodice()).evaluate({ measurements }));
@@ -573,6 +596,68 @@ test("bodice: the bust point lies below the bust line in set A and above it in s
   expect(b.values.bust_dart_at_underarm).toBe(0);
 });
 
+describe("bodice: bust dart size", () => {
+  const compiled = compilePattern(bodice());
+
+  function dartWidth(result: ComputedPattern): number {
+    return between(result, "f_bdart_neck", "f_bdart_arm");
+  }
+
+  test("the bust dart stays plausible for a large figure: capped and narrower than the shoulder", () => {
+    const result = expectOk(compiled.evaluate({ measurements: BODICE_LARGE }));
+    expect(result.values.bust_dart_balance_angle).toBeGreaterThan(MAX_BUST_DART_ANGLE);
+    expect(result.values.bust_dart_angle).toBeCloseTo(MAX_BUST_DART_ANGLE, 9);
+    expect(dartWidth(result)).toBeLessThan(0.6 * BODICE_LARGE.shoulder_width!);
+  });
+
+  test("below the cap the dart is the balance angle", () => {
+    for (const measurements of [BODICE_A, BODICE_B]) {
+      const result = expectOk(compiled.evaluate({ measurements }));
+      expect(result.values.bust_dart_balance_angle).toBeLessThan(MAX_BUST_DART_ANGLE);
+      expect(result.values.bust_dart_angle).toBe(result.values.bust_dart_balance_angle!);
+    }
+  });
+
+  test("max_bust_dart_angle is a parameter", () => {
+    const parameters = { max_bust_dart_angle: 10 };
+    const result = expectOk(compiled.evaluate({ measurements: BODICE_B, parameters }));
+    expect(result.values.bust_dart_angle).toBeCloseTo(10, 9);
+    expectWithin(shoulderSeam(result, "back"), shoulderSeam(result, "front"), 1);
+    expectWithin(2 * bustLineWidths(result), BODICE_B.bust! + BODICE_DEFAULTS.ease_bust, 2);
+  });
+
+  test("the dart grows about 2 mm in width per mm of front_length", () => {
+    const at = (front_length: number) =>
+      dartWidth(expectOk(compiled.evaluate({ measurements: { ...BODICE_A, front_length } })));
+    const slope = (at(455) - at(435)) / 20;
+    expect(slope).toBeGreaterThan(1.5);
+    expect(slope).toBeLessThan(2.5);
+  });
+
+  test("the dart is zero when the front neck point lies no higher than the back neck point", () => {
+    const measurements: Measurements = { ...BODICE_A, front_length: 425 };
+    const result = expectOk(compiled.evaluate({ measurements }));
+    expect(point(result, "f_neck").y).toBeGreaterThanOrEqual(point(result, "b_neck").y);
+    expect(result.values.bust_dart_angle).toBe(0);
+    expect(dartWidth(result)).toBeCloseTo(0, 9);
+    expectWithin(shoulderSeam(result, "back"), shoulderSeam(result, "front"), 1);
+    expectWithin(2 * bustLineWidths(result), measurements.bust! + BODICE_DEFAULTS.ease_bust, 2);
+  });
+});
+
+describe("bodice: values for other blocks", () => {
+  // The sleeve (0007) reads these names. Renaming one means migrating the block copies stored in
+  // pattern projects (ADR 0006), so this test pins them.
+  test("exposes armhole_length, back_armhole_length and front_armhole_length", () => {
+    const formulas = bodice().formulas as Record<string, string>;
+    const result = expectOk(compilePattern(bodice()).evaluate({ measurements: BODICE_A }));
+    for (const name of ["armhole_length", "back_armhole_length", "front_armhole_length"]) {
+      expect(Object.keys(formulas)).toContain(name);
+      expect(result.values[name]).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe("bodice: parameters", () => {
   const compiled = compilePattern(bodice());
   const base = expectOk(compiled.evaluate({ measurements: BODICE_A }));
@@ -626,6 +711,7 @@ describe("bodice: missing measurements", () => {
 for (const [label, measurements] of [
   ["A", BODICE_A],
   ["B", BODICE_B],
+  ["large", BODICE_LARGE],
 ] as const) {
   describe(`bodice: waist suppression, measurement set ${label}`, () => {
     const result = expectOk(compilePattern(bodice()).evaluate({ measurements }));
