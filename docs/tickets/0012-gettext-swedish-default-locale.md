@@ -20,7 +20,7 @@ Adding more languages later should only require new `.po` files.
 
 ## Acceptance criteria
 - [x] All user-facing text in `lib/` is written in English and goes through `gettext`, `ngettext` or `dgettext` (with `ToileWeb.Gettext`). No Swedish text is hardcoded in the code. This covers pages, components, flash messages, page titles, emails (subject and body), aria labels and error messages.
-- [x] The default locale is set in the configuration: `config :toile, ToileWeb.Gettext, default_locale: "sv"` (or equivalent), and it is used for both web requests and emails.
+- [x] The default locale is set at runtime from the `DEFAULT_LOCALE` environment variable (default `sv`; empty counts as unset) via `config :gettext, :default_locale` in `config/runtime.exs`, and it is used for both web requests and emails. The test environment is pinned to `en` regardless of `DEFAULT_LOCALE`.
 - [x] `priv/gettext/sv/LC_MESSAGES/default.po` and `errors.po` contain Swedish translations of all texts, including Ecto validation errors with correct plural forms (e.g. "ska vara minst 12 tecken").
 - [x] The texts in `core_components.ex` and `layouts.ex` (flash_group, theme toggle) go through gettext and are shown in Swedish.
 - [x] What is shown to the user is unchanged compared to today (the same Swedish texts that 0001 introduced), except that validation errors and system texts are now also in Swedish.
