@@ -44,3 +44,10 @@ config :phoenix_live_view,
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true
+
+# Tests assert the English msgids, so they stay readable and independent of the
+# Swedish translations. Dev and prod take the default from DEFAULT_LOCALE in
+# config/runtime.exs, which leaves the test env alone so a value set in the shell
+# cannot change test results. test/toile_web/gettext_test.exs guards that the sv
+# translations are complete.
+config :gettext, :default_locale, "en"

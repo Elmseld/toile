@@ -1,7 +1,7 @@
 defmodule ToileWeb.UserLive.PasswordResetTest do
   @moduledoc """
-  End-to-end test of "glömt lösenordet": request a magic link from the
-  login page, log in with it, choose a new password under Inställningar,
+  End-to-end test of "forgot your password": request a magic link from the
+  login page, log in with it, choose a new password under Settings,
   then log in with the new password.
   """
   use ToileWeb.ConnCase, async: true
@@ -25,7 +25,7 @@ defmodule ToileWeb.UserLive.PasswordResetTest do
 
     # 1. Request a login link from the login page, which explains the flow.
     {:ok, lv, _html} = live(conn, ~p"/users/log-in")
-    assert has_element?(lv, "#forgot-password-hint", "Glömt lösenordet?")
+    assert has_element?(lv, "#forgot-password-hint", "Forgot your password?")
 
     lv
     |> form("#login_form_magic", user: %{email: user.email})
@@ -34,8 +34,8 @@ defmodule ToileWeb.UserLive.PasswordResetTest do
     assert_received {:email, %Swoosh.Email{to: [{_, to}], text_body: body}}
     assert to == user.email
     assert [_, token] = Regex.run(~r{/users/log-in/([\w-]+)}, body)
-    # The email for confirmed users points to Inställningar for a new password.
-    assert body =~ "lösenord under Inställningar"
+    # The email for confirmed users points to Settings for a new password.
+    assert body =~ "password under Settings"
 
     # 2. Open the link and log in with it.
     {:ok, lv, _html} = live(conn, ~p"/users/log-in/#{token}")
@@ -46,7 +46,7 @@ defmodule ToileWeb.UserLive.PasswordResetTest do
     assert get_session(conn, :user_token)
     assert redirected_to(conn) == ~p"/"
 
-    # 3. Choose a new password under Inställningar (the fresh login counts as sudo mode).
+    # 3. Choose a new password under Settings (the fresh login counts as sudo mode).
     {:ok, lv, _html} = live(conn, ~p"/users/settings")
 
     form =

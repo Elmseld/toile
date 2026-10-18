@@ -9,7 +9,7 @@ defmodule ToileWeb.UserLive.Confirmation do
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="mx-auto max-w-sm">
         <div class="text-center">
-          <.header>Välkommen {@user.email}</.header>
+          <.header>{gettext("Welcome %{email}", email: @user.email)}</.header>
         </div>
 
         <.form
@@ -25,13 +25,16 @@ defmodule ToileWeb.UserLive.Confirmation do
           <.button
             name={@form[:remember_me].name}
             value="true"
-            phx-disable-with="Bekräftar..."
+            phx-disable-with={gettext("Confirming...")}
             class="btn btn-primary w-full"
           >
-            Bekräfta och förbli inloggad
+            {gettext("Confirm and stay logged in")}
           </.button>
-          <.button phx-disable-with="Bekräftar..." class="btn btn-primary btn-soft w-full mt-2">
-            Bekräfta och logga in bara den här gången
+          <.button
+            phx-disable-with={gettext("Confirming...")}
+            class="btn btn-primary btn-soft w-full mt-2"
+          >
+            {gettext("Confirm and log in only this time")}
           </.button>
         </.form>
 
@@ -46,26 +49,29 @@ defmodule ToileWeb.UserLive.Confirmation do
         >
           <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
           <%= if @current_scope do %>
-            <.button phx-disable-with="Loggar in..." class="btn btn-primary w-full">
-              Logga in
+            <.button phx-disable-with={gettext("Logging in...")} class="btn btn-primary w-full">
+              {gettext("Log in")}
             </.button>
           <% else %>
             <.button
               name={@form[:remember_me].name}
               value="true"
-              phx-disable-with="Loggar in..."
+              phx-disable-with={gettext("Logging in...")}
               class="btn btn-primary w-full"
             >
-              Håll mig inloggad på den här enheten
+              {gettext("Keep me logged in on this device")}
             </.button>
-            <.button phx-disable-with="Loggar in..." class="btn btn-primary btn-soft w-full mt-2">
-              Logga in mig bara den här gången
+            <.button
+              phx-disable-with={gettext("Logging in...")}
+              class="btn btn-primary btn-soft w-full mt-2"
+            >
+              {gettext("Log me in only this time")}
             </.button>
           <% end %>
         </.form>
 
         <p :if={!@user.confirmed_at} class="alert alert-outline mt-8">
-          Tips: Om du hellre använder lösenord kan du välja ett under Inställningar.
+          {gettext("Tip: If you prefer passwords, you can set one under Settings.")}
         </p>
       </div>
     </Layouts.app>
@@ -82,7 +88,7 @@ defmodule ToileWeb.UserLive.Confirmation do
     else
       {:ok,
        socket
-       |> put_flash(:error, "Inloggningslänken är ogiltig eller har gått ut.")
+       |> put_flash(:error, gettext("The login link is invalid or has expired."))
        |> push_navigate(to: ~p"/users/log-in")}
     end
   end

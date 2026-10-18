@@ -21,7 +21,7 @@ Expected: redirect to `/users/log-in` with the flash "Du måste logga in för at
 ### Registration
 1. On `/users/register`, submit an invalid email.
 2. Submit a new valid email.
-Expected: (1) a validation error on the form; (2) redirect to `/users/log-in` with "Vi har skickat ett mejl till …".
+Expected: (1) the Swedish validation error "måste innehålla @ och får inte innehålla mellanslag" on the form; (2) redirect to `/users/log-in` with "Vi har skickat ett mejl till …".
 
 ### Magic-link login
 1. Open the newest mail in `/dev/mailbox` and follow the `/users/log-in/<token>` link.
@@ -31,7 +31,7 @@ Expected: `/patterns` with "Mina mönster", "Du har inga mönster än." and the 
 ### Set password
 1. On `/users/settings`, submit a password shorter than 12 characters.
 2. Submit a valid password and matching confirmation.
-Expected: (1) a length error; (2) the flash "Lösenordet är ändrat."
+Expected: (1) the Swedish length error "ska vara minst 12 tecken"; (2) the flash "Lösenordet är ändrat."
 
 ### Logout
 1. Click `#nav-log-out`.

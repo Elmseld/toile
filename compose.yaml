@@ -31,6 +31,8 @@ services:
     environment:
       DATABASE_HOST: db
       PHX_IP: 0.0.0.0
+      # UI locale, `sv` or `en`; set it in the shell or in .env.
+      DEFAULT_LOCALE: ${DEFAULT_LOCALE:-sv}
     ports:
       # Loopback only: the dev server exposes /dev/mailbox, LiveDashboard and debug errors.
       - "127.0.0.1:4000:4000"

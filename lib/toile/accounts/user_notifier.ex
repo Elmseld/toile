@@ -1,4 +1,6 @@
 defmodule Toile.Accounts.UserNotifier do
+  use Gettext, backend: ToileWeb.Gettext
+
   import Swoosh.Email
 
   alias Toile.Mailer
@@ -11,31 +13,46 @@ defmodule Toile.Accounts.UserNotifier do
       |> to(recipient)
       |> from({"Toile", "contact@example.com"})
       |> subject(subject)
-      |> text_body(body)
+      |> text_body(
+        "\n==============================\n\n" <> body <> "\n==============================\n"
+      )
 
     with {:ok, _metadata} <- Mailer.deliver(email) do
       {:ok, email}
     end
   end
 
+  # Emails go to the account owner and there is no per-user language yet, so
+  # they always use the app default locale. Pinning it keeps a locale set on
+  # the calling process from leaking into an email to someone else. The default
+  # is read at send time because it comes from DEFAULT_LOCALE at runtime.
+  defp in_email_locale(fun) do
+    Gettext.with_locale(ToileWeb.Gettext, Application.fetch_env!(:gettext, :default_locale), fun)
+  end
+
   @doc """
   Deliver instructions to update a user email.
   """
   def deliver_update_email_instructions(user, url) do
-    deliver(user.email, "Ändra e-postadress för Toile", """
+    in_email_locale(fn ->
+      deliver(
+        user.email,
+        gettext("Change your email address for Toile"),
+        gettext(
+          """
+          Hi %{email},
 
-    ==============================
+          You can change your email address by visiting the link below:
 
-    Hej #{user.email},
+          %{url}
 
-    Du kan ändra din e-postadress genom att öppna länken nedan:
-
-    #{url}
-
-    Om du inte har bett om den här ändringen kan du bortse från mejlet.
-
-    ==============================
-    """)
+          If you didn't request this change, please ignore this email.
+          """,
+          email: user.email,
+          url: url
+        )
+      )
+    end)
   end
 
   @doc """
@@ -43,19 +60,23 @@ defmodule Toile.Accounts.UserNotifier do
   this user's address. Nothing about this user's account changes.
   """
   def deliver_email_change_attempt_notice(user) do
-    deliver(user.email, "Någon försökte använda din e-postadress på Toile", """
+    in_email_locale(fn ->
+      deliver(
+        user.email,
+        gettext("Someone tried to use your email address on Toile"),
+        gettext(
+          """
+          Hi %{email},
 
-    ==============================
+          Someone just tried to change the email address of another Toile account to your
+          address. Since the address already belongs to your account, nothing has changed.
 
-    Hej #{user.email},
-
-    Någon försökte nyss byta e-postadressen på ett annat Toile-konto till din
-    adress. Eftersom adressen redan hör till ditt konto har ingenting ändrats.
-
-    Om det inte var du kan du bortse från mejlet. Ditt konto är oförändrat.
-
-    ==============================
-    """)
+          If this wasn't you, you can ignore this email. Your account is unchanged.
+          """,
+          email: user.email
+        )
+      )
+    end)
   end
 
   @doc """
@@ -73,57 +94,72 @@ defmodule Toile.Accounts.UserNotifier do
   already has an account, with a link to the login page.
   """
   def deliver_registration_attempt_notice(user, login_url) do
-    deliver(user.email, "Någon försökte skapa ett konto på Toile", """
+    in_email_locale(fn ->
+      deliver(
+        user.email,
+        gettext("Someone tried to create an account on Toile"),
+        gettext(
+          """
+          Hi %{email},
 
-    ==============================
+          Someone just tried to create a new account on Toile with your email address.
+          You already have an account with us and can log in here:
 
-    Hej #{user.email},
+          %{url}
 
-    Någon försökte nyss skapa ett nytt konto på Toile med din e-postadress.
-    Du har redan ett konto hos oss och kan logga in här:
-
-    #{login_url}
-
-    Om det inte var du kan du bortse från mejlet. Ditt konto är oförändrat.
-
-    ==============================
-    """)
+          If this wasn't you, you can ignore this email. Your account is unchanged.
+          """,
+          email: user.email,
+          url: login_url
+        )
+      )
+    end)
   end
 
   defp deliver_magic_link_instructions(user, url) do
-    deliver(user.email, "Logga in på Toile", """
+    in_email_locale(fn ->
+      deliver(
+        user.email,
+        gettext("Log in to Toile"),
+        gettext(
+          """
+          Hi %{email},
 
-    ==============================
+          You can log into your account by visiting the link below:
 
-    Hej #{user.email},
+          %{url}
 
-    Du kan logga in på ditt konto genom att öppna länken nedan:
+          Forgot your password? Once you are logged in, you can choose a new
+          password under Settings.
 
-    #{url}
-
-    Har du glömt ditt lösenord? När du är inloggad kan du välja ett nytt
-    lösenord under Inställningar.
-
-    Om du inte har bett om det här mejlet kan du bortse från det.
-
-    ==============================
-    """)
+          If you didn't request this email, please ignore it.
+          """,
+          email: user.email,
+          url: url
+        )
+      )
+    end)
   end
 
   defp deliver_confirmation_instructions(user, url) do
-    deliver(user.email, "Bekräfta ditt konto på Toile", """
+    in_email_locale(fn ->
+      deliver(
+        user.email,
+        gettext("Confirm your account on Toile"),
+        gettext(
+          """
+          Hi %{email},
 
-    ==============================
+          You can confirm your account by visiting the link below:
 
-    Hej #{user.email},
+          %{url}
 
-    Du kan bekräfta ditt konto genom att öppna länken nedan:
-
-    #{url}
-
-    Om du inte har skapat ett konto hos oss kan du bortse från mejlet.
-
-    ==============================
-    """)
+          If you didn't create an account with us, please ignore this email.
+          """,
+          email: user.email,
+          url: url
+        )
+      )
+    end)
   end
 end

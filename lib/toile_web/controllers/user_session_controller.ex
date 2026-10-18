@@ -5,11 +5,11 @@ defmodule ToileWeb.UserSessionController do
   alias ToileWeb.UserAuth
 
   def create(conn, %{"_action" => "confirmed"} = params) do
-    create(conn, params, "Ditt konto är bekräftat.")
+    create(conn, params, gettext("Your account has been confirmed."))
   end
 
   def create(conn, params) do
-    create(conn, params, "Välkommen tillbaka!")
+    create(conn, params, gettext("Welcome back!"))
   end
 
   # magic link login
@@ -25,7 +25,7 @@ defmodule ToileWeb.UserSessionController do
 
       _ ->
         conn
-        |> put_flash(:error, "Länken är ogiltig eller har gått ut.")
+        |> put_flash(:error, gettext("The link is invalid or has expired."))
         |> redirect(to: ~p"/users/log-in")
     end
   end
@@ -49,7 +49,7 @@ defmodule ToileWeb.UserSessionController do
   # In order to prevent user enumeration attacks, don't disclose whether the email is registered.
   defp invalid_credentials(conn, email) do
     conn
-    |> put_flash(:error, "Fel e-post eller lösenord.")
+    |> put_flash(:error, gettext("Invalid email or password."))
     |> maybe_keep_email(email)
     |> redirect(to: ~p"/users/log-in")
   end
@@ -73,20 +73,20 @@ defmodule ToileWeb.UserSessionController do
       # again directly rather than re-verifying the submitted credentials.
       conn
       |> put_session(:user_return_to, ~p"/users/settings")
-      |> put_flash(:info, "Lösenordet är ändrat.")
+      |> put_flash(:info, gettext("Your password has been changed."))
       |> UserAuth.log_in_user(user, user_params)
     else
       {:sudo, false} ->
         conn
         |> put_session(:user_return_to, ~p"/users/settings")
-        |> put_flash(:error, "Du måste logga in igen för att se den här sidan.")
+        |> put_flash(:error, gettext("You must log in again to access this page."))
         |> redirect(to: ~p"/users/log-in")
 
       {:error, %Ecto.Changeset{}} ->
         conn
         |> put_flash(
           :error,
-          "Lösenordet kunde inte ändras. Kontrollera uppgifterna och försök igen."
+          gettext("The password could not be changed. Check the details and try again.")
         )
         |> redirect(to: ~p"/users/settings")
     end
@@ -94,7 +94,7 @@ defmodule ToileWeb.UserSessionController do
 
   def delete(conn, _params) do
     conn
-    |> put_flash(:info, "Du är utloggad.")
+    |> put_flash(:info, gettext("You have been logged out."))
     |> UserAuth.log_out_user()
   end
 end

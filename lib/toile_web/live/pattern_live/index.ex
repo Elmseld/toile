@@ -14,10 +14,10 @@ defmodule ToileWeb.PatternLive.Index do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <section id="my-patterns">
-        <.header>Mina mönster</.header>
+        <.header>{gettext("My patterns")}</.header>
 
         <div id="patterns-empty">
-          <p>Du har inga mönster än.</p>
+          <p>{gettext("You don't have any patterns yet.")}</p>
         </div>
       </section>
     </Layouts.app>
@@ -26,6 +26,6 @@ defmodule ToileWeb.PatternLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :page_title, "Mina mönster")}
+    {:ok, assign(socket, :page_title, gettext("My patterns"))}
   end
 end
