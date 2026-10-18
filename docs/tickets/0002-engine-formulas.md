@@ -1,7 +1,7 @@
 ---
 id: 0002
 title: Pattern engine - formulas, measurements and parameters
-status: todo
+status: in-progress
 type: feature
 ---
 
