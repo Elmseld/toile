@@ -110,6 +110,36 @@ defmodule Toile.MeasurementsTest do
 
       refute Map.has_key?(stored, "evil")
       assert stored["waist"] == 725
+      # Unset values are written as null, not left out (ADR 0005).
+      assert Map.has_key?(stored, "bust")
+      assert stored["bust"] == nil
+    end
+
+    test "refuses a profile above the per-user limit" do
+      scope = user_scope_fixture()
+      other_scope = user_scope_fixture()
+      insert_profiles(scope, Measurements.max_measurement_profiles() - 1)
+
+      assert {:ok, _} = Measurements.create_measurement_profile(scope, %{name: "Last"})
+
+      assert {:error, %Ecto.Changeset{action: :insert} = changeset} =
+               Measurements.create_measurement_profile(scope, %{name: "One too many"})
+
+      assert %{name: ["you can have at most 100 measurement profiles"]} = errors_on(changeset)
+
+      assert length(Measurements.list_measurement_profiles(scope)) ==
+               Measurements.max_measurement_profiles()
+
+      assert {:ok, _} = Measurements.create_measurement_profile(other_scope, %{name: "Anna"})
+    end
+
+    test "does not broadcast a refused profile" do
+      scope = user_scope_fixture()
+      insert_profiles(scope, Measurements.max_measurement_profiles())
+      Measurements.subscribe_measurement_profiles(scope)
+
+      assert {:error, _} = Measurements.create_measurement_profile(scope, %{name: "Anna"})
+      refute_received {:created, _}
     end
 
     test "ignores user_id in attrs" do
@@ -300,6 +330,12 @@ defmodule Toile.MeasurementsTest do
     end
   end
 
+  describe "keys/0" do
+    test "returns the catalogue keys in display order" do
+      assert Measurements.keys() == Catalog.keys()
+    end
+  end
+
   describe "missing_measurements/1" do
     test "lists the keys without a value in catalogue order" do
       scope = user_scope_fixture()
@@ -310,5 +346,23 @@ defmodule Toile.MeasurementsTest do
 
       assert length(Measurements.missing_measurements(measurement_profile)) == 16
     end
+  end
+
+  # Inserts profiles directly so the limit tests do not run a hundred transactions.
+  defp insert_profiles(scope, count) do
+    now = DateTime.utc_now(:second)
+
+    rows =
+      for i <- 1..count//1 do
+        %{
+          name: "Profile #{i}",
+          measurements: %Values{},
+          user_id: scope.user.id,
+          inserted_at: now,
+          updated_at: now
+        }
+      end
+
+    Repo.insert_all(MeasurementProfile, rows)
   end
 end

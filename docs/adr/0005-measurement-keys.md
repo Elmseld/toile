@@ -20,7 +20,9 @@ Keys also have to be valid formula identifiers (ADR 0003), so they are snake_cas
 - Both sides validate the file: non-empty, unique, each key matches `^[a-z][a-z0-9_]*$`. Elixir
   raises at compile time; the engine checks it in tests.
 - Profiles store `measurements` as a jsonb map `{ "waist": 725, ... }` of integer millimetres.
-  A missing key means "not measured". There is no column per key.
+  A key that is absent or `null` means "not measured". Ecto writes `null` for unset values, so
+  readers must treat both the same, and the conversion to engine input (ticket 0005) drops nulls.
+  There is no column per key.
 - Labels and help texts per key are gettext literals in `ToileWeb.MeasurementTexts`, with no
   catch-all clause and a test over all keys, so a key without texts fails loudly.
 

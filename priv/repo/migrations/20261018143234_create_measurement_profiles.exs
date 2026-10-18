@@ -4,7 +4,7 @@ defmodule Toile.Repo.Migrations.CreateMeasurementProfiles do
   def change do
     create table(:measurement_profiles, primary_key: false) do
       add :id, :binary_id, primary_key: true
-      add :name, :string, null: false
+      add :name, :string, size: 100, null: false
       # Integer millimetres per catalogue key ({"waist": 725, ...}); a missing or null key means
       # "not measured". The key list lives in engine/src/measurements.json (ADR 0005), so adding
       # a key needs no migration.
@@ -15,5 +15,9 @@ defmodule Toile.Repo.Migrations.CreateMeasurementProfiles do
     end
 
     create index(:measurement_profiles, [:user_id])
+
+    create constraint(:measurement_profiles, :measurements_must_be_an_object,
+             check: "jsonb_typeof(measurements) = 'object'"
+           )
   end
 end

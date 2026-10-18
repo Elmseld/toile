@@ -132,3 +132,8 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "must be more than 0 and at most 300 cm"
 msgstr ""
+
+#: lib/toile/measurements.ex
+#, elixir-autogen, elixir-format
+msgid "you can have at most %{limit} measurement profiles"
+msgstr ""

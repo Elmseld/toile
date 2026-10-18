@@ -7,12 +7,17 @@ defmodule Toile.Measurements do
   integer millimetres keyed by `Toile.Measurements.Catalog` (`docs/adr/0005-measurement-keys.md`).
   """
 
+  use Gettext, backend: ToileWeb.Gettext
+
   import Ecto.Query, warn: false
   alias Toile.Repo
 
   alias Toile.Accounts.Scope
+  alias Toile.Accounts.User
   alias Toile.Measurements.Catalog
   alias Toile.Measurements.MeasurementProfile
+
+  @max_profiles_per_user 100
 
   @doc """
   Subscribes to scoped notifications about any measurement_profile changes.
@@ -74,6 +79,11 @@ defmodule Toile.Measurements do
   @doc """
   Creates a measurement_profile.
 
+  A user can have at most #{@max_profiles_per_user} profiles (`max_measurement_profiles/0`).
+  Above that the changeset gets an error on `:name`, so the form shows it next to the only
+  required field. The user row is locked while counting, so concurrent creates cannot overshoot
+  the limit.
+
   ## Examples
 
       iex> create_measurement_profile(scope, %{field: value})
@@ -84,14 +94,52 @@ defmodule Toile.Measurements do
 
   """
   def create_measurement_profile(%Scope{} = scope, attrs) do
+    changeset = MeasurementProfile.changeset(%MeasurementProfile{}, attrs, scope)
+
     with {:ok, measurement_profile = %MeasurementProfile{}} <-
-           %MeasurementProfile{}
-           |> MeasurementProfile.changeset(attrs, scope)
-           |> Repo.insert() do
+           Repo.transact(fn -> insert_within_limit(scope, changeset) end) do
       broadcast_measurement_profile(scope, {:created, measurement_profile})
       {:ok, measurement_profile}
     end
   end
+
+  defp insert_within_limit(%Scope{user: %User{id: user_id}}, changeset) do
+    Repo.one!(from u in User, where: u.id == ^user_id, select: u.id, lock: "FOR UPDATE")
+
+    count = Repo.aggregate(from(p in MeasurementProfile, where: p.user_id == ^user_id), :count)
+
+    if count >= @max_profiles_per_user do
+      # `limit`, not `count`: a `count` option makes `translate_error/1` look the message up as
+      # a plural, which this singular msgid has no entry for.
+      changeset =
+        Ecto.Changeset.add_error(
+          changeset,
+          :name,
+          dgettext_noop("errors", "you can have at most %{limit} measurement profiles"),
+          limit: @max_profiles_per_user
+        )
+
+      {:error, %{changeset | action: :insert}}
+    else
+      Repo.insert(changeset)
+    end
+  end
+
+  @doc """
+  Returns the maximum number of measurement profiles a user can have.
+  """
+  def max_measurement_profiles, do: @max_profiles_per_user
+
+  @doc """
+  Returns the measurement keys a profile can hold, as atoms in display order.
+
+  This is the public entry point to the catalogue (`docs/adr/0005-measurement-keys.md`); callers
+  outside this context should use it rather than `Toile.Measurements.Catalog`.
+
+      iex> Toile.Measurements.keys() |> Enum.take(3)
+      [:bust, :waist, :hip]
+  """
+  defdelegate keys, to: Catalog
 
   @doc """
   Updates a measurement_profile.
