@@ -19,6 +19,8 @@ msgid "has already been taken"
 msgstr ""
 
 ## From Ecto.Changeset.put_change/3
+#: lib/toile/patterns.ex
+#, elixir-autogen
 msgid "is invalid"
 msgstr ""
 
@@ -139,4 +141,14 @@ msgstr ""
 #: lib/toile/measurements.ex
 #, elixir-autogen, elixir-format
 msgid "you can have at most %{limit} measurement profiles"
+msgstr ""
+
+#: lib/toile/patterns/pattern_project.ex
+#, elixir-autogen, elixir-format
+msgid "is too large"
+msgstr ""
+
+#: lib/toile/patterns.ex
+#, elixir-autogen, elixir-format
+msgid "you can have at most %{limit} patterns"
 msgstr ""
