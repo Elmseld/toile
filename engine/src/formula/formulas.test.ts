@@ -98,6 +98,18 @@ describe("evaluateFormulas", () => {
   });
 
   describe("circular dependencies", () => {
+    test("a member with its own error keeps only that one; the next-declared member heads the cycle", () => {
+      const result = evaluateFormulas(input({ formulas: { a: "b + zz", b: "c", c: "a" } }));
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.errors.map((e) => [e.kind, e.name])).toEqual([
+        ["unknown_reference", "a"],
+        ["circular_dependency", "b"],
+        ["failed_dependency", "c"],
+      ]);
+      expect(result.errors[1]).toMatchObject({ cycle: ["b", "c", "a", "b"] });
+    });
+
     test("a cycle is reported once, naming it; its other members fail on the next member", () => {
       const result = evaluateFormulas(
         input({ formulas: { a: "b + 1", b: "c * 2", c: "1 + a" } }),

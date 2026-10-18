@@ -42,8 +42,9 @@ export type EvaluateGraphOptions = {
  *   the rest on their first reference into the group. So every member has an error, and every
  *   `failed_dependency` points at a name that has one.
  * - A node with a reference to a failed name gets `failed_dependency` on the first such reference.
- * - Members that already failed keep their error and get no second one, except that the group's
- *   head always carries the cycle error.
+ * - Members that already failed keep their error and get no second one. The head is therefore the
+ *   first-declared member that has not failed; a group whose members have all failed gets no new
+ *   errors.
  *
  * Iterative and linear in nodes plus edges, so the call stack does not grow with the graph.
  */
@@ -82,14 +83,20 @@ export function evaluateGraph(
   return errors;
 }
 
-/** The errors for a cycle group, or `null` when `group` is a single node not on a cycle. */
+/**
+ * The errors for a cycle group, or `null` when `group` is a single node, not yet failed, that is
+ * not on a cycle. The head is the first-declared member that has not failed yet.
+ */
 function groupErrors(
   group: readonly string[],
   graph: DependencyGraph,
   position: (name: string) => number,
   failed: ReadonlySet<string>,
 ): FormulaError[] | null {
-  const head = group.reduce((a, b) => (position(b) < position(a) ? b : a));
+  const candidates = group.filter((member) => !failed.has(member));
+  // Every member already has an error (for a single node, the caller would skip it anyway).
+  if (candidates.length === 0) return [];
+  const head = candidates.reduce((a, b) => (position(b) < position(a) ? b : a));
   const members = new Set(group);
   const cycle = shortestCycleThrough(head, members, graph);
   if (cycle === null) return null;

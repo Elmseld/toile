@@ -100,9 +100,19 @@ describe("evaluateGraph", () => {
     expect(errors).toHaveLength(5);
   });
 
-  test("a member that already failed keeps its error, the head still gets the cycle", () => {
-    const { errors } = run(graph({ a: "b", b: "a" }), ["a", "b"]);
-    expect(errors).toEqual([expect.objectContaining({ kind: "circular_dependency", name: "a" })]);
+  test("a member that already failed keeps its error; the first-declared member left heads the cycle", () => {
+    const { errors, evaluated } = run(graph({ a: "b", b: "c", c: "a" }), ["a"]);
+    expect(evaluated).toEqual([]);
+    expect(errors).toEqual([
+      expect.objectContaining({ kind: "circular_dependency", name: "b", cycle: ["b", "c", "a", "b"] }),
+      expect.objectContaining({ kind: "failed_dependency", name: "c", dependency: "a" }),
+    ]);
+  });
+
+  test("a cycle group whose members have all failed gets no new errors", () => {
+    const { errors, evaluated } = run(graph({ a: "b", b: "a", c: "a" }), ["a", "b"]);
+    expect(evaluated).toEqual([]);
+    expect(errors).toEqual([expect.objectContaining({ kind: "failed_dependency", name: "c", dependency: "a" })]);
   });
 
   test("does not mutate the failed set it is given", () => {

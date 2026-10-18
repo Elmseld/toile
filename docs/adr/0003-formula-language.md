@@ -15,7 +15,8 @@ immediately). Ticket 0003 (geometry) and the editor (0008) build on the API and 
 2. **Errors are values, never thrown.** `parseFormula`, `evaluateExpression` and `evaluateFormulas`
    return structured errors with `kind`, `name` and a `span` (0-based offsets into the formula source,
    end exclusive). No input makes them throw, including hand-built ASTs of any depth (the evaluator
-   walks the tree with an explicit stack) and `null` sections from untyped callers. The `message`
+   walks the tree with an explicit stack) or with malformed nodes (`invalid_result`), calls with any
+   number of arguments, and `null` sections from untyped callers. The `message`
    field is English developer text; UI text (Swedish) is built from `kind` and the structured fields.
 3. **One namespace.** Measurements, parameters and formulas share one namespace of identifiers
    (`[A-Za-z_][A-Za-z0-9_]*`). A name in more than one source is a `duplicate_name` error rather than
@@ -26,8 +27,11 @@ immediately). Ticket 0003 (geometry) and the editor (0008) build on the API and 
    `circular_dependency` error naming its shortest cycle through the first-declared member
    (`a -> b -> c -> a`). Every other member of the group gets `failed_dependency`: members on that
    cycle on their reference to the next member (`b` on `c`, `c` on `a`), the rest on their first
-   reference into the group. All dependants get `failed_dependency` too, so every failed name has
-   an error and every `failed_dependency` points at a name that has one. Valid formulas still
+   reference into the group. A member that already has an error (say an unknown reference) keeps
+   it and gets no second one, so the cycle is headed by the first-declared member that has not
+   failed, and a group whose members have all failed gets no new error. All dependants get
+   `failed_dependency` too, so every failed name has an error, none gets a second one from this step, and every
+   `failed_dependency` points at a name that has one. Valid formulas still
    evaluate, so `values` holds partial results on failure. This machinery lives in an
    engine-internal, name-keyed dependency graph (`src/formula/graph.ts`, `evaluateGraph`) so
    geometry (0003) can put points and formulas in one graph with the same semantics.
@@ -43,7 +47,9 @@ immediately). Ticket 0003 (geometry) and the editor (0008) build on the API and 
    (arguments are evaluated first) or, with `takes: "names"`, takes bare names that are passed to it
    unevaluated, so geometry can add `distance(A, B)`, `angle(A, B)` or `length(curve)` by building a
    table whose functions close over its own points. Name arguments are still `reference` nodes, so
-   `references()` lists them as dependencies. A call that does not match the table is an
+   `references()` lists them as dependencies. A non-finite result from a function, or an exception
+   thrown by a caller-supplied one, is an `invalid_result` error naming the function on the span of
+   the call, so an injected function cannot break decision 2. A call that does not match the table is an
    `unknown_function`, `wrong_argument_count` or `invalid_argument` error, at parse time or (for
    ASTs parsed against another table or built by hand) at evaluation time. Rejected: a separate
    point-reference node type in the AST (more grammar for the same result) and a global, mutable

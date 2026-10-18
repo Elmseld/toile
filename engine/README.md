@@ -33,10 +33,13 @@ formulas such as `waist / 4 + ease_waist` with a custom parser (no `eval`). See
 - **Cycles.** Each group of mutually dependent formulas gets one `circular_dependency`, whose
   `cycle` is the group's shortest cycle through its first-declared member (e.g.
   `["a", "b", "c", "a"]`). Every other member of the group gets `failed_dependency` (on the next
-  member of the cycle when it is on it), as does every formula that depends on a failed name.
+  member of the cycle when it is on it), as does every formula that depends on a failed name. A
+  formula that already has an error (such as an unknown reference) keeps only that one; the cycle
+  is then headed by the first-declared member that has not failed.
 - **Limits.** Formulas over 10 000 characters or nested deeper than 100 levels are `syntax` errors.
 - **Lower level.** `parseFormula(source, options?)`, `references` and
   `evaluateExpression(expr, lookup, options?)` are exported for callers (such as geometry) that
   resolve names themselves. `options.functions` replaces the function table (default `FUNCTIONS`);
   a `FunctionSpec` with `takes: "names"` receives its arguments as bare names, unevaluated (for
-  example `distance(A, B)`). Use the same table for parsing and evaluation.
+  example `distance(A, B)`). Use the same table for parsing and evaluation. A function that returns
+  a non-finite number or throws gives an `invalid_result` error for its call.

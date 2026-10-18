@@ -37,8 +37,8 @@ type ParsedFormula = { expr: Expr; refs: Edge[] };
  * never thrown: invalid or duplicate names, non-finite measurement or parameter values, parse
  * errors, unknown references, circular dependencies, formulas that depend on a failed name, and
  * evaluation errors. Each group of mutually dependent formulas gets one `circular_dependency`
- * error (its shortest cycle through the first-declared member) and `failed_dependency` for every
- * other member. Errors are sorted by the declaration order of the name they belong to
+ * error (its shortest cycle through the first-declared member that has no error yet) and
+ * `failed_dependency` for every other member without one. Errors are sorted by the declaration order of the name they belong to
  * (measurements, then parameters, then formulas).
  *
  * Pure: `input` is not mutated. A missing or `null` `measurements`, `parameters` or `formulas`
