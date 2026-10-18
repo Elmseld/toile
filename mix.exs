@@ -17,7 +17,7 @@ defmodule Toile.MixProject do
       gettext: [write_reference_line_numbers: false],
       test_coverage: [
         # `mix test --cover` fails below this total. Raise it as coverage grows.
-        summary: [threshold: 85],
+        summary: [threshold: 90],
         ignore_modules: [
           # Its code is `quote` blocks that run at compile time, so cover never
           # sees those lines executed.
