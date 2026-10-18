@@ -7,8 +7,9 @@ defmodule ToileWeb.MeasurementProfileLive.Form do
   context, which stores integer millimetres. Unparseable input is passed through, so the
   schema's integer cast reports the format error and the input keeps what was typed.
 
-  The inputs are built for touch: one field per row, `input-lg`, `inputmode="decimal"` for the
-  numeric keyboard, and a large save button.
+  The inputs are built for touch: one field per row, `input-lg` with a 44 px minimum height
+  (`min-h-11`, the theme field size alone renders 42 px), `inputmode="decimal"` for the
+  numeric keyboard, and large save and cancel buttons of the same minimum height.
   """
   use ToileWeb, :live_view
 
@@ -27,7 +28,7 @@ defmodule ToileWeb.MeasurementProfileLive.Form do
         <.input
           field={@form[:name]}
           label={gettext("Name")}
-          class="w-full input input-lg"
+          class="w-full input input-lg min-h-11"
           autocomplete="off"
           phx-debounce="300"
         />
@@ -43,7 +44,7 @@ defmodule ToileWeb.MeasurementProfileLive.Form do
               phx-debounce="300"
               value={Centimeters.input_value(m[key].value)}
               label={gettext("%{measurement} (cm)", measurement: MeasurementTexts.label(key))}
-              class="w-full input input-lg"
+              class="w-full input input-lg min-h-11"
               aria-describedby={"help-#{key}"}
             />
             <p id={"help-#{key}"} class="-mt-1 text-sm text-base-content/70">
@@ -55,14 +56,14 @@ defmodule ToileWeb.MeasurementProfileLive.Form do
         <footer class="mt-6 flex flex-wrap gap-2">
           <.button
             id="save-measurement-profile"
-            class="btn btn-primary btn-lg"
+            class="btn btn-primary btn-lg min-h-11"
             phx-disable-with={gettext("Saving...")}
           >
             {gettext("Save")}
           </.button>
           <.button
             id="cancel-measurement-profile"
-            class="btn btn-ghost btn-lg"
+            class="btn btn-ghost btn-lg min-h-11"
             navigate={cancel_path(@return_to, @measurement_profile)}
           >
             {gettext("Cancel")}

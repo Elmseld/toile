@@ -42,6 +42,16 @@ defmodule ToileWeb.LayoutsTest do
              )
 
       assert has_element?(view, "header", user.email)
+
+      # The email is hidden below lg and truncated so the header never scrolls sideways on a
+      # tablet; the full address stays available as a tooltip.
+      assert has_element?(
+               view,
+               ~s(#nav-user-email.hidden.lg\\:block.truncate[title="#{user.email}"]),
+               user.email
+             )
+
+      assert has_element?(view, "header nav.min-w-0 > ul.flex-wrap")
       refute has_element?(view, "#nav-log-in")
       refute has_element?(view, "#nav-register")
     end

@@ -45,8 +45,8 @@ defmodule ToileWeb.Layouts do
           <.icon name="hero-scissors" class="size-5 text-primary" /> Toile
         </.link>
       </div>
-      <nav class="flex-none" aria-label={gettext("Main menu")}>
-        <ul class="flex flex-wrap items-center gap-2 px-1 sm:gap-4">
+      <nav class="min-w-0 flex-initial" aria-label={gettext("Main menu")}>
+        <ul class="flex flex-wrap items-center justify-end gap-2 px-1 sm:gap-4">
           <%= if @current_scope && @current_scope.user do %>
             <li>
               <.link id="nav-my-patterns" navigate={~p"/patterns"} class="btn btn-ghost btn-sm">
@@ -58,7 +58,11 @@ defmodule ToileWeb.Layouts do
                 {gettext("Measurements")}
               </.link>
             </li>
-            <li class="hidden text-sm text-base-content/70 md:block">
+            <li
+              id="nav-user-email"
+              class="hidden max-w-56 truncate text-sm text-base-content/70 lg:block"
+              title={@current_scope.user.email}
+            >
               {@current_scope.user.email}
             </li>
             <li>

@@ -249,7 +249,7 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
                  ~s(#{input}[type="text"][inputmode="decimal"][aria-describedby="help-#{key}"])
                )
 
-        assert has_element?(view, "#{input}.input-lg")
+        assert has_element?(view, "#{input}.input-lg.min-h-11")
         assert has_element?(view, "#help-#{key}")
       end
 
@@ -259,7 +259,8 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
                "Waist circumference (cm)"
              )
 
-      assert has_element?(view, "#save-measurement-profile.btn-lg", "Save")
+      assert has_element?(view, "#save-measurement-profile.btn-lg.min-h-11", "Save")
+      assert has_element?(view, "#cancel-measurement-profile.min-h-11")
       assert has_element?(view, ~s(#cancel-measurement-profile[href="/measurements"]))
     end
   end
