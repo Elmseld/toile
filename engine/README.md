@@ -53,8 +53,8 @@ formulas such as `waist / 4 + ease_waist` with a custom parser (no `eval`). See
 `evaluatePattern(definition, { measurements, parameters? })` (in `src/geometry/`) takes a stored
 pattern definition (JSON) and a measurement profile and returns computed geometry;
 `compilePattern(definition).evaluate(input)` does the same with the definition-only work done once
-(see Compiling below). The Phoenix app
-does not use it yet (0005). See `docs/adr/0004-pattern-definition-format.md` for the reasoning.
+(see Compiling below). The Phoenix app does not use it yet (0005). See
+`docs/adr/0004-pattern-definition-format.md` for the reasoning.
 
 ```json
 {
@@ -112,8 +112,9 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   lines and a line that misses the circle are `no_intersection`. A position, before or after the
   user offset, that is not finite or lies more than `MAX_COORDINATE` (1e7 mm, 10 km) from the
   origin on either axis is `degenerate_geometry` without a `field` (an offset cannot bring an
-  out-of-bounds base position back); the bound keeps every length and SVG number finite. Field order in the table is the order of the point's dependency edges, which
-  decides the `field` of a `failed_dependency`.
+  out-of-bounds base position back); the bound keeps every length and SVG number finite. Field order
+  in the table is the order of the point's dependency edges, which decides the `field` of a
+  `failed_dependency`.
 - **Angles.** Degrees, 0 = right, 90 = down (clockwise on screen, since y points down),
   normalised to `[0, 360)`. `angle(A, B)`, `along_angle` and `perpendicular` all use this. The
   convention is to be confirmed before 0005 stores the first block (an open question there).
@@ -128,7 +129,10 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   traversed in their defined direction.
 - **Geometry functions** in formulas: `distance(A, B)` (mm), `angle(A, B)` (degrees; coincident
   points give `invalid_result`) and `length(curve)` (mm). They take bare names and see final
-  positions, user offsets included. Order follows dependencies, not declaration order; cycles give
+  positions, user offsets included. They only see the same definition: to use e.g. an armhole
+  length in another pattern, the caller evaluates pattern 1, reads `curves.<name>.length` (or a
+  formula value) from the result and passes it as a measurement to pattern 2. References between
+  patterns are ticket 0007. Order follows dependencies, not declaration order; cycles give
   `circular_dependency`, dependants `failed_dependency` (as in Formulas).
 - **User offsets.** `user_offset` is added after the operation and is the point's position
   everywhere downstream (dependent points, curves, `distance`/`angle`, pieces).
@@ -146,7 +150,8 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   and cycles) and returns `{ evaluate(input, options?) }`, which gives exactly what
   `evaluatePattern(definition, input)` gives. Keep it while the definition is unchanged (a drag,
   switching measurement profiles); evaluations share no state or result objects, also when one
-  runs inside another. `options.offsets` (`{ [point]: { dx, dy } | null }`) replaces the definition's `user_offset` of those points for
+  runs inside another (each restores the geometry state it found). `options.offsets`
+  (`{ [point]: { dx, dy } | null }`) replaces the definition's `user_offset` of those points for
   one evaluation (`null` removes it; other names are ignored; an entry without numeric `dx`/`dy`
   makes the point `degenerate_geometry`). For a 300-point block a compiled evaluation takes about
   0.4 ms, `evaluatePattern` about 2.5 ms.

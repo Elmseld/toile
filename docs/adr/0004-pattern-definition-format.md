@@ -55,9 +55,8 @@ a drag. The definition and its formulas are untrusted user input. This ADR build
    `length` takes one curve (sum with `+`).
 9. **One dependency graph.** Formulas, points, curves and pieces are nodes of the same dependency
    graph (`planGraph`/`runGraphPlan`, the split form of `evaluateGraph`, ADR 0003 decision 4):
-   ordering by dependency, one `circular_dependency` per
-   cycle, `failed_dependency` for dependants, partial results. Pieces are leaves that fail through
-   their curves and grainline points.
+   ordering by dependency, one `circular_dependency` per cycle, `failed_dependency` for dependants,
+   partial results. Pieces are leaves that fail through their curves and grainline points.
 10. **Error model.** Errors are values. Structural errors (`invalid_definition`,
     `unsupported_version`) carry a JSON-pointer `path`, are reported all at once and stop evaluation.
     Semantic errors carry `name` (the element), an optional `field` (where inside it) and a `span`
@@ -122,4 +121,5 @@ Rejected alternatives:
 - Switching the angle convention before 0005 touches only `vector.ts`, `functions.ts`, their tests
   and this ADR.
 - References between pieces or projects (0007) are not part of version 1: `length(curve)` only sees
-  curves of the same definition.
+  curves of the same definition. Until then the caller measures across patterns: evaluate pattern 1,
+  read `curves.<name>.length` or a formula value, and pass it as a measurement to pattern 2.
