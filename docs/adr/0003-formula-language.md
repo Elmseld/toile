@@ -21,8 +21,10 @@ immediately). Ticket 0003 (geometry) and the editor (0008) build on the API and 
    being resolved by precedence, which would hide mistakes.
 4. **Dependency order, not declaration order.** Formulas are evaluated once each in topological order
    using iterative graph traversal (linear, no recursion depth proportional to the number of formulas).
-   A cycle yields one `circular_dependency` error naming the cycle (`a -> b -> c -> a`); dependants get
-   `failed_dependency`. Valid formulas still evaluate, so `values` holds partial results on failure.
+   Each group of mutually dependent formulas (strongly connected component) yields one
+   `circular_dependency` error naming its shortest cycle through the first-declared member
+   (`a -> b -> c -> a`); the group's other members and all dependants get `failed_dependency`.
+   Valid formulas still evaluate, so `values` holds partial results on failure.
 5. **Angles in degrees.** `sin/cos/tan` take degrees; `asin/acos/atan2` return degrees; `rad()` and
    `deg()` convert for other maths. Lengths are millimetres.
 6. **Bounded input.** Formulas longer than 10 000 characters or nested deeper than 100 levels are
