@@ -225,11 +225,13 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
   for (const point of definition.points) {
     if (failed.has(point.name)) continue;
     const collector = new EdgeCollector(point.name);
-    const fields = pointFields(point);
-    for (const [field, reference] of fields.names) collector.name(field, reference, "point");
     const formulas: [string, Expr][] = [];
-    for (const [field, source] of fields.formulas) {
-      const expr = collector.formula(field, source);
+    for (const [field, kind, value] of pointFields(point)) {
+      if (kind === "name") {
+        collector.name(field, value, "point");
+        continue;
+      }
+      const expr = collector.formula(field, value);
       if (expr !== null) formulas.push([field, expr]);
     }
     addNode(point.name, collector, { type: "point", definition: point, formulas });

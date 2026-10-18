@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { computePoint, type OperationResult, pointFields } from "./operations";
+import {
+  CURVE_FIELDS,
+  computePoint,
+  curveFields,
+  OP_FIELDS,
+  type OperationResult,
+  pointFields,
+} from "./operations";
 import type { PointDefinition } from "./types";
 import type { Point } from "./vector";
 
@@ -203,16 +210,14 @@ describe("midpoint", () => {
 });
 
 describe("pointFields", () => {
-  test("lists name fields then formula fields in edge order", () => {
+  test("lists name and formula fields in edge order", () => {
     expect(
       pointFields({ name: "A", op: "along_angle", from: "B", angle: "a + 1", distance: "d" }),
-    ).toEqual({
-      names: [["from", "B"]],
-      formulas: [
-        ["angle", "a + 1"],
-        ["distance", "d"],
-      ],
-    });
+    ).toEqual([
+      ["from", "name", "B"],
+      ["angle", "formula", "a + 1"],
+      ["distance", "formula", "d"],
+    ]);
   });
 
   test("addresses line elements as line/0 and line/1 and skips which", () => {
@@ -225,13 +230,41 @@ describe("pointFields", () => {
         radius: "r",
         which: "second",
       }),
-    ).toEqual({
-      names: [
-        ["line/0", "B"],
-        ["line/1", "C"],
-        ["center", "D"],
-      ],
-      formulas: [["radius", "r"]],
-    });
+    ).toEqual([
+      ["line/0", "name", "B"],
+      ["line/1", "name", "C"],
+      ["center", "name", "D"],
+      ["radius", "formula", "r"],
+    ]);
+  });
+
+  test("follows OP_FIELDS for every op", () => {
+    for (const [op, specs] of OP_FIELDS) {
+      const point: Record<string, unknown> = { name: "A", op };
+      for (const [field, kind] of specs) {
+        point[field] = kind === "line" ? ["P", "Q"] : kind === "which" ? "first" : field;
+      }
+      const listed = pointFields(point as PointDefinition).map(([field]) => field.split("/")[0]);
+      const expected = specs.flatMap(([field, kind]) =>
+        kind === "which" ? [] : kind === "line" ? [field, field] : [field],
+      );
+      expect(listed).toEqual(expected);
+    }
+  });
+});
+
+describe("curveFields", () => {
+  test("follows CURVE_FIELDS", () => {
+    expect(curveFields({ name: "l", type: "line", from: "A", to: "B" })).toEqual([
+      ["from", "A"],
+      ["to", "B"],
+    ]);
+    expect(curveFields({ name: "c", type: "cubic", from: "A", c1: "B", c2: "C", to: "D" })).toEqual([
+      ["from", "A"],
+      ["c1", "B"],
+      ["c2", "C"],
+      ["to", "D"],
+    ]);
+    expect([...CURVE_FIELDS.keys()]).toEqual(["line", "cubic"]);
   });
 });

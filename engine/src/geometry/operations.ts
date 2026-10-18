@@ -55,43 +55,34 @@ export const CURVE_FIELDS: ReadonlyMap<string, readonly string[]> = new Map<
   ["cubic", ["from", "c1", "c2", "to"]],
 ]);
 
-/** The point names of `curve` with their fields, in edge order. */
+/** The point names of `curve` with their fields, in edge order (from `CURVE_FIELDS`). */
 export function curveFields(curve: CurveDefinition): [field: string, point: string][] {
-  return curve.type === "line"
-    ? [
-        ["from", curve.from],
-        ["to", curve.to],
-      ]
-    : [
-        ["from", curve.from],
-        ["c1", curve.c1],
-        ["c2", curve.c2],
-        ["to", curve.to],
-      ];
+  // A validated definition has exactly the fields of its type; read them by key.
+  const fields = curve as unknown as Readonly<Record<string, unknown>>;
+  return (CURVE_FIELDS.get(curve.type) ?? []).map((field) => [field, String(fields[field])]);
 }
 
+/** A point-name or formula field of a point, as `pointFields` lists it. */
+export type PointField = readonly [field: string, kind: "name" | "formula", value: string];
+
 /**
- * The name fields and formula fields of `point`, each in edge order. Line elements are addressed
- * as `line1/0`, `line1/1`. In every operation the name fields come before the formula fields, so
- * names followed by formulas is the full edge order.
+ * The point-name and formula fields of `point` in edge order (from `OP_FIELDS`), which is the
+ * order its dependency edges must be collected in. Line elements are addressed as `line1/0`,
+ * `line1/1`; `which` is not listed.
  */
-export function pointFields(point: PointDefinition): {
-  names: [field: string, point: string][];
-  formulas: [field: string, source: string][];
-} {
-  const names: [string, string][] = [];
-  const formulas: [string, string][] = [];
+export function pointFields(point: PointDefinition): PointField[] {
+  const result: PointField[] = [];
   // A validated definition has exactly the fields of its op; read them by key.
   const fields = point as unknown as Readonly<Record<string, unknown>>;
   for (const [field, kind] of OP_FIELDS.get(point.op) ?? []) {
     const value = fields[field];
-    if (kind === "name" && typeof value === "string") names.push([field, value]);
-    else if (kind === "formula" && typeof value === "string") formulas.push([field, value]);
-    else if (kind === "line" && Array.isArray(value)) {
-      names.push([`${field}/0`, String(value[0])], [`${field}/1`, String(value[1])]);
+    if ((kind === "name" || kind === "formula") && typeof value === "string") {
+      result.push([field, kind, value]);
+    } else if (kind === "line" && Array.isArray(value)) {
+      result.push([`${field}/0`, "name", String(value[0])], [`${field}/1`, "name", String(value[1])]);
     }
   }
-  return { names, formulas };
+  return result;
 }
 
 /** Why an operation has no result. The caller adds the point's `name`. */
