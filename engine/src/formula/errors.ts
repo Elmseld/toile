@@ -8,9 +8,11 @@ export type Span = { start: number; end: number };
 /** Where a name was declared in the input to `evaluateFormulas`. */
 export type InputSource = "measurement" | "parameter" | "formula";
 
-/** Errors from parsing one formula (no formula name yet). */
-export type ParseError =
-  | { kind: "syntax"; span: Span; message: string }
+/**
+ * A function call that does not match the function table: an unknown function, the wrong number
+ * of arguments, or something other than a bare name where the function takes names.
+ */
+export type CallError =
   | { kind: "unknown_function"; function: string; span: Span; message: string }
   | {
       kind: "wrong_argument_count";
@@ -20,10 +22,18 @@ export type ParseError =
       received: number;
       span: Span;
       message: string;
-    };
+    }
+  | { kind: "invalid_argument"; function: string; span: Span; message: string };
 
-/** Errors from evaluating one parsed expression. */
+/** Errors from parsing one formula (no formula name yet). */
+export type ParseError = { kind: "syntax"; span: Span; message: string } | CallError;
+
+/**
+ * Errors from evaluating one expression. `CallError`s only occur for expressions that were not
+ * parsed against the same function table (hand-built, or parsed with another table).
+ */
 export type ExpressionError =
+  | CallError
   | { kind: "unknown_reference"; reference: string; span: Span; message: string }
   | { kind: "division_by_zero"; span: Span; message: string }
   | { kind: "invalid_result"; function: string | null; span: Span; message: string };
@@ -42,7 +52,7 @@ export function syntaxError(message: string, span: Span): ParseError {
   return { kind: "syntax", span, message };
 }
 
-export function unknownFunctionError(name: string, span: Span): ParseError {
+export function unknownFunctionError(name: string, span: Span): CallError {
   return { kind: "unknown_function", function: name, span, message: `Unknown function "${name}"` };
 }
 
@@ -52,7 +62,7 @@ export function wrongArgumentCountError(
   max: number | null,
   received: number,
   span: Span,
-): ParseError {
+): CallError {
   return {
     kind: "wrong_argument_count",
     function: name,
@@ -61,6 +71,15 @@ export function wrongArgumentCountError(
     received,
     span,
     message: `${name}() expects ${describeArity(min, max)}, got ${received}`,
+  };
+}
+
+export function invalidArgumentError(name: string, span: Span): CallError {
+  return {
+    kind: "invalid_argument",
+    function: name,
+    span,
+    message: `${name}() expects a name here`,
   };
 }
 

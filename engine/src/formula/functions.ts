@@ -1,12 +1,34 @@
 // The functions a formula may call. Angles are in degrees: sin/cos/tan take degrees and
 // asin/acos/atan2 return degrees (ADR 0003). rad() and deg() convert for other maths.
 
-/** Arity (`max: null` means unbounded) and implementation of a formula function. */
-export type FunctionSpec = {
-  min: number;
-  max: number | null;
-  apply: (args: readonly number[]) => number;
-};
+/**
+ * Arity (`max: null` means unbounded) and implementation of a formula function.
+ *
+ * By default a function takes numbers: each argument is an expression, evaluated before `apply`.
+ * With `takes: "names"` every argument must be a bare name, which is passed to `apply` unevaluated
+ * so the function can resolve it itself (for example a point in `distance(A, B)`). Such names are
+ * still listed by `references`, so they count as dependencies. A non-finite result from `apply`
+ * is an `invalid_result` error.
+ *
+ * Callers can pass their own table (usually `FUNCTIONS` plus their own entries) to `parseFormula`
+ * and `evaluateExpression`.
+ */
+export type FunctionSpec =
+  | {
+      min: number;
+      max: number | null;
+      takes?: "numbers";
+      apply: (args: readonly number[]) => number;
+    }
+  | {
+      min: number;
+      max: number | null;
+      takes: "names";
+      apply: (names: readonly string[]) => number;
+    };
+
+/** A function table, keyed by name. Use a `Map` so prototype members are never reachable. */
+export type FunctionTable = ReadonlyMap<string, FunctionSpec>;
 
 const toRad = (degrees: number): number => (degrees * Math.PI) / 180;
 const toDeg = (radians: number): number => (radians * 180) / Math.PI;
@@ -18,8 +40,8 @@ const unary = (fn: (x: number) => number): FunctionSpec => ({
   apply: (args) => fn(args[0] ?? Number.NaN),
 });
 
-/** Function table, keyed by name. A `Map`, so prototype members are never reachable by name. */
-export const FUNCTIONS: ReadonlyMap<string, FunctionSpec> = new Map<string, FunctionSpec>([
+/** The built-in function table, used when no other table is given. */
+export const FUNCTIONS: FunctionTable = new Map<string, FunctionSpec>([
   ["sqrt", unary(Math.sqrt)],
   ["abs", unary(Math.abs)],
   ["min", { min: 1, max: null, apply: (args) => Math.min(...args) }],

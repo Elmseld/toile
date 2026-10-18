@@ -4,10 +4,15 @@ import { FUNCTIONS } from "./functions";
 function call(name: string, ...args: number[]): number {
   const spec = FUNCTIONS.get(name);
   if (spec === undefined) throw new Error(`missing function ${name}`);
+  if (spec.takes === "names") throw new Error(`${name} takes names`);
   return spec.apply(args);
 }
 
 describe("FUNCTIONS", () => {
+  test("every built-in function takes numbers", () => {
+    expect([...FUNCTIONS.values()].filter((spec) => spec.takes === "names")).toEqual([]);
+  });
+
   test("contains exactly the documented functions", () => {
     expect([...FUNCTIONS.keys()].sort()).toEqual(
       ["abs", "acos", "asin", "atan2", "cos", "deg", "max", "min", "rad", "sin", "sqrt", "tan"],

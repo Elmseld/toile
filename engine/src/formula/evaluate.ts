@@ -3,67 +3,152 @@
 import {
   divisionByZeroError,
   type ExpressionError,
+  invalidArgumentError,
   invalidResultError,
+  unknownFunctionError,
   unknownReferenceError,
+  wrongArgumentCountError,
 } from "./errors";
-import { FUNCTIONS } from "./functions";
-import type { Expr } from "./parser";
+import { FUNCTIONS, type FunctionSpec, type FunctionTable } from "./functions";
+import type { Expr, FormulaOptions } from "./parser";
 
 export type ExpressionResult = { ok: true; value: number } | { ok: false; error: ExpressionError };
+
+type CallExpr = Extract<Expr, { type: "call" }>;
+
+// A node still to be evaluated, or one whose operands are evaluated and on the value stack.
+type Task =
+  | { step: "visit"; expr: Expr }
+  | { step: "negate" }
+  | { step: "binary"; expr: Extract<Expr, { type: "binary" }> }
+  | { step: "call"; expr: CallExpr; spec: FunctionSpec };
 
 /**
  * Evaluates `expr`, resolving every reference through `lookup` (`undefined` means the name is
  * unknown). `lookup` is a function rather than a map so callers such as geometry can resolve
- * names their own way.
+ * names their own way. Calls go through `options.functions` (default `FUNCTIONS`); arguments of a
+ * function that takes names are passed to it unevaluated, without `lookup`.
  *
- * Stops at the first error: an unknown reference, a division by zero (span of the divisor) or a
- * non-finite result such as `sqrt(-1)` (span of the operation). Never throws.
+ * Stops at the first error, evaluating left to right: an unknown reference, a division by zero
+ * (span of the divisor), a non-finite result such as `sqrt(-1)` (span of the operation), or a call
+ * that does not match the function table. Never throws, also not for hand-built ASTs of any depth:
+ * the walk uses an explicit stack instead of recursion.
  */
 export function evaluateExpression(
   expr: Expr,
   lookup: (name: string) => number | undefined,
+  options: FormulaOptions = {},
 ): ExpressionResult {
-  switch (expr.type) {
-    case "number":
-      return { ok: true, value: expr.value };
+  const functions = options.functions ?? FUNCTIONS;
+  const values: number[] = [];
+  const tasks: Task[] = [{ step: "visit", expr }];
+  // Every apply step pops exactly the operands its visit step pushed, so `pop()` never comes
+  // back empty; `?? NaN` is only there for the type checker.
+  const pop = (): number => values.pop() ?? Number.NaN;
 
-    case "reference": {
-      const value = lookup(expr.name);
-      if (value === undefined) return fail(unknownReferenceError(expr.name, expr.span));
-      return finite(value, null, expr);
-    }
+  for (let task = tasks.pop(); task !== undefined; task = tasks.pop()) {
+    switch (task.step) {
+      case "visit": {
+        const node = task.expr;
+        switch (node.type) {
+          case "number":
+            if (!Number.isFinite(node.value)) return fail(invalidResultError(null, node.span));
+            values.push(node.value);
+            break;
 
-    case "negate": {
-      const operand = evaluateExpression(expr.operand, lookup);
-      if (!operand.ok) return operand;
-      return { ok: true, value: -operand.value };
-    }
+          case "reference": {
+            const value = lookup(node.name);
+            if (value === undefined) return fail(unknownReferenceError(node.name, node.span));
+            if (!Number.isFinite(value)) return fail(invalidResultError(null, node.span));
+            values.push(value);
+            break;
+          }
 
-    case "binary": {
-      const left = evaluateExpression(expr.left, lookup);
-      if (!left.ok) return left;
-      const right = evaluateExpression(expr.right, lookup);
-      if (!right.ok) return right;
-      // `=== 0` is also true for -0.
-      if (expr.op === "/" && right.value === 0) {
-        return fail(divisionByZeroError(expr.right.span));
+          case "negate":
+            tasks.push({ step: "negate" }, { step: "visit", expr: node.operand });
+            break;
+
+          case "binary":
+            // Pushed in reverse so the left operand is evaluated (and fails) first.
+            tasks.push(
+              { step: "binary", expr: node },
+              { step: "visit", expr: node.right },
+              { step: "visit", expr: node.left },
+            );
+            break;
+
+          case "call": {
+            const spec = checkCall(node, functions);
+            if (!spec.ok) return spec;
+            tasks.push({ step: "call", expr: node, spec: spec.value });
+            if (spec.value.takes !== "names") {
+              for (let i = node.args.length - 1; i >= 0; i--) {
+                const arg = node.args[i];
+                if (arg !== undefined) tasks.push({ step: "visit", expr: arg });
+              }
+            }
+            break;
+          }
+        }
+        break;
       }
-      return finite(applyOperator(expr.op, left.value, right.value), null, expr);
-    }
 
-    case "call": {
-      const spec = FUNCTIONS.get(expr.function);
-      // The parser only produces calls to known functions; this guards hand-built ASTs.
-      if (spec === undefined) return fail(invalidResultError(expr.function, expr.span));
-      const args: number[] = [];
-      for (const arg of expr.args) {
-        const result = evaluateExpression(arg, lookup);
-        if (!result.ok) return result;
-        args.push(result.value);
+      case "negate":
+        values.push(-pop());
+        break;
+
+      case "binary": {
+        const right = pop();
+        const left = pop();
+        // `=== 0` is also true for -0.
+        if (task.expr.op === "/" && right === 0) {
+          return fail(divisionByZeroError(task.expr.right.span));
+        }
+        const value = applyOperator(task.expr.op, left, right);
+        if (!Number.isFinite(value)) return fail(invalidResultError(null, task.expr.span));
+        values.push(value);
+        break;
       }
-      return finite(spec.apply(args), expr.function, expr);
+
+      case "call": {
+        const { expr: call, spec } = task;
+        const value = applyFunction(spec, call, values);
+        if (!Number.isFinite(value)) return fail(invalidResultError(call.function, call.span));
+        values.push(value);
+        break;
+      }
     }
   }
+
+  return { ok: true, value: pop() };
+}
+
+/** Checks a call against the function table, as the parser does for parsed formulas. */
+function checkCall(
+  call: CallExpr,
+  functions: FunctionTable,
+): { ok: true; value: FunctionSpec } | { ok: false; error: ExpressionError } {
+  const spec = functions.get(call.function);
+  if (spec === undefined) return fail(unknownFunctionError(call.function, call.span));
+
+  const count = call.args.length;
+  if (count < spec.min || (spec.max !== null && count > spec.max)) {
+    return fail(wrongArgumentCountError(call.function, spec.min, spec.max, count, call.span));
+  }
+  if (spec.takes === "names") {
+    const notName = call.args.find((arg) => arg.type !== "reference");
+    if (notName !== undefined) return fail(invalidArgumentError(call.function, notName.span));
+  }
+  return { ok: true, value: spec };
+}
+
+/** Applies `spec`, taking its evaluated arguments (if any) off the end of `values`. */
+function applyFunction(spec: FunctionSpec, call: CallExpr, values: number[]): number {
+  if (spec.takes === "names") {
+    // `checkCall` made sure every argument is a reference.
+    return spec.apply(call.args.map((arg) => (arg.type === "reference" ? arg.name : "")));
+  }
+  return spec.apply(values.splice(values.length - call.args.length));
 }
 
 function applyOperator(op: "+" | "-" | "*" | "/", left: number, right: number): number {
@@ -77,11 +162,6 @@ function applyOperator(op: "+" | "-" | "*" | "/", left: number, right: number): 
     case "/":
       return left / right;
   }
-}
-
-function finite(value: number, functionName: string | null, expr: Expr): ExpressionResult {
-  if (!Number.isFinite(value)) return fail(invalidResultError(functionName, expr.span));
-  return { ok: true, value };
 }
 
 function fail(error: ExpressionError): { ok: false; error: ExpressionError } {

@@ -8,13 +8,14 @@
 //   arguments  := expression ("," expression)*
 
 import {
+  invalidArgumentError,
   type ParseError,
   type Span,
   syntaxError,
   unknownFunctionError,
   wrongArgumentCountError,
 } from "./errors";
-import { FUNCTIONS } from "./functions";
+import { FUNCTIONS, type FunctionTable } from "./functions";
 import { type Operator, type Token, tokenize } from "./lexer";
 
 /** Parsed formula. Every node carries the span of the source it was parsed from. */
@@ -26,6 +27,12 @@ export type Expr =
   | { type: "call"; function: string; args: Expr[]; span: Span };
 
 export type ParseResult = { ok: true; expr: Expr } | { ok: false; error: ParseError };
+
+/** Options for `parseFormula` and `evaluateExpression`. */
+export type FormulaOptions = {
+  /** The functions a formula may call. Defaults to the built-in `FUNCTIONS`. */
+  functions?: FunctionTable;
+};
 
 /** Longer formulas are rejected before tokenizing, which bounds the AST size. */
 export const MAX_FORMULA_LENGTH = 10_000;
@@ -40,10 +47,11 @@ type Step<T> = { ok: true; value: T } | { ok: false; error: ParseError };
 
 /**
  * Parses one formula into an `Expr`. Never throws: every problem, including over-long or
- * too deeply nested input, comes back as a `ParseError`. Function names and argument counts are
- * checked here against `FUNCTIONS`.
+ * too deeply nested input, comes back as a `ParseError`. Function names, argument counts and
+ * name arguments are checked here against `options.functions` (default `FUNCTIONS`); evaluate the
+ * result with the same table.
  */
-export function parseFormula(source: string): ParseResult {
+export function parseFormula(source: string, options: FormulaOptions = {}): ParseResult {
   if (source.length > MAX_FORMULA_LENGTH) {
     return fail(syntaxError("Formula is too long", { start: 0, end: source.length }));
   }
@@ -56,7 +64,7 @@ export function parseFormula(source: string): ParseResult {
     return fail(syntaxError("Empty formula", { start: 0, end: source.length }));
   }
 
-  const parser = new Parser(tokens);
+  const parser = new Parser(tokens, options.functions ?? FUNCTIONS);
   const result = parser.expression();
   if (!result.ok) return result;
 
@@ -108,7 +116,10 @@ class Parser {
   private pos = 0;
   private depth = 0;
 
-  constructor(private readonly tokens: readonly Token[]) {}
+  constructor(
+    private readonly tokens: readonly Token[],
+    private readonly functions: FunctionTable,
+  ) {}
 
   peek(): Token {
     // The token list always ends with `end` and `advance` never moves past it.
@@ -191,7 +202,7 @@ class Parser {
   }
 
   private call(name: string, nameSpan: Span): Step<Expr> {
-    const spec = FUNCTIONS.get(name);
+    const spec = this.functions.get(name);
     if (spec === undefined) return fail(unknownFunctionError(name, nameSpan));
 
     const open = this.peek();
@@ -215,6 +226,10 @@ class Parser {
       const span = { start: nameSpan.start, end: close.value.span.end };
       if (args.length < spec.min || (spec.max !== null && args.length > spec.max)) {
         return fail(wrongArgumentCountError(name, spec.min, spec.max, args.length, span));
+      }
+      if (spec.takes === "names") {
+        const notName = args.find((arg) => arg.type !== "reference");
+        if (notName !== undefined) return fail(invalidArgumentError(name, notName.span));
       }
       return ok({ type: "call", function: name, args, span });
     });

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { evaluateExpression } from "./evaluate";
+import type { FunctionSpec, FunctionTable } from "./functions";
 import { type Expr, MAX_FORMULA_LENGTH, MAX_NESTING_DEPTH, parseFormula, references } from "./parser";
 
 function parse(source: string): Expr {
@@ -206,5 +207,50 @@ describe("references", () => {
 
   test("a number has no references", () => {
     expect(references(parse("42"))).toEqual([]);
+  });
+});
+
+describe("parseFormula with a custom function table", () => {
+  const functions: FunctionTable = new Map<string, FunctionSpec>([
+    ["double", { min: 1, max: 1, apply: (args) => 2 * (args[0] ?? Number.NaN) }],
+    ["distance", { min: 2, max: 2, takes: "names", apply: () => 0 }],
+  ]);
+
+  test("calls are checked against the given table", () => {
+    expect(parseFormula("double(2) + distance(A, B)", { functions }).ok).toBe(true);
+    expect(parseFormula("sqrt(4)", { functions })).toMatchObject({
+      ok: false,
+      error: { kind: "unknown_function", function: "sqrt" },
+    });
+    expect(parseFormula("distance(A)", { functions })).toMatchObject({
+      ok: false,
+      error: { kind: "wrong_argument_count", function: "distance", min: 2, max: 2, received: 1 },
+    });
+  });
+
+  test("the built-in table is the default", () => {
+    expect(parseError("double(2)")).toMatchObject({ kind: "unknown_function", function: "double" });
+  });
+
+  test("a function that takes names rejects other arguments", () => {
+    expect(parseFormula("distance(A, B + 1)", { functions })).toEqual({
+      ok: false,
+      error: {
+        kind: "invalid_argument",
+        function: "distance",
+        span: { start: 12, end: 17 },
+        message: "distance() expects a name here",
+      },
+    });
+    expect(parseFormula("distance(2, B)", { functions })).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_argument", span: { start: 9, end: 10 } },
+    });
+  });
+
+  test("name arguments are references, so they count as dependencies", () => {
+    const result = parseFormula("distance(A, B) + m", { functions });
+    if (!result.ok) throw new Error("unexpected parse error");
+    expect(references(result.expr).map((ref) => ref.name)).toEqual(["A", "B", "m"]);
   });
 });

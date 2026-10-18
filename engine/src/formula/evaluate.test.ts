@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { evaluateExpression } from "./evaluate";
+import { FUNCTIONS, type FunctionSpec, type FunctionTable } from "./functions";
 import { type Expr, parseFormula } from "./parser";
 
 function parse(source: string): Expr {
@@ -92,6 +93,140 @@ describe("evaluateExpression", () => {
     expect(evaluate("x + 1 / 0")).toMatchObject({
       ok: false,
       error: { kind: "unknown_reference", reference: "x" },
+    });
+  });
+});
+
+describe("evaluateExpression on hand-built ASTs", () => {
+  const span = { start: 0, end: 1 };
+
+  test("a very deep AST is evaluated without overflowing the stack", () => {
+    let expr: Expr = { type: "number", value: 1, span };
+    for (let i = 0; i < 1_000_000; i++) expr = { type: "negate", operand: expr, span };
+    expect(evaluateExpression(expr, () => undefined)).toEqual({ ok: true, value: 1 });
+  });
+
+  test("a very deep left-leaning sum is evaluated left to right", () => {
+    let expr: Expr = { type: "number", value: 0, span };
+    for (let i = 0; i < 200_000; i++) {
+      expr = { type: "binary", op: "+", left: expr, right: { type: "number", value: 1, span }, span };
+    }
+    expect(evaluateExpression(expr, () => undefined)).toEqual({ ok: true, value: 200_000 });
+  });
+
+  test("a call to an unknown function is an unknown_function error", () => {
+    const expr: Expr = { type: "call", function: "nope", args: [], span: { start: 0, end: 6 } };
+    expect(evaluateExpression(expr, () => undefined)).toEqual({
+      ok: false,
+      error: {
+        kind: "unknown_function",
+        function: "nope",
+        span: { start: 0, end: 6 },
+        message: 'Unknown function "nope"',
+      },
+    });
+  });
+
+  test("a call with the wrong number of arguments is a wrong_argument_count error", () => {
+    const expr: Expr = { type: "call", function: "sqrt", args: [], span };
+    expect(evaluateExpression(expr, () => undefined)).toMatchObject({
+      ok: false,
+      error: { kind: "wrong_argument_count", function: "sqrt", min: 1, max: 1, received: 0 },
+    });
+  });
+
+  test("a non-finite number node is an invalid result", () => {
+    const expr: Expr = { type: "number", value: Number.POSITIVE_INFINITY, span };
+    expect(evaluateExpression(expr, () => undefined)).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_result", function: null },
+    });
+  });
+});
+
+describe("evaluateExpression with a custom function table", () => {
+  const points = new Map([
+    ["A", { x: 0, y: 0 }],
+    ["B", { x: 30, y: 40 }],
+  ]);
+  const functions: FunctionTable = new Map<string, FunctionSpec>([
+    ...FUNCTIONS,
+    ["twice", { min: 1, max: 1, apply: (args) => 2 * (args[0] ?? Number.NaN) }],
+    [
+      "distance",
+      {
+        min: 2,
+        max: 2,
+        takes: "names",
+        apply: ([a = "", b = ""]) => {
+          const p = points.get(a);
+          const q = points.get(b);
+          return p && q ? Math.hypot(q.x - p.x, q.y - p.y) : Number.NaN;
+        },
+      },
+    ],
+  ]);
+
+  function run(source: string, values: Record<string, number> = {}) {
+    const parsed = parseFormula(source, { functions });
+    if (!parsed.ok) throw new Error(`unexpected error: ${parsed.error.message}`);
+    const map = new Map(Object.entries(values));
+    const looked: string[] = [];
+    const result = evaluateExpression(
+      parsed.expr,
+      (name) => {
+        looked.push(name);
+        return map.get(name);
+      },
+      { functions },
+    );
+    return { result, looked };
+  }
+
+  test("number functions from the table are called with evaluated arguments", () => {
+    expect(run("twice(m + 1) + sqrt(4)", { m: 2 }).result).toEqual({ ok: true, value: 8 });
+  });
+
+  test("name arguments are passed unevaluated, not through lookup", () => {
+    const { result, looked } = run("distance(A, B) / 2 + m", { m: 1 });
+    expect(result).toEqual({ ok: true, value: 26 });
+    expect(looked).toEqual(["m"]);
+  });
+
+  test("a non-finite result of a name function is an invalid result", () => {
+    expect(run("1 + distance(A, C)").result).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_result", function: "distance", span: { start: 4, end: 18 } },
+    });
+  });
+
+  test("a hand-built call with an expression where a name is expected is an invalid_argument error", () => {
+    const expr: Expr = {
+      type: "call",
+      function: "distance",
+      args: [
+        { type: "reference", name: "A", span: { start: 9, end: 10 } },
+        { type: "number", value: 1, span: { start: 12, end: 13 } },
+      ],
+      span: { start: 0, end: 14 },
+    };
+    expect(evaluateExpression(expr, () => undefined, { functions })).toEqual({
+      ok: false,
+      error: {
+        kind: "invalid_argument",
+        function: "distance",
+        span: { start: 12, end: 13 },
+        message: "distance() expects a name here",
+      },
+    });
+  });
+
+  test("a function missing from the table given is unknown", () => {
+    const parsed = parseFormula("twice(1)", { functions });
+    if (!parsed.ok) throw new Error("unexpected parse error");
+    expect(evaluateExpression(parsed.expr, () => undefined)).toMatchObject({
+      ok: false,
+      error: { kind: "unknown_function", function: "twice" },
     });
   });
 });

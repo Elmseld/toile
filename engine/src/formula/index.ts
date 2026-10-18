@@ -1,6 +1,7 @@
 // Public API of the formula language (ADR 0003).
 
 export type {
+  CallError,
   ExpressionError,
   FormulaError,
   InputSource,
@@ -9,9 +10,10 @@ export type {
 } from "./errors";
 export { type ExpressionResult, evaluateExpression } from "./evaluate";
 export { type EvaluationResult, type FormulaInput, evaluateFormulas } from "./formulas";
-export { FUNCTIONS, type FunctionSpec } from "./functions";
+export { FUNCTIONS, type FunctionSpec, type FunctionTable } from "./functions";
 export {
   type Expr,
+  type FormulaOptions,
   MAX_FORMULA_LENGTH,
   MAX_NESTING_DEPTH,
   type ParseResult,
