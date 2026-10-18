@@ -30,7 +30,7 @@ test("pattern definitions are evaluated and drawn through the package entry poin
         { name: "bc", type: "line", from: "B", to: "C" },
         { name: "ca", type: "line", from: "C", to: "A" },
       ],
-      pieces: [{ name: "t", outline: ["ab", "bc", "ca"], grainline: { from: "A", to: "C" } }],
+      pieces: [{ name: "t", outline: [{ curve: "ab" }, { curve: "bc" }, { curve: "ca" }], grainline: { from: "A", to: "C" } }],
     },
     { measurements: { side: 100 } },
   );

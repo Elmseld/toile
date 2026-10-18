@@ -157,12 +157,20 @@ describe("validateDefinition", () => {
     expect(pathsOf(point(null))).toEqual(["/points/0/user_offset"]);
   });
 
-  test("outline must be a non-empty list of curve names; grainline needs from and to", () => {
+  test("outline must be a non-empty list of { curve } entries; grainline needs from and to", () => {
     const piece = (fields: Record<string, unknown>): Record<string, unknown> =>
-      minimal({ pieces: [{ name: "p", outline: ["a"], grainline: { from: "A", to: "B" }, ...fields }] });
+      minimal({
+        pieces: [{ name: "p", outline: [{ curve: "a" }], grainline: { from: "A", to: "B" }, ...fields }],
+      });
     expect(validateDefinition(piece({})).ok).toBe(true);
     expect(pathsOf(piece({ outline: [] }))).toEqual(["/pieces/0/outline"]);
-    expect(pathsOf(piece({ outline: ["a", 1] }))).toEqual(["/pieces/0/outline/1"]);
+    expect(pathsOf(piece({ outline: [{ curve: "a" }, 1] }))).toEqual(["/pieces/0/outline/1"]);
+    expect(pathsOf(piece({ outline: ["a"] }))).toEqual(["/pieces/0/outline/0"]);
+    expect(pathsOf(piece({ outline: [{ curve: "a" }, { curve: 1 }] }))).toEqual(["/pieces/0/outline/1/curve"]);
+    expect(pathsOf(piece({ outline: [{}] }))).toEqual(["/pieces/0/outline/0/curve"]);
+    expect(pathsOf(piece({ outline: [{ curve: "a", reversed: true }] }))).toEqual([
+      "/pieces/0/outline/0/reversed",
+    ]);
     expect(pathsOf(piece({ outline: "a" }))).toEqual(["/pieces/0/outline"]);
     expect(pathsOf(piece({ grainline: { from: "A" } }))).toEqual(["/pieces/0/grainline/to"]);
     expect(pathsOf(piece({ grainline: ["A", "B"] }))).toEqual(["/pieces/0/grainline"]);
@@ -236,7 +244,7 @@ describe("validateDefinition", () => {
       0,
       "",
       [],
-      { version: 1, points: [null], curves: [undefined], pieces: [{ outline: null }] },
+      { version: 1, points: [null], curves: [undefined], pieces: [{ outline: null }, { outline: [null, [], { curve: null }] }] },
       { version: 1, points: sparse },
       { version: 1, points: [, startPoint] },
       { version: 1, measurements: null, parameters: null, formulas: null },

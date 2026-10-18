@@ -2,7 +2,12 @@
 // dependency graph of formulas, points, curves and pieces, errors as values and partial results.
 
 import { appendAll } from "../formula/arrays";
-import { invalidValueError, type Span, unknownReferenceError } from "../formula/errors";
+import {
+  failedDependencyError,
+  invalidValueError,
+  type Span,
+  unknownReferenceError,
+} from "../formula/errors";
 import { evaluateExpression } from "../formula/evaluate";
 import { type Edge, evaluateGraph } from "../formula/graph";
 import { isIdentifier } from "../formula/lexer";
@@ -239,9 +244,12 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
   for (const piece of definition.pieces) {
     if (failed.has(piece.name)) continue;
     const collector = new EdgeCollector(piece.name);
-    piece.outline.forEach((curve, i) => collector.name(`outline/${i}`, curve, "curve"));
+    piece.outline.forEach((entry, i) => collector.name(`outline/${i}/curve`, entry.curve, "curve"));
     collector.name("grainline/from", piece.grainline.from, "point");
     collector.name("grainline/to", piece.grainline.to, "point");
+    // Closure is structural, so it is checked here, before (and whatever the outcome of)
+    // evaluating the curves: an open outline is reported for every measurement profile.
+    collector.error ??= outlineClosureError(piece, curveDefinitions);
     addNode(piece.name, collector, { type: "piece", definition: piece });
   }
 
@@ -297,18 +305,14 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
   };
 
   const evaluatePiece = (name: string, piece: PieceDefinition): ElementError | null => {
-    const { outline } = piece;
     const outlineCurves: ComputedCurve[] = [];
-    for (let i = 0; i < outline.length; i++) {
-      const next = (i + 1) % outline.length;
-      const current = curveDefinitions.get(outline[i] ?? "");
-      const following = curveDefinitions.get(outline[next] ?? "");
-      if (current === undefined || following === undefined) return null;
-      if (current.to !== following.from) {
-        return openOutlineError(name, `outline/${next}`, current, following);
+    for (const [i, { curve }] of piece.outline.entries()) {
+      const computed = curves.get(curve);
+      // Unreachable: the graph only evaluates a piece once all its curves computed.
+      if (computed === undefined) {
+        const span = { start: 0, end: curve.length };
+        return { ...failedDependencyError(name, curve, span), field: `outline/${i}/curve` };
       }
-      const computed = curves.get(current.name);
-      if (computed === undefined) return null;
       outlineCurves.push(computed);
     }
     pieces.set(name, {
@@ -461,6 +465,28 @@ function wrongReferenceKindError(
 
 function degenerateError(name: string, message: string): ElementError {
   return { kind: "degenerate_geometry", name, message };
+}
+
+/**
+ * `open_outline` on the first entry whose curve does not start where the previous one ends
+ * (cyclically, so the wrap-around from the last entry to the first is checked too), or `null`.
+ * Pairs with a curve whose definition is unknown (a duplicate name) are skipped: the piece then
+ * fails through that dependency.
+ */
+function outlineClosureError(
+  piece: PieceDefinition,
+  curves: ReadonlyMap<string, CurveDefinition>,
+): ElementError | null {
+  const { outline } = piece;
+  for (let i = 0; i < outline.length; i++) {
+    const next = (i + 1) % outline.length;
+    const current = curves.get(outline[i]?.curve ?? "");
+    const following = curves.get(outline[next]?.curve ?? "");
+    if (current !== undefined && following !== undefined && current.to !== following.from) {
+      return openOutlineError(piece.name, `outline/${next}/curve`, current, following);
+    }
+  }
+  return null;
 }
 
 function openOutlineError(

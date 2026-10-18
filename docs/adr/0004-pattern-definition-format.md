@@ -51,11 +51,15 @@ a drag. The definition and its formulas are untrusted user input. This ADR build
     `unsupported_version`) carry a JSON-pointer `path`, are reported all at once and stop evaluation.
     Semantic errors carry `name` (the element), an optional `field` (where inside it) and a `span`
     into that field's string, and evaluation returns whatever still computed.
-11. **Outline closure by point name.** A piece outline is an ordered list of curve names; the `to`
-    point of each curve must be the `from` point of the next, cyclically, else `open_outline`.
-    Curves are traversed in their defined direction; no reversed segments in v1 (a later version
-    can add `{ "curve": "x", "reversed": true }`). Checking by name rather than by coordinate keeps
-    validity independent of the measurements.
+11. **Outline entries are objects, closed by point name.** A piece outline is an ordered list of
+    entries `{ "curve": "name" }`. An object rather than a bare curve name leaves room for per-edge
+    data (reversed traversal, seam allowance in 0009, fold lines) as optional fields, without
+    changing the shape of stored outlines. The `to` point of each entry's curve must be the `from`
+    point of the next, cyclically, else `open_outline` on the next entry (`outline/i/curve`).
+    Curves are traversed in their defined direction; v1 has no other entry fields. Closure is
+    checked by name rather than by coordinate, before any geometry is evaluated, so validity is
+    independent of the measurements: an open outline is reported even when its curves fail to
+    compute.
 12. **Arc length by fixed composite Gauss-Legendre** (5 points on 16 sub-intervals, raised if
     accuracy requires), within 0.01 mm of a fine polyline reference; lines use `distance`.
     Deterministic and fixed cost on the drag path.

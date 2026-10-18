@@ -37,7 +37,15 @@
   "pieces": [
     {
       "name": "front",
-      "outline": ["waist_left", "dart_left", "dart_right", "waist_right", "side", "hem", "center"],
+      "outline": [
+        { "curve": "waist_left" },
+        { "curve": "dart_left" },
+        { "curve": "dart_right" },
+        { "curve": "waist_right" },
+        { "curve": "side" },
+        { "curve": "hem" },
+        { "curve": "center" }
+      ],
       "grainline": { "from": "G1", "to": "G2" }
     }
   ]

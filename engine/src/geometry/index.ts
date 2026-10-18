@@ -9,6 +9,7 @@ export type {
   DefinitionError,
   ElementError,
   ElementSource,
+  OutlineEntry,
   PatternDefinition,
   PatternError,
   PatternInput,

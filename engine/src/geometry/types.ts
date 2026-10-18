@@ -39,10 +39,17 @@ export type CurveDefinition =
   | { name: string; type: "line"; from: string; to: string }
   | { name: string; type: "cubic"; from: string; c1: string; c2: string; to: string };
 
-/** A pattern piece: an outline of curve names that closes by point name, and a grainline. */
+/**
+ * One edge of a piece outline: the curve it follows, in the curve's own direction. An object
+ * rather than a bare name so later versions can add per-edge data (reversed, seam allowance, fold)
+ * as optional fields without changing the shape.
+ */
+export type OutlineEntry = { curve: string };
+
+/** A pattern piece: an outline of curves that closes by point name, and a grainline. */
 export type PieceDefinition = {
   name: string;
-  outline: string[];
+  outline: OutlineEntry[];
   grainline: { from: string; to: string };
 };
 
@@ -102,7 +109,7 @@ export type DefinitionError =
   | { kind: "invalid_definition"; path: string; message: string }
   | { kind: "unsupported_version"; path: "/version"; version: number; message: string };
 
-/** Where inside a point, curve or piece an error is: `distance`, `line1/0`, `outline/2`. */
+/** Where inside a point, curve or piece an error is: `distance`, `line1/0`, `outline/2/curve`. */
 type Located = { field?: string };
 
 /** An error that belongs to a named element of the definition. */

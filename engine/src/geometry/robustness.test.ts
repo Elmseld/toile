@@ -98,7 +98,11 @@ function randomDefinition(next: () => number): unknown {
   }));
   const pieces = Array.from({ length: Math.floor(next() * 2) }, () => ({
     name: pick(next, NAMES),
-    outline: [pick(next, NAMES), pick(next, NAMES), value(next)],
+    outline: [
+      { curve: pick(next, NAMES) },
+      next() < 0.8 ? { curve: pick(next, NAMES) } : pick(next, NAMES),
+      next() < 0.5 ? { curve: value(next) } : value(next),
+    ],
     grainline: { from: value(next), to: value(next) },
   }));
   return {
@@ -155,7 +159,7 @@ function wellFormedDefinition(next: () => number): unknown {
     formulas: { f: formula() },
     points,
     curves: [{ name: "c", type: "line", from: pointName(), to: pointName() }],
-    pieces: [{ name: "p", outline: ["c"], grainline: { from: pointName(), to: pointName() } }],
+    pieces: [{ name: "p", outline: [{ curve: "c" }], grainline: { from: pointName(), to: pointName() } }],
   };
 }
 

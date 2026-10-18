@@ -124,7 +124,11 @@ export function circularDependencyError(cycle: string[], span: Span): FormulaErr
   };
 }
 
-export function failedDependencyError(name: string, dependency: string, span: Span): FormulaError {
+export function failedDependencyError(
+  name: string,
+  dependency: string,
+  span: Span,
+): Extract<FormulaError, { kind: "failed_dependency" }> {
   return {
     kind: "failed_dependency",
     name,

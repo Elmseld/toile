@@ -108,9 +108,12 @@ A complete example (a rectangle with a dart, tested against two measurement sets
 - **Curves.** `{ name, type: "line", from, to }` or `{ name, type: "cubic", from, c1, c2, to }`;
   every end and control point is a named point. Computed curves carry their `length` (arc length
   of a cubic, within 0.01 mm).
-- **Pieces.** `{ name, outline: [curve names], grainline: { from, to } }` with point names for the
-  grainline. The outline must close by point name (the `to` of each curve is the `from` of the next,
-  cyclically), else `open_outline`. Curves are traversed in their defined direction.
+- **Pieces.** `{ name, outline: [{ curve }], grainline: { from, to } }`: each outline entry is an
+  object naming one curve (room for per-edge fields in later versions), and the grainline has point
+  names. The outline must close by point name (the `to` of each curve is the `from` of the next,
+  cyclically), else `open_outline` on the next entry (`field: "outline/i/curve"`). Closure is
+  checked before any geometry is computed, so it does not depend on the measurements. Curves are
+  traversed in their defined direction.
 - **Geometry functions** in formulas: `distance(A, B)` (mm), `angle(A, B)` (degrees; coincident
   points give `invalid_result`) and `length(curve)` (mm). They take bare names and see final
   positions, user offsets included. Order follows dependencies, not declaration order; cycles give
@@ -122,8 +125,8 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   positions; curves and pieces hold computed points and `length`.
 - **Errors** are values, never thrown, for any input. Structural errors have `path`; the others
   have `kind`, `name` (the element) and optionally `field` (e.g. `distance`, `line1/0`,
-  `outline/2`) and `span` into that field. Kinds are those of Formulas plus `invalid_definition`,
-  `unsupported_version`, `missing_measurement`, `unknown_parameter`, `wrong_reference_kind`,
+  `outline/2/curve`) and `span` into that field. Kinds are those of Formulas plus
+  `invalid_definition`, `unsupported_version`, `missing_measurement`, `unknown_parameter`, `wrong_reference_kind`,
   `degenerate_geometry`, `no_intersection` and `open_outline`. Errors are sorted by declaration
   order (measurements, parameters, formulas, points, curves, pieces), with `unknown_parameter`
   for undeclared overrides last; an override never fails the element that has its name.

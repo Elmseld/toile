@@ -5,6 +5,7 @@ import { CURVE_FIELDS, type FieldKind, OP_FIELDS } from "./operations";
 import type {
   CurveDefinition,
   DefinitionError,
+  OutlineEntry,
   PatternDefinition,
   PieceDefinition,
   PointDefinition,
@@ -200,14 +201,15 @@ class Validator {
     this.unknownFields(value, path, new Set(["name", "outline", "grainline"]));
     const name = this.requiredString(value, "name", path, "must be a piece name (a string)");
 
-    let outline: string[] | undefined;
+    let outline: OutlineEntry[] | undefined;
     if (!Object.hasOwn(value, "outline")) {
       this.problem(`${path}/outline`, 'Missing required field "outline"');
     } else {
       outline = this.array(value.outline, `${path}/outline`, (item, itemPath) =>
-        this.string(item, itemPath, "must be a curve name (a string)"),
+        this.outlineEntry(item, itemPath),
       );
-      if (outline !== undefined && outline.length === 0) {
+      // `outline` only holds the valid entries, so emptiness is judged on the input.
+      if (Array.isArray(value.outline) && value.outline.length === 0) {
         this.problem(`${path}/outline`, "must list at least one curve");
       }
     }
@@ -227,6 +229,13 @@ class Validator {
       };
     }
     return { name, outline, grainline } as PieceDefinition;
+  }
+
+  private outlineEntry(value: unknown, path: string): OutlineEntry | undefined {
+    if (!isObject(value)) return this.problem(path, "An outline entry must be an object { curve }");
+    this.unknownFields(value, path, new Set(["curve"]));
+    const curve = this.requiredString(value, "curve", path, "must be a curve name (a string)");
+    return curve === undefined ? undefined : { curve };
   }
 
   /** An optional top-level array; each item is checked by `item`, which reports its problems. */

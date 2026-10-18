@@ -13,6 +13,11 @@ const start = (name: string, x: string | number, y: string | number, extra: Json
   ...extra,
 });
 const line = (name: string, from: string, to: string): Json => ({ name, type: "line", from, to });
+const piece = (name: string, curves: string[], from: string, to: string): Json => ({
+  name,
+  outline: curves.map((curve) => ({ curve })),
+  grainline: { from, to },
+});
 
 const NO_INPUT: PatternInput = { measurements: {} };
 
@@ -272,8 +277,8 @@ describe("references", () => {
         points: [start("A", 0, 0), { name: "B", op: "offset", from: "p", dx: "0", dy: "0" }],
         curves: [line("c", "A", "A")],
         pieces: [
-          { name: "p", outline: ["c"], grainline: { from: "A", to: "A" } },
-          { name: "q", outline: ["p"], grainline: { from: "A", to: "A" } },
+          piece("p", ["c"], "A", "A"),
+          piece("q", ["p"], "A", "A"),
         ],
       }),
       NO_INPUT,
@@ -281,7 +286,7 @@ describe("references", () => {
     expect(summary(result)).toEqual([
       "wrong_reference_kind:f",
       "wrong_reference_kind:B:from",
-      "wrong_reference_kind:q:outline/0",
+      "wrong_reference_kind:q:outline/0/curve",
     ]);
     expect(Object.keys(result.pieces)).toEqual(["p"]);
   });
@@ -358,15 +363,25 @@ describe("partial results and pieces", () => {
       start("C", 100, 100),
       { name: "X", op: "along_line", from: "A", to: "A", distance: "1" },
     ],
-    curves: [line("ab", "A", "B"), line("bc", "B", "C"), line("ca", "C", "A"), line("ax", "A", "X")],
+    curves: [
+      line("ab", "A", "B"),
+      line("bc", "B", "C"),
+      line("ca", "C", "A"),
+      line("ax", "A", "X"),
+      line("xc", "X", "C"),
+    ],
   };
 
   test("a failing point leaves unrelated points, curves and pieces computed", () => {
     const result = evaluatePattern(
-      def({ ...base, pieces: [{ name: "t", outline: ["ab", "bc", "ca"], grainline: { from: "A", to: "C" } }] }),
+      def({ ...base, pieces: [piece("t", ["ab", "bc", "ca"], "A", "C")] }),
       NO_INPUT,
     );
-    expect(summary(result)).toEqual(["degenerate_geometry:X:to", "failed_dependency:ax:to"]);
+    expect(summary(result)).toEqual([
+      "degenerate_geometry:X:to",
+      "failed_dependency:ax:to",
+      "failed_dependency:xc:from",
+    ]);
     expect(Object.keys(result.points)).toEqual(["A", "B", "C"]);
     expect(Object.keys(result.curves)).toEqual(["ab", "bc", "ca"]);
     expect(result.pieces.t?.outline.map((curve) => curve.name)).toEqual(["ab", "bc", "ca"]);
@@ -375,40 +390,55 @@ describe("partial results and pieces", () => {
 
   test("a piece whose curve failed is absent with failed_dependency on that outline entry", () => {
     const result = evaluatePattern(
-      def({ ...base, pieces: [{ name: "t", outline: ["ab", "ax"], grainline: { from: "A", to: "C" } }] }),
+      def({ ...base, pieces: [piece("t", ["ca", "ax", "xc"], "A", "C")] }),
       NO_INPUT,
     );
     expect(errorsOf(result).at(-1)).toMatchObject({
       kind: "failed_dependency",
       name: "t",
       dependency: "ax",
-      field: "outline/1",
+      field: "outline/1/curve",
     });
+    expect(result.pieces).toEqual({});
+  });
+
+  test("an open outline is reported even when its curves fail to compute", () => {
+    // `ax` fails (X is degenerate), but the outline is open by name whatever the measurements.
+    const result = evaluatePattern(
+      def({ ...base, pieces: [piece("t", ["ab", "ax"], "A", "C")] }),
+      NO_INPUT,
+    );
+    expect(errorsOf(result).at(-1)).toMatchObject({
+      kind: "open_outline",
+      name: "t",
+      field: "outline/1/curve",
+    });
+    expect(errorsOf(result).filter((error) => "name" in error && error.name === "t")).toHaveLength(1);
     expect(result.pieces).toEqual({});
   });
 
   test("an outline that does not close is open_outline on the entry that does not connect", () => {
     const result = evaluatePattern(
-      def({ ...base, pieces: [{ name: "t", outline: ["ab", "ca"], grainline: { from: "A", to: "C" } }] }),
+      def({ ...base, pieces: [piece("t", ["ab", "ca"], "A", "C")] }),
       NO_INPUT,
     );
     expect(errorsOf(result).at(-1)).toEqual({
       kind: "open_outline",
       name: "t",
-      field: "outline/1",
+      field: "outline/1/curve",
       message: expect.any(String),
     });
     // The wrap-around from the last curve back to the first is checked too.
     const wrap = evaluatePattern(
-      def({ ...base, pieces: [{ name: "t", outline: ["ab", "bc"], grainline: { from: "A", to: "C" } }] }),
+      def({ ...base, pieces: [piece("t", ["ab", "bc"], "A", "C")] }),
       NO_INPUT,
     );
-    expect(errorsOf(wrap).at(-1)).toMatchObject({ kind: "open_outline", field: "outline/0" });
+    expect(errorsOf(wrap).at(-1)).toMatchObject({ kind: "open_outline", field: "outline/0/curve" });
   });
 
   test("a grainline with an unknown point", () => {
     const result = evaluatePattern(
-      def({ ...base, pieces: [{ name: "t", outline: ["ab", "bc", "ca"], grainline: { from: "A", to: "Z" } }] }),
+      def({ ...base, pieces: [piece("t", ["ab", "bc", "ca"], "A", "Z")] }),
       NO_INPUT,
     );
     expect(errorsOf(result).at(-1)).toMatchObject({
