@@ -46,6 +46,11 @@ export function classifyReferences(expr: Expr, functions: FunctionTable): Classi
         }
         break;
       }
+      default: {
+        // A new node type must be classified here, or its references would be missed silently.
+        const unhandled: never = node;
+        return unhandled;
+      }
     }
   }
 
