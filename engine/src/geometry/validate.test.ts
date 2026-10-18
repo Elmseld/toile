@@ -98,6 +98,26 @@ describe("validateDefinition", () => {
     ]);
   });
 
+  test("unknown fields are still reported when op or type is missing or unknown", () => {
+    expect(
+      pathsOf(minimal({ points: [{ name: "A", op: "teleport", distnce: "1", from: "B" }] })),
+    ).toEqual(["/points/0/op", "/points/0/distnce"]);
+    expect(pathsOf(minimal({ points: [{ name: "A", x: "0", bogus: 1 }] }))).toEqual([
+      "/points/0/op",
+      "/points/0/bogus",
+    ]);
+    expect(
+      pathsOf(minimal({ points: [{ name: "A", op: 3, user_offset: { dx: 0, dy: 0 }, z: 1 }] })),
+    ).toEqual(["/points/0/op", "/points/0/z"]);
+    expect(
+      pathsOf(minimal({ curves: [{ name: "c", type: "arc", from: "A", to: "B", radius: 1 }] })),
+    ).toEqual(["/curves/0/type", "/curves/0/radius"]);
+    expect(pathsOf(minimal({ curves: [{ name: "c", from: "A", tooo: "B" }] }))).toEqual([
+      "/curves/0/type",
+      "/curves/0/tooo",
+    ]);
+  });
+
   test("formula fields must be strings, name fields must be strings", () => {
     expect(
       pathsOf(minimal({ points: [{ name: "A", op: "start", x: 0, y: "0" }] })),

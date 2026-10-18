@@ -46,6 +46,24 @@ const TOP_LEVEL_FIELDS: ReadonlySet<string> = new Set([
 type JsonObject = Readonly<Record<string, unknown>>;
 
 /**
+ * Every field any point op knows. A point with a missing or unknown `op` is checked against these,
+ * so a typo such as `distnce` is still reported but the fields of the intended op are not.
+ */
+const ANY_POINT_FIELDS: ReadonlySet<string> = new Set([
+  "name",
+  "op",
+  "user_offset",
+  ...[...OP_FIELDS.values()].flatMap((fields) => fields.map(([field]) => field)),
+]);
+
+/** Every field any curve type knows; the curve counterpart of `ANY_POINT_FIELDS`. */
+const ANY_CURVE_FIELDS: ReadonlySet<string> = new Set([
+  "name",
+  "type",
+  ...[...CURVE_FIELDS.values()].flat(),
+]);
+
+/**
  * Checks that `value` has the shape of a version 1 pattern definition and returns a normalised
  * deep copy: missing collections become empty, and every array and object is freshly built from
  * own enumerable data, so later code never reads (or mutates) the caller's object.
@@ -53,7 +71,8 @@ type JsonObject = Readonly<Record<string, unknown>>;
  * Never throws. Every structural problem is reported at once as `invalid_definition` with a JSON
  * pointer `path` (`""` is the root, `/points/3/distnce` an unknown field). A `version` other than
  * `1` is a single `unsupported_version` error (path `/version`) and nothing else is checked.
- * Unknown fields, formulas that are not strings and arrays with empty slots are rejected, and so
+ * Unknown fields (on a point or curve whose `op` or `type` is missing or unknown: fields no op or
+ * type knows), formulas that are not strings and arrays with empty slots are rejected, and so
  * are sections with more than `MAX_SECTION_ENTRIES` entries, outlines with more than
  * `MAX_OUTLINE_ENTRIES` and pieces whose outlines have more than `MAX_SECTION_ENTRIES` entries in
  * total (at `/pieces`; the items are then not checked). An object that throws while being
@@ -141,7 +160,9 @@ class Validator {
     }
 
     const point: Record<string, unknown> = { name, op };
-    if (fields !== undefined) {
+    if (fields === undefined) {
+      this.unknownFields(value, path, ANY_POINT_FIELDS);
+    } else {
       const allowed = new Set(["name", "op", "user_offset", ...fields.map(([field]) => field)]);
       this.unknownFields(value, path, allowed);
       for (const [field, kind] of fields) point[field] = this.pointField(value, field, kind, path);
@@ -204,7 +225,9 @@ class Validator {
     }
 
     const curve: Record<string, unknown> = { name, type };
-    if (fields !== undefined) {
+    if (fields === undefined) {
+      this.unknownFields(value, path, ANY_CURVE_FIELDS);
+    } else {
       this.unknownFields(value, path, new Set(["name", "type", ...fields]));
       for (const field of fields) {
         curve[field] = this.requiredString(value, field, path, "must be a point name (a string)");

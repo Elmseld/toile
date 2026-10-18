@@ -78,7 +78,8 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   (strings), and optional `measurements` (names the pattern uses; other profile entries are
   ignored), `parameters` (`{ name: default number }`), `formulas` (`{ name: formula }`), `points`,
   `curves` and `pieces` (arrays in declaration order). Unknown fields are rejected, and formula
-  fields must be strings (`"distance": "50"`, not `50`).
+  fields must be strings (`"distance": "50"`, not `50`). A point or curve with a missing or
+  unknown `op` or `type` still has its fields checked: those no op or type knows are reported too.
 - **Versions.** The version is bumped only when the meaning of existing fields changes or a field
   becomes required or changes shape, with an explicit migration in the engine. New optional
   fields, ops and curve types keep version 1; an older engine rejects definitions that use them as
