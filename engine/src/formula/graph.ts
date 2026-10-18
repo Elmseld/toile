@@ -19,7 +19,11 @@ export type Edge = { name: string; span: Span };
  */
 export type DependencyGraph = ReadonlyMap<string, readonly Edge[]>;
 
-export type EvaluateGraphOptions = {
+/**
+ * Options for `evaluateGraph`. `E` is the error type `evaluate` returns (default `FormulaError`);
+ * geometry passes its own error type. The graph's own errors are always `FormulaError`s.
+ */
+export type EvaluateGraphOptions<E extends { name: string } = FormulaError> = {
   /** Declaration position of a name; the first-declared member of a cycle group heads it. */
   position: (name: string) => number;
   /** Names (nodes or not) that already have an error. Not mutated. */
@@ -28,7 +32,7 @@ export type EvaluateGraphOptions = {
    * Evaluates one node and returns its error, or `null` on success. Called at most once per node,
    * after all its dependencies, and only when none of its references has failed.
    */
-  evaluate: (name: string) => FormulaError | null;
+  evaluate: (name: string) => E | null;
 };
 
 /**
@@ -48,14 +52,14 @@ export type EvaluateGraphOptions = {
  *
  * Iterative and linear in nodes plus edges, so the call stack does not grow with the graph.
  */
-export function evaluateGraph(
+export function evaluateGraph<E extends { name: string } = FormulaError>(
   graph: DependencyGraph,
-  options: EvaluateGraphOptions,
-): FormulaError[] {
+  options: EvaluateGraphOptions<E>,
+): (E | FormulaError)[] {
   const { position, evaluate } = options;
-  const errors: FormulaError[] = [];
+  const errors: (E | FormulaError)[] = [];
   const failed = new Set(options.failed);
-  const fail = (error: FormulaError): void => {
+  const fail = (error: E | FormulaError): void => {
     errors.push(error);
     failed.add(error.name);
   };
