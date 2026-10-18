@@ -5,8 +5,8 @@ defmodule Toile.Measurements.CatalogTest do
 
   doctest Catalog
 
-  @expected ~w(bust waist hip neck shoulder_width back_width chest_width back_length front_length
-               bust_height bust_distance hip_height skirt_length arm_length upper_arm wrist height)a
+  @expected ~w(bust waist hip neck shoulder_width back_width chest_width back_length armhole_depth
+               front_length bust_height bust_distance hip_height skirt_length arm_length upper_arm wrist height)a
 
   test "keys/0 lists the catalogue keys in display order" do
     assert Catalog.keys() == @expected

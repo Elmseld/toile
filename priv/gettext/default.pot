@@ -926,3 +926,13 @@ msgstr ""
 msgctxt "pattern piece"
 msgid "Front"
 msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Armhole depth"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "From the prominent neck bone straight down the spine to a ruler held level under both armpits."
+msgstr ""

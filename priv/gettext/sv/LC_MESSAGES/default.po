@@ -926,3 +926,13 @@ msgstr "Bakstycke"
 msgctxt "pattern piece"
 msgid "Front"
 msgstr "Framstycke"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Armhole depth"
+msgstr "Ärmhålsdjup"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "From the prominent neck bone straight down the spine to a ruler held level under both armpits."
+msgstr "Från den utstående nackkotan rakt ned längs ryggraden till en linjal som hålls vågrätt under båda armhålorna."
