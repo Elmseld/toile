@@ -10,7 +10,14 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
 
   describe "logged out" do
     test "redirects every page to log in", %{conn: conn} do
-      for path <- ["/measurements", "/measurements/new"] do
+      id = Ecto.UUID.generate()
+
+      for path <- [
+            "/measurements",
+            "/measurements/new",
+            "/measurements/#{id}",
+            "/measurements/#{id}/edit"
+          ] do
         assert {:error, {:redirect, %{to: "/users/log-in"}}} = live(conn, path)
       end
     end
@@ -252,6 +259,28 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
       assert updated.measurements.hip == 1000
     end
 
+    test "does not save invalid input and keeps the stored profile", %{
+      conn: conn,
+      scope: scope
+    } do
+      profile = measurement_profile_fixture(scope, %{name: "Keep", measurements: %{waist: 725}})
+      {:ok, view, _html} = live(conn, ~p"/measurements/#{profile}/edit")
+
+      html =
+        view
+        |> form("#measurement-profile-form",
+          measurement_profile: %{name: "", measurements: %{waist: "999"}}
+        )
+        |> render_submit()
+
+      assert html =~ "can&#39;t be blank"
+      assert html =~ "must be more than 0 and at most 300 cm"
+
+      stored = Measurements.get_measurement_profile!(scope, profile.id)
+      assert stored.name == "Keep"
+      assert stored.measurements.waist == 725
+    end
+
     test "returns to the show page when opened from there", %{conn: conn, scope: scope} do
       profile = measurement_profile_fixture(scope)
 
@@ -301,6 +330,43 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
       end
 
       assert has_element?(view, ~s(#back-to-measurements[href="/measurements"]))
+    end
+
+    test "live-updates when the profile is changed elsewhere", %{conn: conn, scope: scope} do
+      profile = measurement_profile_fixture(scope, %{name: "Before"})
+      {:ok, view, _html} = live(conn, ~p"/measurements/#{profile}")
+
+      assert has_element?(view, "#measurement-waist-missing")
+
+      {:ok, _} =
+        Measurements.update_measurement_profile(scope, profile, %{
+          name: "After",
+          measurements: %{waist: 725}
+        })
+
+      assert render(view) =~ "After"
+      assert has_element?(view, "#measurement-waist-value", "72.5 cm")
+      refute has_element?(view, "#measurement-waist-missing")
+    end
+
+    test "ignores changes to other profiles of the same user", %{conn: conn, scope: scope} do
+      profile = measurement_profile_fixture(scope, %{name: "Mine"})
+      other = measurement_profile_fixture(scope, %{name: "Other"})
+      {:ok, view, _html} = live(conn, ~p"/measurements/#{profile}")
+
+      {:ok, _} = Measurements.update_measurement_profile(scope, other, %{name: "Other 2"})
+      {:ok, _} = Measurements.delete_measurement_profile(scope, other)
+
+      assert has_element?(view, "h1", "Mine")
+    end
+
+    test "navigates away when the profile is deleted elsewhere", %{conn: conn, scope: scope} do
+      profile = measurement_profile_fixture(scope)
+      {:ok, view, _html} = live(conn, ~p"/measurements/#{profile}")
+
+      {:ok, _} = Measurements.delete_measurement_profile(scope, profile)
+
+      assert_redirect(view, ~p"/measurements")
     end
   end
 
