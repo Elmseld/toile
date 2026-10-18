@@ -1,5 +1,6 @@
 // Evaluates a set of measurements, parameters and named formulas in dependency order (ADR 0003).
 
+import { appendAll } from "./arrays";
 import {
   duplicateNameError,
   type FormulaError,
@@ -129,7 +130,7 @@ export function evaluateFormulas(input: FormulaInput): EvaluationResult {
       return null;
     },
   });
-  errors.push(...graphErrors);
+  appendAll(errors, graphErrors);
 
   // 5. Deterministic output: values and errors in declaration order. `fromEntries` defines own
   // data properties, so a name such as `__proto__` is stored safely.

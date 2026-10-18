@@ -65,6 +65,21 @@ describe("robustness", () => {
     if (!result.ok) expect(result.errors.map((e) => e.name)).toEqual(["open", "minus", "calls"]);
   });
 
+  test("a large batch of evaluation errors is returned in declaration order", () => {
+    // The argument-limit case itself is covered by the `appendAll` test: reaching it end to end
+    // needs about a million formulas, which takes seconds.
+    const count = 20_000;
+    const formulas: Record<string, string> = {};
+    for (let i = 0; i < count; i++) formulas[`f${i}`] = "1 / 0";
+    const result = evaluateFormulas({ measurements: {}, parameters: {}, formulas });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.length).toBe(count);
+      expect(result.errors[0]?.name).toBe("f0");
+      expect(result.errors[count - 1]?.name).toBe(`f${count - 1}`);
+    }
+  });
+
   test("formulas named like prototype members are stored and referenced safely", () => {
     const formulas: Record<string, string> = {};
     Object.defineProperty(formulas, "__proto__", { value: "2 * 3", enumerable: true, configurable: true, writable: true });
