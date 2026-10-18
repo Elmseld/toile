@@ -2,7 +2,7 @@
   "version": 1,
   "name": "Rectangle with a dart",
   "source": "Toile engine example (ticket 0003)",
-  "measurements": ["waist", "hip", "waist_to_hip"],
+  "measurements": ["waist", "hip", "hip_height"],
   "parameters": { "ease_hip": 10, "dart_length": 90 },
   "formulas": {
     "width": "hip / 4 + ease_hip",
@@ -14,7 +14,7 @@
   "points": [
     { "name": "A", "op": "start", "x": "0", "y": "0" },
     { "name": "B", "op": "along_angle", "from": "A", "angle": "0", "distance": "width" },
-    { "name": "C", "op": "perpendicular", "from": "A", "to": "B", "distance": "waist_to_hip" },
+    { "name": "C", "op": "perpendicular", "from": "A", "to": "B", "distance": "hip_height" },
     { "name": "D", "op": "offset", "from": "C", "dx": "distance(A, B)", "dy": "0" },
     { "name": "M", "op": "midpoint", "from": "A", "to": "B" },
     { "name": "L", "op": "along_line", "from": "M", "to": "A", "distance": "dart_intake / 2" },
@@ -23,7 +23,7 @@
     { "name": "K1", "op": "along_line", "from": "B", "to": "D", "distance": "distance(B, D) / 3" },
     { "name": "K2", "op": "along_line", "from": "B", "to": "D", "distance": "2 * distance(B, D) / 3" },
     { "name": "G1", "op": "along_angle", "from": "P", "angle": "90", "distance": "20" },
-    { "name": "G2", "op": "along_angle", "from": "G1", "angle": "90", "distance": "waist_to_hip - dart_length - 40" }
+    { "name": "G2", "op": "along_angle", "from": "G1", "angle": "90", "distance": "hip_height - dart_length - 40" }
   ],
   "curves": [
     { "name": "waist_left", "type": "line", "from": "A", "to": "L" },
