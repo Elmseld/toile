@@ -26,8 +26,16 @@ Both groups use the same engine but get different amounts of it exposed.
    many measurements are missing and the profile page marks each missing one. Values of 0 or over
    300 cm are rejected. A user can have at most 100 profiles; the 101st shows a form error. The
    form is touch-friendly: one field per row, 44 px minimum height, numeric keyboard.
-2. **New pattern**: the user picks a block and a measurement profile. The app calculates the pattern
-   and displays it.
+2. **New pattern**: under "Mina mönster" (`/patterns`) the user clicks "Nytt mönster"
+   (`/patterns/new`), names the project and picks a block (first block: "Rak kjol", a straight
+   skirt) and one of their measurement profiles. The project page (`/patterns/:id`) calculates the
+   pattern in the browser and draws the front and back pieces to scale over a centimetre grid, with
+   zoom (wheel, pinch), pan (drag) and a "Fit to screen" button. A profile select on the page
+   switches profile and redraws. If the profile lacks measurements the block needs, the page lists
+   them (with a link to edit the profile) instead of drawing. Projects can be renamed and deleted
+   from the list; a user can have at most 100. Deleting a profile keeps its projects, which then
+   ask for a new profile. A project stores a copy of the block definition, so later changes to a
+   block do not affect it.
 3. **Modify**: the user drags points, edits formulas or parameters (e.g. ease), and the pattern is
    recalculated immediately. Switching measurement profile recalculates the whole pattern.
 4. **Finish**: seam allowance is added per edge. Markings (grainline, notches, fold line) are shown.
@@ -45,14 +53,14 @@ The UI is Swedish, so the Swedish UI term is given in parentheses.
 | Parameter | Named value that is not a body measurement, e.g. `ease_hip`. Can be exposed as a slider. |
 | Point (punkt) | Defined by an operation (e.g. "along line A–B, distance `waist/4`"), not by free coordinates. |
 | Pattern piece (mönsterdel) | Closed outline of lines/curves, e.g. "front piece". Has a grainline and seam allowance per edge. |
-| Pattern project (mönsterprojekt) | A user's pattern: a copy of a block plus its modifications, linked to a measurement profile. |
+| Pattern project (mönsterprojekt) | A user's pattern: a copy of a block plus its modifications and parameter overrides, linked to a measurement profile. |
 | Dart (inprovning) | Wedge-shaped fold that shapes the garment. |
 | Seam allowance (sömsmån) | Extra margin outside the seam line. |
 | Tiling (kakling) | Splitting a 1:1 pattern across several A4 pages. |
 
 ## Technology
 - **Phoenix 1.8 / LiveView** (Elixir 1.20, OTP 29) for accounts, measurement profiles and storage
-  of pattern projects. The dev environment (Postgres 17, Elixir, Bun) runs via `docker compose`.
+  of pattern projects. Blocks are JSON files in `engine/blocks/` (ADR 0006). The dev environment (Postgres 17, Elixir, Bun) runs via `docker compose`.
 - **`engine/`**: the pattern engine as a pure TypeScript package (Bun for tests and type checking).
   It takes a pattern definition, measurements and parameters and returns geometry. It has no DOM
   and no I/O. The editor, the PDF export and possibly server rendering use the same code.

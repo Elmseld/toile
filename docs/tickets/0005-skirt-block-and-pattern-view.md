@@ -1,7 +1,7 @@
 ---
 id: 0005
 title: Skirt block and viewing pattern projects
-status: todo
+status: in-progress
 type: feature
 ---
 
@@ -26,13 +26,14 @@ correct proportions, with zoom and pan.
 ## Out of scope
 - Editing points (0008). Seam allowance (0009). Printing (0010).
 
-## Open questions
-- **Angle convention (decide before the first block is stored).** The engine uses degrees with
-  0 = right and 90 = down (clockwise on screen, `atan2(dy, dx)` in SVG coordinates), for
-  `angle(A, B)`, `along_angle` and `perpendicular` (ADR 0004 decision 6). Seamly2D and Valentina
-  use 90 = up. Confirm the current default or switch before "Rak kjol" is written: afterwards a
-  switch changes the meaning of stored definitions and needs a format version bump and a migration.
-  Switching touches only `engine/src/geometry/vector.ts`, `functions.ts`, their tests and ADR 0004.
+## Decisions
+- **Angle convention (resolved):** keep 0 = right, 90 = down (ADR 0004 decision 6, now confirmed).
+- **Drafting method:** Aldrich, *Metric Pattern Cutting for Women's Wear*, 6th ed., close fitting
+  skirt block. The constants are parameters; the definition notes they are not yet checked against
+  the book.
+- **Skirt length:** the `skirt_length` measurement plus a parameter `length_adjustment` (default 0 mm).
+- **Ease defaults:** hip 40 mm, waist 10 mm.
+- Architecture: `docs/adr/0006-pattern-projects-and-blocks.md`.
 
 ## Notes
 The blocks live as data in the repo (e.g. `engine/blocks/`) and are copied into the project when it is created.
