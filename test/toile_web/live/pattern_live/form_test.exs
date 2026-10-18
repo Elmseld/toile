@@ -12,6 +12,20 @@ defmodule ToileWeb.PatternLive.FormTest do
   describe "New" do
     setup :register_and_log_in_user
 
+    test "lists the blocks by their label", %{conn: conn, scope: scope} do
+      measurement_profile_fixture(scope)
+      {:ok, view, _html} = live(conn, ~p"/patterns/new")
+
+      labels =
+        view
+        |> render()
+        |> LazyHTML.from_fragment()
+        |> LazyHTML.query(~s{select[name="pattern_project[block]"] option:not([value=""])})
+        |> Enum.map(&LazyHTML.text/1)
+
+      assert labels == ["Bodice", "Straight skirt"]
+    end
+
     test "creates a project from a block and a profile and shows it", %{
       conn: conn,
       scope: scope
