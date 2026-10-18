@@ -23,7 +23,7 @@ export type {
   UserOffset,
 } from "./types";
 export { compilePattern, evaluatePattern } from "./evaluate";
-export { curvePathData, formatNumber, piecePathData } from "./svg";
+export { type Bounds, curvePathData, formatNumber, patternBounds, piecePathData } from "./svg";
 export {
   MAX_OUTLINE_ENTRIES,
   MAX_SECTION_ENTRIES,

@@ -60,7 +60,7 @@ formulas such as `waist / 4 + ease_waist` with a custom parser (no `eval`). See
 `evaluatePattern(definition, { measurements, parameters? })` (in `src/geometry/`) takes a stored
 pattern definition (JSON) and a measurement profile and returns computed geometry;
 `compilePattern(definition).evaluate(input)` does the same with the definition-only work done once
-(see Compiling below). The Phoenix app does not use it yet (0005). See
+(see Compiling below). The browser editor hook runs it on the client (0005). See
 `docs/adr/0004-pattern-definition-format.md` for the reasoning.
 
 ```json
@@ -98,7 +98,7 @@ A complete example (a rectangle with a dart, tested against two measurement sets
 - **Limits.** At most `MAX_SECTION_ENTRIES` (20 000) entries per section and
   `MAX_OUTLINE_ENTRIES` (1 000) per outline, else `invalid_definition` at that path, and at most
   `MAX_SECTION_ENTRIES` outline entries across all pieces, else `invalid_definition` at `/pieces`;
-  formulas keep their own limits (see Formulas). Storage limits are up to the app (0005).
+  formulas keep their own limits (see Formulas). Storage limits are up to the app (ADR 0006).
 - **Points.** `name`, `op`, the op's fields and an optional `user_offset: { dx, dy }`. Name fields
   hold point names; formula fields hold formulas (ADR 0003) that may also call the geometry
   functions below. Lengths are mm.
@@ -124,7 +124,7 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   `failed_dependency`.
 - **Angles.** Degrees, 0 = right, 90 = down (clockwise on screen, since y points down),
   normalised to `[0, 360)`. `angle(A, B)`, `along_angle` and `perpendicular` all use this. The
-  convention is to be confirmed before 0005 stores the first block (an open question there).
+  convention is confirmed (ADR 0004 decision 6, ticket 0005).
 - **Curves.** `{ name, type: "line", from, to }` or `{ name, type: "cubic", from, c1, c2, to }`;
   every end and control point is a named point. Computed curves carry their `length` (arc length
   of a cubic, within 0.01 mm).
@@ -178,3 +178,24 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   `viewBox` and draws the grainline from `piece.grainline`. `formatNumber(value)` is the number
   formatting they use. Hand-built input never makes them throw: curves of an unknown type are
   skipped (or give `""`), and non-finite numbers are written as `0`.
+  `patternBounds(pattern)` returns `{ minX, minY, maxX, maxY }` over every outline curve's end and
+  control points and the grainline points (null without pieces or when no coordinate is finite, non-finite numbers skipped; the result type
+  `Bounds` is exported), so a
+  caller can fit the `viewBox` without doing geometry itself.
+
+## Blocks
+
+`engine/blocks/<key>.json` holds the block definitions (version 1 pattern definitions), one file
+per block, keyed by file name (`^[a-z][a-z0-9_]*$`). The Phoenix app reads them at compile time
+(`Toile.Patterns.Blocks`) and copies one into a pattern project when it is created, so later
+changes to a block do not affect existing projects (`docs/adr/0006-pattern-projects-and-blocks.md`).
+The engine has no block registry.
+
+- **`straight_skirt.json`** ("Rak kjol"): front and back pieces, each with one waist dart and a
+  hip curve. Measurements `waist`, `hip`, `hip_height`, `skirt_length`; parameters `ease_waist`
+  (10 mm), `ease_hip` (40 mm), `length_adjustment` (0 mm, added to `skirt_length` in the formula `finished_length`) and the draft
+  constants `side_shift`, `side_rise`, `back_dart_length`, `front_dart_length`. The `source` field
+  names the method: Winifred Aldrich, *Metric Pattern Cutting for Women's Wear*, 6th ed., the close
+  fitting skirt block. The constants are not yet checked against the book. The waist and hip seam
+  lengths equal measurement plus ease by construction (tested within 1 mm). It uses no
+  angle-dependent op, so it does not depend on the angle convention.

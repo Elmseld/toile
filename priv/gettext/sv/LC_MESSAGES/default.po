@@ -373,6 +373,7 @@ msgid "Save password"
 msgstr "Spara lösenord"
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
+#: lib/toile_web/live/pattern_live/form.ex
 #: lib/toile_web/live/user_live/settings.ex
 #, elixir-autogen, elixir-format
 msgid "Saving..."
@@ -580,6 +581,7 @@ msgid "At the side, from the waist down to the fullest part of the hips."
 msgstr "Vid sidan, från midjebandet rakt ned till stussens bredaste del."
 
 #: lib/toile_web/live/measurement_profile_live/show.ex
+#: lib/toile_web/live/pattern_live/show.ex
 #, elixir-autogen, elixir-format
 msgid "Back"
 msgstr "Tillbaka"
@@ -610,6 +612,7 @@ msgid "Bust point distance"
 msgstr "Bystpunktsavstånd"
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
+#: lib/toile_web/live/pattern_live/form.ex
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "Avbryt"
@@ -625,6 +628,7 @@ msgid "Complete"
 msgstr "Alla mått ifyllda"
 
 #: lib/toile_web/live/measurement_profile_live/index.ex
+#: lib/toile_web/live/pattern_live/index.ex
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr "Ta bort"
@@ -641,6 +645,7 @@ msgid "Edit"
 msgstr "Redigera"
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
+#: lib/toile_web/live/pattern_live/show.ex
 #, elixir-autogen, elixir-format
 msgid "Edit measurement profile"
 msgstr "Redigera måttprofil"
@@ -709,6 +714,8 @@ msgstr "Saknas"
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
 #: lib/toile_web/live/measurement_profile_live/index.ex
+#: lib/toile_web/live/pattern_live/form.ex
+#: lib/toile_web/live/pattern_live/index.ex
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr "Namn"
@@ -720,11 +727,13 @@ msgstr "Halsvidd"
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
 #: lib/toile_web/live/measurement_profile_live/index.ex
+#: lib/toile_web/live/pattern_live/form.ex
 #, elixir-autogen, elixir-format
 msgid "New measurement profile"
 msgstr "Ny måttprofil"
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
+#: lib/toile_web/live/pattern_live/form.ex
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr "Spara"
@@ -784,3 +793,136 @@ msgstr "Du har inga måttprofiler än."
 msgctxt "decimal separator"
 msgid "."
 msgstr ","
+
+#: lib/toile_web/live/pattern_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "A pattern is drafted from a measurement profile. Create one first."
+msgstr "Ett mönster ritas upp utifrån en måttprofil. Skapa en först."
+
+#: lib/toile_web/live/pattern_live/form.ex
+#: lib/toile_web/live/pattern_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Block"
+msgstr "Grundmönster"
+
+#: lib/toile_web/live/pattern_live/form.ex
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Choose a measurement profile"
+msgstr "Välj en måttprofil"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Choose a measurement profile to draw this pattern."
+msgstr "Välj en måttprofil för att rita upp mönstret."
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Could not change the measurement profile"
+msgstr "Det gick inte att byta måttprofil"
+
+#: lib/toile_web/live/pattern_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Delete this pattern?"
+msgstr "Vill du ta bort mönstret?"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Drag to move the pattern; scroll or pinch to zoom. With the keyboard: arrow keys move, + and - zoom, 0 fits to the screen."
+msgstr "Dra för att flytta mönstret, scrolla eller nyp för att zooma. Med tangentbordet: piltangenterna flyttar, + och - zoomar, 0 anpassar till skärmen."
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Drawing of the pattern %{name}"
+msgstr "Ritning av mönstret %{name}"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Fit to screen"
+msgstr "Anpassa till skärmen"
+
+#: lib/toile_web/live/pattern_live/form.ex
+#: lib/toile_web/live/pattern_live/index.ex
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Measurement profile"
+msgstr "Måttprofil"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Measurements missing for this pattern"
+msgstr "Mått som saknas för det här mönstret"
+
+#: lib/toile_web/live/pattern_live/form.ex
+#: lib/toile_web/live/pattern_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "New pattern"
+msgstr "Nytt mönster"
+
+#: lib/toile_web/live/pattern_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "No measurement profile"
+msgstr "Ingen måttprofil"
+
+#: lib/toile_web/live/pattern_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Open"
+msgstr "Öppna"
+
+#: lib/toile_web/live/pattern_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Pattern created"
+msgstr "Mönstret har skapats"
+
+#: lib/toile_web/live/pattern_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Pattern deleted"
+msgstr "Mönstret har tagits bort"
+
+#: lib/toile_web/live/pattern_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Pattern renamed"
+msgstr "Mönstret har bytt namn"
+
+#: lib/toile_web/live/pattern_live/index.ex
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Rename"
+msgstr "Byt namn"
+
+#: lib/toile_web/live/pattern_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Rename pattern"
+msgstr "Byt namn på mönster"
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Straight skirt"
+msgstr "Rak kjol"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "The pattern could not be computed with these measurements."
+msgstr "Mönstret kunde inte beräknas med de här måtten."
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Zoom in"
+msgstr "Zooma in"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Zoom out"
+msgstr "Zooma ut"
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgctxt "pattern piece"
+msgid "Back"
+msgstr "Bakstycke"
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgctxt "pattern piece"
+msgid "Front"
+msgstr "Framstycke"

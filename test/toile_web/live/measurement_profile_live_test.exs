@@ -4,6 +4,7 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
   import Phoenix.LiveViewTest
   import Toile.AccountsFixtures
   import Toile.MeasurementsFixtures
+  import Toile.PatternsFixtures
 
   alias Toile.Measurements
 
@@ -360,6 +361,85 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
         |> follow_redirect(conn, ~p"/measurements/#{profile}")
 
       assert html =~ "36.0 cm"
+    end
+  end
+
+  describe "Edit from a pattern project" do
+    setup :register_and_log_in_user
+
+    test "the missing-measurements link returns to the pattern after saving", %{
+      conn: conn,
+      scope: scope
+    } do
+      profile = measurement_profile_fixture(scope, %{name: "Partial"})
+      project = pattern_project_fixture(scope, measurement_profile_id: profile.id)
+      edit_path = ~p"/measurements/#{profile}/edit?return_to=pattern&pattern_id=#{project.id}"
+
+      {:ok, pattern, _html} = live(conn, ~p"/patterns/#{project}")
+
+      {:ok, view, _html} =
+        pattern
+        |> element("#edit-profile-link")
+        |> render_click()
+        |> follow_redirect(conn, edit_path)
+
+      assert has_element?(view, ~s(#cancel-measurement-profile[href="/patterns/#{project.id}"]))
+
+      {:ok, pattern, _html} =
+        view
+        |> form("#measurement-profile-form",
+          # The form takes centimetres: 50 cm is the fixture's 500 mm.
+          measurement_profile: %{measurements: Map.new(Measurements.keys(), &{&1, "50"})}
+        )
+        |> render_submit()
+        |> follow_redirect(conn, ~p"/patterns/#{project}")
+
+      assert has_element?(pattern, "#pattern-canvas")
+      refute has_element?(pattern, "#missing-measurements")
+    end
+
+    test "falls back to the profile page for a pattern_id that is not the user's own", %{
+      conn: conn,
+      scope: scope
+    } do
+      profile = measurement_profile_fixture(scope)
+      other_project = pattern_project_fixture(user_scope_fixture())
+
+      for pattern_id <- [other_project.id, Ecto.UUID.generate(), "not-a-uuid", "//evil.example"] do
+        {:ok, view, _html} =
+          live(conn, ~p"/measurements/#{profile}/edit?return_to=pattern&pattern_id=#{pattern_id}")
+
+        assert has_element?(
+                 view,
+                 ~s(#cancel-measurement-profile[href="/measurements/#{profile.id}"])
+               )
+      end
+
+      {:ok, view, _html} =
+        live(
+          conn,
+          ~p"/measurements/#{profile}/edit?return_to=pattern&pattern_id=#{other_project.id}"
+        )
+
+      assert {:error, {:live_redirect, %{to: to}}} =
+               view
+               |> form("#measurement-profile-form",
+                 measurement_profile: %{measurements: %{neck: "36"}}
+               )
+               |> render_submit()
+
+      assert to == ~p"/measurements/#{profile}"
+    end
+
+    test "falls back to the profile page without a pattern_id", %{conn: conn, scope: scope} do
+      profile = measurement_profile_fixture(scope)
+
+      {:ok, view, _html} = live(conn, ~p"/measurements/#{profile}/edit?return_to=pattern")
+
+      assert has_element?(
+               view,
+               ~s(#cancel-measurement-profile[href="/measurements/#{profile.id}"])
+             )
     end
   end
 

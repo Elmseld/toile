@@ -17,6 +17,8 @@ msgstr "måste fyllas i"
 msgid "has already been taken"
 msgstr "används redan"
 
+#: lib/toile/patterns.ex
+#, elixir-autogen
 msgid "is invalid"
 msgstr "är ogiltigt"
 
@@ -130,3 +132,13 @@ msgstr "måste vara större än 0 och högst 300 cm"
 #, elixir-autogen, elixir-format
 msgid "you can have at most %{limit} measurement profiles"
 msgstr "du kan ha högst %{limit} måttprofiler"
+
+#: lib/toile/patterns/pattern_project.ex
+#, elixir-autogen, elixir-format
+msgid "is too large"
+msgstr "är för stor"
+
+#: lib/toile/patterns.ex
+#, elixir-autogen, elixir-format
+msgid "you can have at most %{limit} patterns"
+msgstr "du kan ha högst %{limit} mönster"

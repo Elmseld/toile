@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { curvePathData, formatNumber, piecePathData } from "./svg";
+import { curvePathData, formatNumber, patternBounds, piecePathData } from "./svg";
 import type { ComputedCurve, ComputedPiece } from "./types";
 import type { Point } from "./vector";
 
@@ -98,5 +98,75 @@ describe("piecePathData", () => {
 
   test("an empty outline (only hand-built) gives an empty string", () => {
     expect(piecePathData({ name: "e", outline: [], grainline: { from: p(0, 0), to: p(0, 1) } })).toBe("");
+  });
+});
+
+describe("patternBounds", () => {
+  const triangle: ComputedPiece = {
+    name: "t",
+    outline: [
+      line("ab", p(0, 0), p(100, 0)),
+      line("bc", p(100, 0), p(50, 80)),
+      line("ca", p(50, 80), p(0, 0)),
+    ],
+    grainline: { from: p(50, 10), to: p(50, 70) },
+  };
+
+  test("null without pieces", () => {
+    expect(patternBounds({ pieces: {} })).toBeNull();
+  });
+
+  test("the box around a piece of lines", () => {
+    expect(patternBounds({ pieces: { t: triangle } })).toEqual({ minX: 0, minY: 0, maxX: 100, maxY: 80 });
+  });
+
+  test("a cubic's control points extend the box", () => {
+    const [a, b] = [p(0, 0), p(100, 0)];
+    const piece: ComputedPiece = {
+      name: "d",
+      outline: [
+        line("ab", a, b),
+        { name: "ba", type: "cubic", from: b, c1: p(120, 50), c2: p(-10, 60), to: a, length: 0 },
+      ],
+      grainline: { from: p(50, 0), to: p(50, 10) },
+    };
+    expect(patternBounds({ pieces: { d: piece } })).toEqual({ minX: -10, minY: 0, maxX: 120, maxY: 60 });
+  });
+
+  test("grainline points are included", () => {
+    const piece: ComputedPiece = { ...triangle, grainline: { from: p(-5, -20), to: p(50, 90) } };
+    expect(patternBounds({ pieces: { t: piece } })).toEqual({ minX: -5, minY: -20, maxX: 100, maxY: 90 });
+  });
+
+  test("covers every piece", () => {
+    const moved: ComputedPiece = {
+      name: "m",
+      outline: [line("de", p(200, 10), p(300, 10)), line("ed", p(300, 10), p(200, 10))],
+      grainline: { from: p(250, 10), to: p(250, 20) },
+    };
+    expect(patternBounds({ pieces: { t: triangle, m: moved } })).toEqual({
+      minX: 0,
+      minY: 0,
+      maxX: 300,
+      maxY: 80,
+    });
+  });
+
+  test("non-finite numbers (only hand-built) are skipped per axis", () => {
+    const piece: ComputedPiece = {
+      ...triangle,
+      grainline: { from: p(Number.NaN, 500), to: p(Infinity, -Infinity) },
+    };
+    expect(patternBounds({ pieces: { t: piece } })).toEqual({ minX: 0, minY: 0, maxX: 100, maxY: 500 });
+  });
+
+  test("null when no coordinate is finite", () => {
+    const nan = p(Number.NaN, Number.NaN);
+    const piece: ComputedPiece = {
+      name: "n",
+      outline: [line("nn", nan, nan)],
+      grainline: { from: nan, to: nan },
+    };
+    expect(patternBounds({ pieces: { n: piece } })).toBeNull();
   });
 });

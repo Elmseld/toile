@@ -36,6 +36,10 @@ jobs:
           key: mix-${{ runner.os }}-${{ hashFiles('.tool-versions', 'mix.lock') }}
       - run: mix deps.get
       - run: mix compile --warnings-as-errors
+      # Bundles assets/js/app.js, which imports the engine from engine/src (ADR 0006), so a broken
+      # import or engine code esbuild cannot bundle fails CI. Tailwind is not needed for that.
+      - run: mix esbuild.install --if-missing
+      - run: mix esbuild toile
       - run: mix gettext.extract --check-up-to-date
       - run: mix format --check-formatted
       - run: mix deps.unlock --check-unused

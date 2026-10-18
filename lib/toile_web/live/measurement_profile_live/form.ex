@@ -10,11 +10,19 @@ defmodule ToileWeb.MeasurementProfileLive.Form do
   The inputs are built for touch: one field per row, `input-lg` with a 44 px minimum height
   (`min-h-11`, the theme field size alone renders 42 px), `inputmode="decimal"` for the
   numeric keyboard, and large save and cancel buttons of the same minimum height.
+
+  Saving an edit and cancelling go back to where the form was opened from (`return_to`):
+  `show` returns to the profile page, `pattern` with a `pattern_id` returns to that pattern
+  project (used by its missing-measurements link), and anything else returns to the list. A
+  `pattern_id` that is not one of the current user's projects (unknown, another user's or
+  malformed) falls back to the profile page; the id is checked through `Toile.Patterns`, so no
+  path from the params is ever followed.
   """
   use ToileWeb, :live_view
 
   alias Toile.Measurements
   alias Toile.Measurements.MeasurementProfile
+  alias Toile.Patterns
   alias ToileWeb.Centimeters
   alias ToileWeb.MeasurementTexts
 
@@ -79,12 +87,22 @@ defmodule ToileWeb.MeasurementProfileLive.Form do
     {:ok,
      socket
      |> assign(:keys, Measurements.keys())
-     |> assign(:return_to, return_to(params["return_to"]))
+     |> assign(:return_to, return_to(socket.assigns.current_scope, params))
      |> apply_action(socket.assigns.live_action, params)}
   end
 
-  defp return_to("show"), do: "show"
-  defp return_to(_), do: "index"
+  # The pattern id comes from the URL, so it is only used after the scoped context confirms it
+  # is one of the user's projects; otherwise the form returns to the profile page as before.
+  defp return_to(scope, %{"return_to" => "pattern", "pattern_id" => pattern_id}) do
+    if Patterns.pattern_project_exists?(scope, pattern_id),
+      do: {:pattern, pattern_id},
+      else: "show"
+  end
+
+  defp return_to(_scope, %{"return_to" => return_to}) when return_to in ["show", "pattern"],
+    do: "show"
+
+  defp return_to(_scope, _params), do: "index"
 
   defp apply_action(socket, :edit, %{"id" => id}) do
     profile = Measurements.get_measurement_profile!(socket.assigns.current_scope, id)
@@ -163,8 +181,12 @@ defmodule ToileWeb.MeasurementProfileLive.Form do
     end
   end
 
+  defp return_path({:pattern, pattern_id}, _profile), do: ~p"/patterns/#{pattern_id}"
   defp return_path("show", profile), do: ~p"/measurements/#{profile}"
   defp return_path("index", _profile), do: ~p"/measurements"
+
+  defp cancel_path({:pattern, _pattern_id} = return_to, profile),
+    do: return_path(return_to, profile)
 
   # A new profile has no page of its own yet, so cancelling goes back to the list.
   defp cancel_path("show", %MeasurementProfile{id: id} = profile) when not is_nil(id),

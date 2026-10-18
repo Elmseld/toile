@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "name": "Straight skirt",
+  "source": "Based on Winifred Aldrich, Metric Pattern Cutting for Women's Wear, 6th ed. (Wiley-Blackwell, 2015), \"The close fitting skirt block\". Deviations: back and front are drafted in separate frames 50 mm apart instead of on a shared side line; the waist dart takes half the waist suppression and the side seam the other half; the ease and the draft constants (side_shift, side_rise, back_dart_length, front_dart_length) are parameters whose defaults are not yet checked against the book.",
+  "measurements": ["waist", "hip", "hip_height", "skirt_length"],
+  "parameters": {
+    "ease_waist": 10,
+    "ease_hip": 40,
+    "length_adjustment": 0,
+    "side_shift": 5,
+    "side_rise": 12.5,
+    "back_dart_length": 140,
+    "front_dart_length": 100
+  },
+  "formulas": {
+    "hip_quarter": "(hip + ease_hip) / 4",
+    "waist_quarter": "(waist + ease_waist) / 4",
+    "finished_length": "skirt_length + length_adjustment",
+    "back_hip": "hip_quarter - side_shift",
+    "front_hip": "hip_quarter + side_shift",
+    "back_waist": "waist_quarter - side_shift",
+    "front_waist": "waist_quarter + side_shift",
+    "suppression": "hip_quarter - waist_quarter",
+    "dart_intake": "max(0, suppression / 2)",
+    "piece_gap": "50"
+  },
+  "points": [
+    { "name": "b_waist_cb", "op": "start", "x": "0", "y": "0" },
+    { "name": "b_hip_cb", "op": "offset", "from": "b_waist_cb", "dx": "0", "dy": "hip_height" },
+    { "name": "b_hem_cb", "op": "offset", "from": "b_waist_cb", "dx": "0", "dy": "finished_length" },
+    { "name": "b_top_side", "op": "offset", "from": "b_waist_cb", "dx": "back_hip", "dy": "0" },
+    { "name": "b_hip_side", "op": "offset", "from": "b_hip_cb", "dx": "back_hip", "dy": "0" },
+    { "name": "b_hem_side", "op": "offset", "from": "b_hem_cb", "dx": "back_hip", "dy": "0" },
+    { "name": "b_dart_mid", "op": "offset", "from": "b_waist_cb", "dx": "back_hip / 2", "dy": "0" },
+    { "name": "b_dart_cb", "op": "offset", "from": "b_dart_mid", "dx": "-dart_intake / 2", "dy": "0" },
+    { "name": "b_dart_side", "op": "offset", "from": "b_dart_mid", "dx": "dart_intake / 2", "dy": "0" },
+    { "name": "b_dart_apex", "op": "offset", "from": "b_dart_mid", "dx": "0", "dy": "back_dart_length" },
+    { "name": "b_rise_cb", "op": "offset", "from": "b_waist_cb", "dx": "0", "dy": "-side_rise" },
+    { "name": "b_rise_side", "op": "offset", "from": "b_top_side", "dx": "0", "dy": "-side_rise" },
+    {
+      "name": "b_waist_side",
+      "op": "line_circle_intersection",
+      "line": ["b_rise_cb", "b_rise_side"],
+      "center": "b_dart_side",
+      "radius": "back_waist - (back_hip / 2 - dart_intake / 2)",
+      "which": "second"
+    },
+    { "name": "b_hip_ctrl", "op": "offset", "from": "b_hip_side", "dx": "0", "dy": "-hip_height / 2" },
+    {
+      "name": "b_curve_c1",
+      "op": "along_line",
+      "from": "b_waist_side",
+      "to": "b_hip_ctrl",
+      "distance": "distance(b_waist_side, b_hip_ctrl) / 2"
+    },
+    { "name": "b_grain_top", "op": "offset", "from": "b_hip_cb", "dx": "back_hip / 2", "dy": "0" },
+    { "name": "b_grain_bottom", "op": "offset", "from": "b_hem_cb", "dx": "back_hip / 2", "dy": "-50" },
+
+    { "name": "f_top_side", "op": "offset", "from": "b_top_side", "dx": "piece_gap", "dy": "0" },
+    { "name": "f_waist_cf", "op": "offset", "from": "f_top_side", "dx": "front_hip", "dy": "0" },
+    { "name": "f_hip_side", "op": "offset", "from": "f_top_side", "dx": "0", "dy": "hip_height" },
+    { "name": "f_hem_side", "op": "offset", "from": "f_top_side", "dx": "0", "dy": "finished_length" },
+    { "name": "f_hip_cf", "op": "offset", "from": "f_waist_cf", "dx": "0", "dy": "hip_height" },
+    { "name": "f_hem_cf", "op": "offset", "from": "f_waist_cf", "dx": "0", "dy": "finished_length" },
+    { "name": "f_dart_mid", "op": "offset", "from": "f_waist_cf", "dx": "-front_hip / 2", "dy": "0" },
+    { "name": "f_dart_side", "op": "offset", "from": "f_dart_mid", "dx": "-dart_intake / 2", "dy": "0" },
+    { "name": "f_dart_cf", "op": "offset", "from": "f_dart_mid", "dx": "dart_intake / 2", "dy": "0" },
+    { "name": "f_dart_apex", "op": "offset", "from": "f_dart_mid", "dx": "0", "dy": "front_dart_length" },
+    { "name": "f_rise_side", "op": "offset", "from": "f_top_side", "dx": "0", "dy": "-side_rise" },
+    { "name": "f_rise_cf", "op": "offset", "from": "f_waist_cf", "dx": "0", "dy": "-side_rise" },
+    {
+      "name": "f_waist_side",
+      "op": "line_circle_intersection",
+      "line": ["f_rise_side", "f_rise_cf"],
+      "center": "f_dart_side",
+      "radius": "front_waist - (front_hip / 2 - dart_intake / 2)",
+      "which": "first"
+    },
+    { "name": "f_hip_ctrl", "op": "offset", "from": "f_hip_side", "dx": "0", "dy": "-hip_height / 2" },
+    {
+      "name": "f_curve_c2",
+      "op": "along_line",
+      "from": "f_waist_side",
+      "to": "f_hip_ctrl",
+      "distance": "distance(f_waist_side, f_hip_ctrl) / 2"
+    },
+    { "name": "f_grain_top", "op": "offset", "from": "f_hip_cf", "dx": "-front_hip / 2", "dy": "0" },
+    { "name": "f_grain_bottom", "op": "offset", "from": "f_hem_cf", "dx": "-front_hip / 2", "dy": "-50" }
+  ],
+  "curves": [
+    { "name": "b_waist_cb_seg", "type": "line", "from": "b_waist_cb", "to": "b_dart_cb" },
+    { "name": "b_dart_leg_cb", "type": "line", "from": "b_dart_cb", "to": "b_dart_apex" },
+    { "name": "b_dart_leg_side", "type": "line", "from": "b_dart_apex", "to": "b_dart_side" },
+    { "name": "b_waist_side_seg", "type": "line", "from": "b_dart_side", "to": "b_waist_side" },
+    { "name": "b_hip_curve", "type": "cubic", "from": "b_waist_side", "c1": "b_curve_c1", "c2": "b_hip_ctrl", "to": "b_hip_side" },
+    { "name": "b_side_lower", "type": "line", "from": "b_hip_side", "to": "b_hem_side" },
+    { "name": "b_hem", "type": "line", "from": "b_hem_side", "to": "b_hem_cb" },
+    { "name": "b_cb", "type": "line", "from": "b_hem_cb", "to": "b_waist_cb" },
+
+    { "name": "f_waist_side_seg", "type": "line", "from": "f_waist_side", "to": "f_dart_side" },
+    { "name": "f_dart_leg_side", "type": "line", "from": "f_dart_side", "to": "f_dart_apex" },
+    { "name": "f_dart_leg_cf", "type": "line", "from": "f_dart_apex", "to": "f_dart_cf" },
+    { "name": "f_waist_cf_seg", "type": "line", "from": "f_dart_cf", "to": "f_waist_cf" },
+    { "name": "f_cf", "type": "line", "from": "f_waist_cf", "to": "f_hem_cf" },
+    { "name": "f_hem", "type": "line", "from": "f_hem_cf", "to": "f_hem_side" },
+    { "name": "f_side_lower", "type": "line", "from": "f_hem_side", "to": "f_hip_side" },
+    { "name": "f_hip_curve", "type": "cubic", "from": "f_hip_side", "c1": "f_hip_ctrl", "c2": "f_curve_c2", "to": "f_waist_side" }
+  ],
+  "pieces": [
+    {
+      "name": "back",
+      "outline": [
+        { "curve": "b_waist_cb_seg" },
+        { "curve": "b_dart_leg_cb" },
+        { "curve": "b_dart_leg_side" },
+        { "curve": "b_waist_side_seg" },
+        { "curve": "b_hip_curve" },
+        { "curve": "b_side_lower" },
+        { "curve": "b_hem" },
+        { "curve": "b_cb" }
+      ],
+      "grainline": { "from": "b_grain_top", "to": "b_grain_bottom" }
+    },
+    {
+      "name": "front",
+      "outline": [
+        { "curve": "f_waist_side_seg" },
+        { "curve": "f_dart_leg_side" },
+        { "curve": "f_dart_leg_cf" },
+        { "curve": "f_waist_cf_seg" },
+        { "curve": "f_cf" },
+        { "curve": "f_hem" },
+        { "curve": "f_side_lower" },
+        { "curve": "f_hip_curve" }
+      ],
+      "grainline": { "from": "f_grain_top", "to": "f_grain_bottom" }
+    }
+  ]
+}

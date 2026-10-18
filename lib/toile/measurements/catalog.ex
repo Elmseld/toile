@@ -16,7 +16,7 @@ defmodule Toile.Measurements.Catalog do
 
   raw_keys = @path |> File.read!() |> JSON.decode!()
 
-  unless is_list(raw_keys) and raw_keys != [] do
+  if not (is_list(raw_keys) and raw_keys != []) do
     raise CompileError,
       description: "#{@path} must be a non-empty JSON array of measurement keys"
   end

@@ -40,9 +40,9 @@ a drag. The definition and its formulas are untrusted user input. This ADR build
    `angle(A, B)`, `along_angle` and `perpendicular` share it, so
    `along_angle(A, angle(A, B), d)` equals `along_line(A, B, d)`. `perpendicular` with a positive
    distance lies at `angle(from, to) + 90`: for a line pointing right, positive is down. Seamly2D
-   and Valentina use 90 = up. This is the default until confirmed: it is an open question of
-   ticket 0005, to be settled before 0005 stores the first block, since switching afterwards
-   changes the meaning of stored definitions (a version bump and a migration).
+   and Valentina use 90 = up. Confirmed in ticket 0005, before the first block was stored:
+   switching now would change the meaning of stored definitions (a version bump and a migration).
+   The user interface may present angles converted without changing stored definitions.
 7. **Perpendicular op.** A point at a signed distance on the perpendicular erected at `from` on
    `from -> to`. Dropping a foot point onto a line is not added; add an op (no version bump, see
    decision 1) when a block needs it.
@@ -76,8 +76,8 @@ a drag. The definition and its formulas are untrusted user input. This ADR build
 13. **SVG output** is `M/L/C/Z` path data in mm user units, rounded to 0.01 mm with no `-0`. The
     caller chooses the `viewBox`.
 14. **No schema file.** The TypeScript validator is the source of truth. How the Phoenix app
-    validates stored definitions is decided in 0005/0008 (Elixir validates but never computes
-    geometry).
+    validates stored definitions is decided in ADR 0006 (shape and size only) and 0008 (Elixir
+    validates but never computes geometry).
 15. **Compile once, evaluate per input.** `compilePattern(definition)` validates, checks names and
     references, parses every formula, checks outline closure and orders the dependency graph
     (cycle errors included) once; its `evaluate(input, { offsets }?)` only reads measurement and
@@ -100,7 +100,7 @@ a drag. The definition and its formulas are untrusted user input. This ADR build
     keeps every length and SVG number finite and gives every point in `points` a `basePoints`
     entry.
     Limits on the stored size of a definition (bytes per project, projects per user) belong to the
-    Phoenix app and are set in 0005.
+    Phoenix app and are set in ADR 0006 (1 000 000 bytes, 100 projects per user).
 
 Rejected alternatives:
 - A schema/validation dependency (zod, a JSON Schema validator): a new dependency for a small
@@ -118,8 +118,8 @@ Rejected alternatives:
   version bump and a migration. Adding an optional field or an op does not, so the version number
   alone does not say which fields a definition uses; an engine older than a definition rejects it
   as `invalid_definition` rather than drawing it wrongly.
-- Switching the angle convention before 0005 touches only `vector.ts`, `functions.ts`, their tests
-  and this ADR.
+- The angle convention (0 = right, 90 = down) is confirmed. Changing it now needs a version bump
+  and a migration of stored definitions.
 - References between pieces or projects (0007) are not part of version 1: `length(curve)` only sees
   curves of the same definition. Until then the caller measures across patterns: evaluate pattern 1,
   read `curves.<name>.length` or a formula value, and pass it as a measurement to pattern 2.

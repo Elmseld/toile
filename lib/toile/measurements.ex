@@ -226,4 +226,26 @@ defmodule Toile.Measurements do
   def missing_measurements(%MeasurementProfile{measurements: measurements}) do
     Enum.filter(Catalog.keys(), &is_nil(Map.get(measurements, &1)))
   end
+
+  @doc """
+  Returns the profile's measurements as the pattern engine takes them: a map from the key as a
+  string to integer millimetres, without the measurements that have no value.
+
+  Missing values are dropped rather than sent as `null`, so the engine reports them as missing
+  (`docs/adr/0005-measurement-keys.md`). Takes a profile that was already fetched through a
+  scoped function, so it needs no scope.
+
+  ## Examples
+
+      iex> measurement_values(%MeasurementProfile{measurements: %Values{waist: 725}})
+      %{"waist" => 725}
+
+  """
+  def measurement_values(%MeasurementProfile{measurements: measurements}) do
+    for key <- Catalog.keys(),
+        value = Map.get(measurements, key),
+        not is_nil(value),
+        into: %{},
+        do: {Atom.to_string(key), value}
+  end
 end
