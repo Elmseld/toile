@@ -51,6 +51,13 @@ describe("FUNCTIONS", () => {
     expect(call("deg", Math.PI)).toBeCloseTo(180, 10);
   });
 
+  test("rad and deg stay finite when the converted value is representable", () => {
+    expect(call("rad", 1e308)).toBeCloseTo((Math.PI / 180) * 1e308, -300);
+    expect(Number.isFinite(call("rad", 1e308))).toBe(true);
+    expect(Number.isFinite(call("deg", 1e306))).toBe(true);
+    expect(call("deg", 1e306) / 1e306).toBeCloseTo(180 / Math.PI, 10);
+  });
+
   test("names are not looked up on the prototype", () => {
     expect(FUNCTIONS.get("constructor")).toBeUndefined();
     expect(FUNCTIONS.get("__proto__")).toBeUndefined();

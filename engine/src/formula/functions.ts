@@ -32,8 +32,12 @@ export type FunctionSpec =
 /** A function table, keyed by name. Use a `Map` so prototype members are never reachable. */
 export type FunctionTable = ReadonlyMap<string, FunctionSpec>;
 
-const toRad = (degrees: number): number => (degrees * Math.PI) / 180;
-const toDeg = (radians: number): number => (radians * 180) / Math.PI;
+// One multiplication by a precomputed ratio: multiplying by π or 180 first would overflow to
+// Infinity for huge inputs whose converted value is still representable.
+const RAD_PER_DEG = Math.PI / 180;
+const DEG_PER_RAD = 180 / Math.PI;
+const toRad = (degrees: number): number => degrees * RAD_PER_DEG;
+const toDeg = (radians: number): number => radians * DEG_PER_RAD;
 
 // Callers check arity before `apply`, so `args[i] ?? NaN` is only there for the type checker.
 const unary = (fn: (x: number) => number): FunctionSpec => ({
