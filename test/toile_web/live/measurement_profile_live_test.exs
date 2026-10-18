@@ -1,140 +1,317 @@
 defmodule ToileWeb.MeasurementProfileLiveTest do
-  use ToileWeb.ConnCase
+  use ToileWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import Toile.AccountsFixtures
   import Toile.MeasurementsFixtures
 
-  @create_attrs %{name: "some name"}
-  @update_attrs %{name: "some updated name"}
-  @invalid_attrs %{name: nil}
+  alias Toile.Measurements
+  alias Toile.Measurements.Catalog
 
-  setup :register_and_log_in_user
-
-  defp create_measurement_profile(%{scope: scope}) do
-    measurement_profile = measurement_profile_fixture(scope)
-
-    %{measurement_profile: measurement_profile}
+  describe "logged out" do
+    test "redirects every page to log in", %{conn: conn} do
+      for path <- ["/measurements", "/measurements/new"] do
+        assert {:error, {:redirect, %{to: "/users/log-in"}}} = live(conn, path)
+      end
+    end
   end
 
   describe "Index" do
-    setup [:create_measurement_profile]
+    setup :register_and_log_in_user
 
-    test "lists all measurement_profiles", %{conn: conn, measurement_profile: measurement_profile} do
-      {:ok, _index_live, html} = live(conn, ~p"/measurements")
+    test "shows the empty state without profiles", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/measurements")
 
-      assert html =~ "Listing Measurement profiles"
-      assert html =~ measurement_profile.name
+      assert has_element?(view, "h1", "Measurements")
+      assert has_element?(view, "#measurement-profiles-empty")
+      assert has_element?(view, ~s(#new-measurement-profile[href="/measurements/new"]))
     end
 
-    test "saves new measurement_profile", %{conn: conn} do
-      {:ok, index_live, _html} = live(conn, ~p"/measurements")
-
-      assert {:ok, form_live, _} =
-               index_live
-               |> element("a", "New Measurement profile")
-               |> render_click()
-               |> follow_redirect(conn, ~p"/measurements/new")
-
-      assert render(form_live) =~ "New Measurement profile"
-
-      assert form_live
-             |> form("#measurement_profile-form", measurement_profile: @invalid_attrs)
-             |> render_change() =~ "can&#39;t be blank"
-
-      assert {:ok, index_live, _html} =
-               form_live
-               |> form("#measurement_profile-form", measurement_profile: @create_attrs)
-               |> render_submit()
-               |> follow_redirect(conn, ~p"/measurements")
-
-      html = render(index_live)
-      assert html =~ "Measurement profile created successfully"
-      assert html =~ "some name"
-    end
-
-    test "updates measurement_profile in listing", %{
+    test "lists only the user's own profiles with their missing counts", %{
       conn: conn,
-      measurement_profile: measurement_profile
+      scope: scope
     } do
-      {:ok, index_live, _html} = live(conn, ~p"/measurements")
+      partial = measurement_profile_fixture(scope, %{name: "Partial"})
 
-      assert {:ok, form_live, _html} =
-               index_live
-               |> element("#measurement_profiles-#{measurement_profile.id} a", "Edit")
-               |> render_click()
-               |> follow_redirect(conn, ~p"/measurements/#{measurement_profile}/edit")
+      complete =
+        measurement_profile_fixture(scope, %{name: "Full", measurements: complete_measurements()})
 
-      assert render(form_live) =~ "Edit Measurement profile"
+      one_missing =
+        measurement_profile_fixture(scope, %{
+          name: "Almost",
+          measurements: Map.delete(complete_measurements(), :wrist)
+        })
 
-      assert form_live
-             |> form("#measurement_profile-form", measurement_profile: @invalid_attrs)
-             |> render_change() =~ "can&#39;t be blank"
+      other = measurement_profile_fixture(user_scope_fixture(), %{name: "Someone else"})
 
-      assert {:ok, index_live, _html} =
-               form_live
-               |> form("#measurement_profile-form", measurement_profile: @update_attrs)
-               |> render_submit()
-               |> follow_redirect(conn, ~p"/measurements")
+      {:ok, view, html} = live(conn, ~p"/measurements")
 
-      html = render(index_live)
-      assert html =~ "Measurement profile updated successfully"
-      assert html =~ "some updated name"
+      refute has_element?(view, "#measurement-profiles-empty")
+      assert has_element?(view, "#measurement_profiles-#{partial.id}", "Partial")
+
+      assert has_element?(
+               view,
+               "#measurement_profiles-#{partial.id}-status",
+               "17 measurements missing"
+             )
+
+      assert has_element?(view, "#measurement_profiles-#{complete.id}-status", "Complete")
+
+      assert has_element?(
+               view,
+               "#measurement_profiles-#{one_missing.id}-status",
+               "1 measurement missing"
+             )
+
+      refute has_element?(view, "#measurement_profiles-#{other.id}")
+      refute html =~ "Someone else"
     end
 
-    test "deletes measurement_profile in listing", %{
-      conn: conn,
-      measurement_profile: measurement_profile
+    test "deletes a profile from the list", %{conn: conn, scope: scope} do
+      profile = measurement_profile_fixture(scope)
+      {:ok, view, _html} = live(conn, ~p"/measurements")
+
+      assert has_element?(
+               view,
+               ~s(#measurement_profiles-#{profile.id} button[data-confirm="Delete this measurement profile?"])
+             )
+
+      view
+      |> element("#measurement_profiles-#{profile.id} button", "Delete")
+      |> render_click()
+
+      refute has_element?(view, "#measurement_profiles-#{profile.id}")
+      assert has_element?(view, "#measurement-profiles-empty")
+      assert render(view) =~ "Measurement profile deleted"
+      assert Measurements.list_measurement_profiles(scope) == []
+    end
+  end
+
+  describe "New" do
+    setup :register_and_log_in_user
+
+    test "creates a profile from cm with a comma and shows it", %{conn: conn, scope: scope} do
+      {:ok, view, _html} = live(conn, ~p"/measurements/new")
+
+      assert has_element?(view, "h1", "New measurement profile")
+
+      result =
+        view
+        |> form("#measurement-profile-form",
+          measurement_profile: %{name: "Me", measurements: %{waist: "72,5"}}
+        )
+        |> render_submit()
+
+      assert [%{name: "Me"} = profile] = Measurements.list_measurement_profiles(scope)
+      assert profile.measurements.waist == 725
+
+      {:ok, show, html} = follow_redirect(result, conn, ~p"/measurements/#{profile}")
+      assert html =~ "Measurement profile created"
+
+      assert has_element?(show, "#measurement-waist-value", "72.5 cm")
+      assert has_element?(show, "#measurement-hip-missing", "Missing")
+    end
+
+    test "saves a profile with only a name", %{conn: conn, scope: scope} do
+      {:ok, view, _html} = live(conn, ~p"/measurements/new")
+
+      {:ok, _show, _html} =
+        view
+        |> form("#measurement-profile-form", measurement_profile: %{name: "Only a name"})
+        |> render_submit()
+        |> follow_redirect(conn)
+
+      assert [profile] = Measurements.list_measurement_profiles(scope)
+      assert length(Measurements.missing_measurements(profile)) == length(Catalog.keys())
+    end
+
+    test "shows range, format and name errors while typing", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/measurements/new")
+
+      for value <- ["300.1", "0", "-5"] do
+        html =
+          view
+          |> form("#measurement-profile-form",
+            measurement_profile: %{name: "Me", measurements: %{waist: value}}
+          )
+          |> render_change()
+
+        assert html =~ "must be more than 0 and at most 300 cm",
+               "expected #{value} to be rejected"
+      end
+
+      for value <- ["300", "0.1", "300,0"] do
+        html =
+          view
+          |> form("#measurement-profile-form",
+            measurement_profile: %{name: "Me", measurements: %{waist: value}}
+          )
+          |> render_change()
+
+        refute html =~ "must be more than 0", "expected #{value} to be accepted"
+      end
+
+      view
+      |> form("#measurement-profile-form",
+        measurement_profile: %{name: "Me", measurements: %{waist: "72.55"}}
+      )
+      |> render_change()
+
+      assert has_element?(
+               view,
+               "#measurement-field-waist",
+               "must be a number in cm with at most one decimal"
+             )
+
+      assert has_element?(view, ~s(#measurement-field-waist input[value="72.55"]))
+
+      html =
+        view
+        |> form("#measurement-profile-form", measurement_profile: %{name: ""})
+        |> render_change()
+
+      assert html =~ "can&#39;t be blank"
+
+      html =
+        view
+        |> form("#measurement-profile-form",
+          measurement_profile: %{name: String.duplicate("a", 101)}
+        )
+        |> render_change()
+
+      assert html =~ "should be at most 100 character(s)"
+    end
+
+    test "does not save invalid input", %{conn: conn, scope: scope} do
+      {:ok, view, _html} = live(conn, ~p"/measurements/new")
+
+      html =
+        view
+        |> form("#measurement-profile-form",
+          measurement_profile: %{name: "Me", measurements: %{waist: "abc"}}
+        )
+        |> render_submit()
+
+      assert html =~ "must be a number in cm with at most one decimal"
+      assert Measurements.list_measurement_profiles(scope) == []
+    end
+
+    test "every measurement input is a touch-friendly decimal text field with help", %{
+      conn: conn
     } do
-      {:ok, index_live, _html} = live(conn, ~p"/measurements")
+      {:ok, view, _html} = live(conn, ~p"/measurements/new")
 
-      assert index_live
-             |> element("#measurement_profiles-#{measurement_profile.id} a", "Delete")
-             |> render_click()
+      for key <- Catalog.keys() do
+        input = "#measurement-input-#{key}"
 
-      refute has_element?(index_live, "#measurement_profiles-#{measurement_profile.id}")
+        assert has_element?(
+                 view,
+                 ~s(#{input}[type="text"][inputmode="decimal"][aria-describedby="help-#{key}"])
+               )
+
+        assert has_element?(view, "#{input}.input-lg")
+        assert has_element?(view, "#help-#{key}")
+      end
+
+      assert has_element?(
+               view,
+               ~s(label[for="measurement-input-waist"]),
+               "Waist circumference (cm)"
+             )
+
+      assert has_element?(view, "#save-measurement-profile.btn-lg", "Save")
+      assert has_element?(view, ~s(#cancel-measurement-profile[href="/measurements"]))
+    end
+  end
+
+  describe "Edit" do
+    setup :register_and_log_in_user
+
+    test "shows stored mm as cm and clears a measurement", %{conn: conn, scope: scope} do
+      profile = measurement_profile_fixture(scope, %{measurements: %{waist: 725, hip: 1000}})
+
+      {:ok, view, _html} = live(conn, ~p"/measurements/#{profile}/edit")
+
+      assert has_element?(view, "h1", "Edit measurement profile")
+      assert has_element?(view, ~s(#measurement-input-waist[value="72.5"]))
+      assert has_element?(view, ~s(#measurement-input-hip[value="100.0"]))
+
+      {:ok, _index, html} =
+        view
+        |> form("#measurement-profile-form",
+          measurement_profile: %{name: "Renamed", measurements: %{waist: ""}}
+        )
+        |> render_submit()
+        |> follow_redirect(conn, ~p"/measurements")
+
+      assert html =~ "Measurement profile updated"
+      assert html =~ "Renamed"
+
+      updated = Measurements.get_measurement_profile!(scope, profile.id)
+      assert updated.measurements.waist == nil
+      assert updated.measurements.hip == 1000
+    end
+
+    test "returns to the show page when opened from there", %{conn: conn, scope: scope} do
+      profile = measurement_profile_fixture(scope)
+
+      {:ok, show, _html} = live(conn, ~p"/measurements/#{profile}")
+
+      {:ok, view, _html} =
+        show
+        |> element("#edit-measurement-profile")
+        |> render_click()
+        |> follow_redirect(conn, ~p"/measurements/#{profile}/edit?return_to=show")
+
+      assert has_element?(
+               view,
+               ~s(#cancel-measurement-profile[href="/measurements/#{profile.id}"])
+             )
+
+      {:ok, _show, html} =
+        view
+        |> form("#measurement-profile-form",
+          measurement_profile: %{measurements: %{neck: "36"}}
+        )
+        |> render_submit()
+        |> follow_redirect(conn, ~p"/measurements/#{profile}")
+
+      assert html =~ "36.0 cm"
     end
   end
 
   describe "Show" do
-    setup [:create_measurement_profile]
+    setup :register_and_log_in_user
 
-    test "displays measurement_profile", %{conn: conn, measurement_profile: measurement_profile} do
-      {:ok, _show_live, html} = live(conn, ~p"/measurements/#{measurement_profile}")
-
-      assert html =~ "Show Measurement profile"
-      assert html =~ measurement_profile.name
-    end
-
-    test "updates measurement_profile and returns to show", %{
+    test "lists every measurement with its value or a missing marker", %{
       conn: conn,
-      measurement_profile: measurement_profile
+      scope: scope
     } do
-      {:ok, show_live, _html} = live(conn, ~p"/measurements/#{measurement_profile}")
+      profile = measurement_profile_fixture(scope, %{name: "Mine", measurements: %{bust: 921}})
 
-      assert {:ok, form_live, _} =
-               show_live
-               |> element("a", "Edit")
-               |> render_click()
-               |> follow_redirect(
-                 conn,
-                 ~p"/measurements/#{measurement_profile}/edit?return_to=show"
-               )
+      {:ok, view, _html} = live(conn, ~p"/measurements/#{profile}")
 
-      assert render(form_live) =~ "Edit Measurement profile"
+      assert has_element?(view, "h1", "Mine")
+      assert has_element?(view, "#measurement-bust", "Bust circumference")
+      assert has_element?(view, "#measurement-bust-value", "92.1 cm")
+      refute has_element?(view, "#measurement-bust-missing")
 
-      assert form_live
-             |> form("#measurement_profile-form", measurement_profile: @invalid_attrs)
-             |> render_change() =~ "can&#39;t be blank"
+      for key <- Catalog.keys() -- [:bust] do
+        assert has_element?(view, "#measurement-#{key}-missing", "Missing")
+      end
 
-      assert {:ok, show_live, _html} =
-               form_live
-               |> form("#measurement_profile-form", measurement_profile: @update_attrs)
-               |> render_submit()
-               |> follow_redirect(conn, ~p"/measurements/#{measurement_profile}")
+      assert has_element?(view, ~s(#back-to-measurements[href="/measurements"]))
+    end
+  end
 
-      html = render(show_live)
-      assert html =~ "Measurement profile updated successfully"
-      assert html =~ "some updated name"
+  describe "another user's profile" do
+    setup :register_and_log_in_user
+
+    test "is not found on show and edit", %{conn: conn} do
+      other = measurement_profile_fixture(user_scope_fixture())
+
+      assert_raise Ecto.NoResultsError, fn -> live(conn, ~p"/measurements/#{other}") end
+      assert_raise Ecto.NoResultsError, fn -> live(conn, ~p"/measurements/#{other}/edit") end
     end
   end
 end

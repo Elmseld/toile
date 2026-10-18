@@ -372,6 +372,7 @@ msgstr ""
 msgid "Save password"
 msgstr ""
 
+#: lib/toile_web/live/measurement_profile_live/form.ex
 #: lib/toile_web/live/user_live/settings.ex
 #, elixir-autogen, elixir-format
 msgid "Saving..."
@@ -504,4 +505,282 @@ msgstr ""
 #: lib/toile_web/controllers/error_html.ex
 #, elixir-autogen, elixir-format
 msgid "Unsupported Media Type"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "%{measurement} (cm)"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "1 measurement missing"
+msgid_plural "%{count} measurements missing"
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Across the back between the armhole creases, halfway between the neck bone and the underarm."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Across the front between the armhole creases, above the bust."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Along one shoulder, from the side of the neck to the shoulder point."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Arm length"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Around the base of the neck, over the prominent bone at the back of the neck."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Around the fullest part of the bust, with the tape level across the back."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Around the fullest part of the hips and seat, with the tape level."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Around the fullest part of the upper arm, with the arm relaxed."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Around the natural waist, the narrowest part of the torso. Tie a band there to mark it for the other measurements."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Around the wrist, over the wrist bone."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "At the side, from the waist down to the desired hem."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "At the side, from the waist down to the fullest part of the hips."
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Back"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Back length"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Back width"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Bust circumference"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Bust height"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Bust point distance"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Chest width"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Complete"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Delete"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Delete this measurement profile?"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#: lib/toile_web/live/measurement_profile_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Edit"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Edit measurement profile"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "From the prominent neck bone straight down the spine to the waist."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "From the side of the neck at the shoulder down to the bust point."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "From the side of the neck at the shoulder, over the bust point, down to the waist."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Front length"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Height"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Hip circumference"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Hip height"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Measurement profile created"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#: lib/toile_web/live/measurement_profile_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Measurement profile deleted"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Measurement profile updated"
+msgstr ""
+
+#: lib/toile_web/components/layouts.ex
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Measurements"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Missing"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/form.ex
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Name"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Neck circumference"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/form.ex
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "New measurement profile"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Save"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Shoulder width"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Show"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Skirt length"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Standing straight without shoes, from the top of the head to the floor."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Straight across between the two bust points."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Upper arm circumference"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Waist circumference"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "With the arm slightly bent, from the shoulder point over the elbow to the wrist bone."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Wrist circumference"
+msgstr ""
+
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "You don't have any measurement profiles yet."
+msgstr ""
+
+#: lib/toile_web/centimeters.ex
+#, elixir-autogen, elixir-format
+msgctxt "decimal separator"
+msgid "."
 msgstr ""

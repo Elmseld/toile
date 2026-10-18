@@ -372,6 +372,7 @@ msgstr "Lösenord"
 msgid "Save password"
 msgstr "Spara lösenord"
 
+#: lib/toile_web/live/measurement_profile_live/form.ex
 #: lib/toile_web/live/user_live/settings.ex
 #, elixir-autogen, elixir-format
 msgid "Saving..."
@@ -505,3 +506,281 @@ msgstr "Förfrågan kunde inte behandlas"
 #, elixir-autogen, elixir-format
 msgid "Unsupported Media Type"
 msgstr "Filtypen stöds inte"
+
+#: lib/toile_web/live/measurement_profile_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "%{measurement} (cm)"
+msgstr "%{measurement} (cm)"
+
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "1 measurement missing"
+msgid_plural "%{count} measurements missing"
+msgstr[0] "1 mått saknas"
+msgstr[1] "%{count} mått saknas"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Across the back between the armhole creases, halfway between the neck bone and the underarm."
+msgstr "Tvärs över ryggen mellan armhålsvecken, halvvägs mellan nackkotan och armhålan."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Across the front between the armhole creases, above the bust."
+msgstr "Tvärs över bröstet mellan armhålsvecken, ovanför bysten."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Along one shoulder, from the side of the neck to the shoulder point."
+msgstr "Längs ena axeln, från halsens sida till axelspetsen."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Arm length"
+msgstr "Ärmlängd"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Around the base of the neck, over the prominent bone at the back of the neck."
+msgstr "Runt halsroten, över den utstående kotan i nacken."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Around the fullest part of the bust, with the tape level across the back."
+msgstr "Runt bystens fylligaste del, med måttbandet vågrätt över ryggen."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Around the fullest part of the hips and seat, with the tape level."
+msgstr "Runt höfternas och stjärtens bredaste del, med måttbandet vågrätt."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Around the fullest part of the upper arm, with the arm relaxed."
+msgstr "Runt överarmens tjockaste del, med armen avslappnad."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Around the natural waist, the narrowest part of the torso. Tie a band there to mark it for the other measurements."
+msgstr "Runt den naturliga midjan, bålens smalaste del. Knyt ett band där som markering för de andra måtten."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Around the wrist, over the wrist bone."
+msgstr "Runt handleden, över handledsknölen."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "At the side, from the waist down to the desired hem."
+msgstr "Vid sidan, från midjan ned till önskad fållkant."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "At the side, from the waist down to the fullest part of the hips."
+msgstr "Vid sidan, från midjan ned till höfternas bredaste del."
+
+#: lib/toile_web/live/measurement_profile_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Back"
+msgstr "Tillbaka"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Back length"
+msgstr "Rygglängd"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Back width"
+msgstr "Ryggbredd"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Bust circumference"
+msgstr "Bystvidd"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Bust height"
+msgstr "Bysthöjd"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Bust point distance"
+msgstr "Bystpunktsavstånd"
+
+#: lib/toile_web/live/measurement_profile_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr "Avbryt"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Chest width"
+msgstr "Bröstbredd"
+
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Complete"
+msgstr "Alla mått ifyllda"
+
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Delete"
+msgstr "Ta bort"
+
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Delete this measurement profile?"
+msgstr "Vill du ta bort måttprofilen?"
+
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#: lib/toile_web/live/measurement_profile_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Edit"
+msgstr "Redigera"
+
+#: lib/toile_web/live/measurement_profile_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Edit measurement profile"
+msgstr "Redigera måttprofil"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "From the prominent neck bone straight down the spine to the waist."
+msgstr "Från den utstående nackkotan rakt ned längs ryggraden till midjan."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "From the side of the neck at the shoulder down to the bust point."
+msgstr "Från halsens sida vid axeln ned till bystpunkten."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "From the side of the neck at the shoulder, over the bust point, down to the waist."
+msgstr "Från halsens sida vid axeln, över bystpunkten, ned till midjan."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Front length"
+msgstr "Framlängd"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Height"
+msgstr "Kroppslängd"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Hip circumference"
+msgstr "Höftvidd"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Hip height"
+msgstr "Höfthöjd"
+
+#: lib/toile_web/live/measurement_profile_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Measurement profile created"
+msgstr "Måttprofilen har skapats"
+
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#: lib/toile_web/live/measurement_profile_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Measurement profile deleted"
+msgstr "Måttprofilen har tagits bort"
+
+#: lib/toile_web/live/measurement_profile_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Measurement profile updated"
+msgstr "Måttprofilen har uppdaterats"
+
+#: lib/toile_web/components/layouts.ex
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Measurements"
+msgstr "Mått"
+
+#: lib/toile_web/live/measurement_profile_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Missing"
+msgstr "Saknas"
+
+#: lib/toile_web/live/measurement_profile_live/form.ex
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Name"
+msgstr "Namn"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Neck circumference"
+msgstr "Halsvidd"
+
+#: lib/toile_web/live/measurement_profile_live/form.ex
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "New measurement profile"
+msgstr "Ny måttprofil"
+
+#: lib/toile_web/live/measurement_profile_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Save"
+msgstr "Spara"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Shoulder width"
+msgstr "Axelbredd"
+
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Show"
+msgstr "Visa"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Skirt length"
+msgstr "Kjollängd"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Standing straight without shoes, from the top of the head to the floor."
+msgstr "Stående rak utan skor, från hjässan till golvet."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Straight across between the two bust points."
+msgstr "Rakt över mellan de två bystpunkterna."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Upper arm circumference"
+msgstr "Överarmsvidd"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Waist circumference"
+msgstr "Midjevidd"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "With the arm slightly bent, from the shoulder point over the elbow to the wrist bone."
+msgstr "Med armen lätt böjd, från axelspetsen över armbågen till handledsknölen."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Wrist circumference"
+msgstr "Handledsvidd"
+
+#: lib/toile_web/live/measurement_profile_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "You don't have any measurement profiles yet."
+msgstr "Du har inga måttprofiler än."
+
+#: lib/toile_web/centimeters.ex
+#, elixir-autogen, elixir-format
+msgctxt "decimal separator"
+msgid "."
+msgstr ","

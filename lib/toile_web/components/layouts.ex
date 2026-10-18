@@ -14,7 +14,7 @@ defmodule ToileWeb.Layouts do
   @doc """
   Renders the app layout with the Toile header.
 
-  The header shows "Mina mönster", "Inställningar" and "Logga ut" when
+  The header shows "Mina mönster", "Mått", "Inställningar" and "Logga ut" when
   `@current_scope` holds a user, and "Logga in" and "Registrera" otherwise.
   Pass `current_scope` from every page so the header matches the session.
 
@@ -51,6 +51,11 @@ defmodule ToileWeb.Layouts do
             <li>
               <.link id="nav-my-patterns" navigate={~p"/patterns"} class="btn btn-ghost btn-sm">
                 {gettext("My patterns")}
+              </.link>
+            </li>
+            <li>
+              <.link id="nav-measurements" navigate={~p"/measurements"} class="btn btn-ghost btn-sm">
+                {gettext("Measurements")}
               </.link>
             </li>
             <li class="hidden text-sm text-base-content/70 md:block">
