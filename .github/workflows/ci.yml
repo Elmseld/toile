@@ -39,7 +39,7 @@ jobs:
       - run: mix gettext.extract --check-up-to-date
       - run: mix format --check-formatted
       - run: mix deps.unlock --check-unused
-      - run: mix test
+      - run: mix test --cover
 
   engine:
     runs-on: ubuntu-latest
@@ -53,7 +53,7 @@ jobs:
           bun-version-file: .tool-versions
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
-      - run: bun test
+      - run: bun run test:coverage
 
   docker:
     runs-on: ubuntu-latest

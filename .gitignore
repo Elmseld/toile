@@ -36,6 +36,7 @@ npm-debug.log
 /assets/node_modules/
 
 /engine/node_modules/
+/engine/coverage/
 
 # Local Docker Compose overrides (e.g. UID/GID on Linux).
 /.env

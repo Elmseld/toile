@@ -1,0 +1,6 @@
+[test]
+# Applies only when coverage is on (`bun test --coverage` or `bun run test:coverage`).
+# Bun checks these fractions per file, not on the total: the run fails if any
+# file is below them. Today the lowest file is just under 0.89. Raise them as
+# coverage grows.
+coverageThreshold = { lines = 0.85, functions = 0.85 }

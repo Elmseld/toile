@@ -14,7 +14,22 @@ defmodule Toile.MixProject do
       listeners: [Phoenix.CodeReloader],
       # Without line numbers, `gettext.extract --check-up-to-date` does not fail
       # when a gettext call only moves to another line.
-      gettext: [write_reference_line_numbers: false]
+      gettext: [write_reference_line_numbers: false],
+      test_coverage: [
+        # `mix test --cover` fails below this total. Raise it as coverage grows.
+        summary: [threshold: 90],
+        ignore_modules: [
+          # Its code is `quote` blocks that run at compile time, so cover never
+          # sees those lines executed.
+          ToileWeb,
+          # Only `embed_templates`; cover cannot attribute the template lines.
+          ToileWeb.PageHTML,
+          # Test support, not application code.
+          Toile.DataCase,
+          ToileWeb.ConnCase,
+          ~r/Fixtures$/
+        ]
+      ]
     ]
   end
 

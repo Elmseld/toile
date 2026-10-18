@@ -12,11 +12,12 @@ Everything runs in Docker; no Erlang, Elixir or Bun is needed on the host.
 - Start: `docker compose up` (Postgres and the app on localhost:4000, code reloading). Use `docker compose up -d` to run in the background.
 - App checks: `docker compose exec app mix precommit` (compile with warnings as errors, unused deps, format, gettext extraction check, test). The extraction check runs in a separate VM (`cmd env MIX_ENV=test mix gettext.extract --check-up-to-date`) because extraction force-recompiles the app.
 - Engine checks: `docker compose exec app sh -c "cd engine && bun run typecheck && bun test"`.
+- Coverage: `docker compose exec app mix test --cover` (threshold and ignored boilerplate in `test_coverage` in `mix.exs`; HTML report in `cover/`) and `docker compose exec app sh -c "cd engine && bun run test:coverage"` (thresholds in `engine/bunfig.toml`). Both fail below their threshold. CI runs them; `mix precommit` runs plain `mix test` to stay fast, so check coverage yourself when you add code.
 - Any mix task or generator: `docker compose exec app mix <task>`.
 - If the app is not running, every `docker compose exec app <cmd>` above also works as `docker compose run --rm app <cmd>`.
 - Versions: `.tool-versions` is the single source. The `Dockerfile` `ARG`s must match it; `bin/check-tool-versions` checks this in CI.
 
-CI (`.github/workflows/ci.yml`) runs three jobs: the app checks (including `mix gettext.extract --check-up-to-date`), the engine checks, and `docker` (`bin/check-tool-versions`, then a build of the dev image).
+CI (`.github/workflows/ci.yml`) runs three jobs: the app checks (including `mix gettext.extract --check-up-to-date` and tests with coverage), the engine checks (tests with coverage), and `docker` (`bin/check-tool-versions`, then a build of the dev image).
 
 ## Conventions
 - The /ship agents load the `elixir-genius` skill for Elixir idioms. When it conflicts with this file, `AGENTS.md` (Phoenix 1.8 conventions) or the ADRs, those win: keep the standard Phoenix layout (contexts under `lib/toile`, web layer under `lib/toile_web`), with no umbrella apps, path-based sub-projects or `impl/` layers unless an ADR introduces them.
