@@ -428,6 +428,39 @@ describe("evaluateFormulas", () => {
         ],
       });
     });
+    test("a bad value under a duplicate or invalid name is still reported", () => {
+      const result = evaluateFormulas(
+        input({
+          measurements: { waist: Number.NaN, "1x": Number.POSITIVE_INFINITY, ok: 3 },
+          parameters: { waist: 10, hip: Number.NaN },
+          formulas: { f: "waist + ok" },
+        }),
+      );
+      expect(result).toMatchObject({
+        ok: false,
+        values: { ok: 3 },
+        errors: [
+          { kind: "duplicate_name", name: "waist", sources: ["measurement", "parameter"] },
+          { kind: "invalid_value", name: "waist", source: "measurement" },
+          { kind: "invalid_name", name: "1x", source: "measurement" },
+          { kind: "invalid_value", name: "1x", source: "measurement" },
+          { kind: "invalid_value", name: "hip", source: "parameter" },
+          { kind: "failed_dependency", name: "f", dependency: "waist" },
+        ],
+      });
+      if (!result.ok) expect(result.errors).toHaveLength(6);
+      expect(result.values).toEqual({ ok: 3 });
+    });
+
+    test("a duplicate name with valid values does not resolve", () => {
+      const result = evaluateFormulas(input({ measurements: { a: 1 }, parameters: { a: 2 } }));
+      expect(result).toMatchObject({
+        ok: false,
+        values: {},
+        errors: [{ kind: "duplicate_name", name: "a" }],
+      });
+      if (!result.ok) expect(result.errors).toHaveLength(1);
+    });
   });
 
   test("errors are sorted by declaration order", () => {

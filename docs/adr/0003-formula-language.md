@@ -21,7 +21,8 @@ immediately). Ticket 0003 (geometry) and the editor (0008) build on the API and 
    field is English developer text; UI text (Swedish) is built from `kind` and the structured fields.
 3. **One namespace.** Measurements, parameters and formulas share one namespace of identifiers
    (`[A-Za-z_][A-Za-z0-9_]*`). A name in more than one source is a `duplicate_name` error rather than
-   being resolved by precedence, which would hide mistakes.
+   being resolved by precedence, which would hide mistakes. Every measurement and parameter value is
+   still checked, so a non-finite value under an invalid or duplicate name also gets `invalid_value`.
 4. **Dependency order, not declaration order.** Formulas are evaluated once each in topological order
    using iterative graph traversal (linear, no recursion depth proportional to the number of formulas).
    Each group of mutually dependent formulas (strongly connected component) yields one

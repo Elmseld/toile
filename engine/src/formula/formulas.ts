@@ -39,8 +39,11 @@ type ParsedFormula = { expr: Expr; refs: Edge[] };
  * errors, unknown references, circular dependencies, formulas that depend on a failed name, and
  * evaluation errors. Each group of mutually dependent formulas gets one `circular_dependency`
  * error (its shortest cycle through the first-declared member that has no error yet) and
- * `failed_dependency` for every other member without one. Errors are sorted by the declaration order of the name they belong to
- * (measurements, then parameters, then formulas).
+ * `failed_dependency` for every other member without one. Every measurement and parameter value is
+ * checked, so an invalid or duplicate name with a non-finite value also gets `invalid_value`.
+ * Errors are sorted by the declaration order of the name they belong to (measurements, then
+ * parameters, then formulas); errors of one name keep the order in which they were found (name
+ * errors, then `invalid_value` per source in measurement-then-parameter order, then the rest).
  *
  * Pure: `input` is not mutated. A missing or `null` `measurements`, `parameters` or `formulas`
  * (from an untyped caller) counts as empty. Runs in time linear in the total formula length; each
@@ -83,12 +86,14 @@ export function evaluateFormulas(input: FormulaInput): EvaluationResult {
     }
   }
 
+  // Every value is checked, also for a name that already failed (invalid or duplicate), so an
+  // independent bad value is not hidden; only names without an error resolve.
   const resolved = new Map<string, number>();
   const checkValues = (entries: [string, unknown][], source: "measurement" | "parameter"): void => {
     for (const [name, value] of entries) {
-      if (failed.has(name)) continue;
-      if (typeof value === "number" && Number.isFinite(value)) resolved.set(name, value);
-      else fail(invalidValueError(name, source));
+      const valid = typeof value === "number" && Number.isFinite(value);
+      if (!valid) fail(invalidValueError(name, source));
+      else if (!failed.has(name)) resolved.set(name, value);
     }
   };
   checkValues(measurements, "measurement");
