@@ -25,6 +25,19 @@ defmodule ToileWeb.CentimetersTest do
       assert Centimeters.parse("+5") == {:ok, 50}
     end
 
+    test "skips leading zeros" do
+      assert Centimeters.parse("000072,5") == {:ok, 725}
+      assert Centimeters.parse("-0005") == {:ok, -50}
+      assert Centimeters.parse(String.duplicate("0", 1000) <> "1") == {:ok, 10}
+    end
+
+    test "rejects more than five significant digits" do
+      assert Centimeters.parse("99999.9") == {:ok, 999_999}
+      assert Centimeters.parse("123456") == :error
+      assert Centimeters.parse("-123456,5") == :error
+      assert Centimeters.parse(String.duplicate("9", 100_000)) == :error
+    end
+
     test "rejects more than one decimal, non-numbers and empty input" do
       for input <- ["72.55", "72,", ".5", "abc", "", "  ", "1e3", "7 2", "72.5cm", "1,2,3"] do
         assert Centimeters.parse(input) == :error, "expected #{inspect(input)} to be rejected"
@@ -51,6 +64,23 @@ defmodule ToileWeb.CentimetersTest do
     test "keeps blank and unparseable values as typed" do
       assert Centimeters.to_mm_params(%{"waist" => "", "hip" => "72.55", "neck" => "abc"}) ==
                %{"waist" => "", "hip" => "72.55", "neck" => "abc"}
+    end
+
+    test "truncates over-long unparseable values so they still fail the integer cast" do
+      long = String.duplicate("9", 100_000)
+
+      assert %{"waist" => truncated} = Centimeters.to_mm_params(%{"waist" => long})
+      assert truncated == String.duplicate("9", 20) <> "…"
+      assert Ecto.Type.cast(:integer, truncated) == :error
+
+      assert Centimeters.to_mm_params(%{"hip" => String.duplicate("å", 25)}) ==
+               %{"hip" => String.duplicate("å", 20) <> "…"}
+    end
+
+    test "keeps unparseable values up to the length limit as typed" do
+      value = String.duplicate("x", 20)
+
+      assert Centimeters.to_mm_params(%{"waist" => value}) == %{"waist" => value}
     end
 
     test "leaves unknown keys and non-string values untouched" do

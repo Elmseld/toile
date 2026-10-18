@@ -106,10 +106,8 @@ defmodule ToileWeb.MeasurementProfileLive.Index do
     profile = Measurements.get_measurement_profile!(scope, id)
     {:ok, _} = Measurements.delete_measurement_profile(scope, profile)
 
-    {:noreply,
-     socket
-     |> put_flash(:info, gettext("Measurement profile deleted"))
-     |> load_profiles()}
+    # The list reloads from the `{:deleted, _}` broadcast in `handle_info/2`.
+    {:noreply, put_flash(socket, :info, gettext("Measurement profile deleted"))}
   end
 
   @impl true

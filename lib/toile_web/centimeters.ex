@@ -10,20 +10,29 @@ defmodule ToileWeb.Centimeters do
 
   use Gettext, backend: ToileWeb.Gettext
 
-  alias Toile.Measurements.Catalog
+  alias Toile.Measurements
 
   # An optional sign, whole centimetres and at most one decimal. The sign is accepted so the
   # range validation reports negative values; `+` is accepted because Ecto's integer cast
-  # would otherwise read a passed-through "+5" as 5 mm.
-  @cm_format ~r/\A([-+]?)(\d+)(?:[.,](\d))?\z/
+  # would otherwise read a passed-through "+5" as 5 mm. Leading zeros are skipped and at most
+  # five significant digits are read, so `String.to_integer/1` only ever sees short strings.
+  # Leading zeros must match here: a passed-through "000001" would be cast by Ecto as 1 mm.
+  # A passed-through plain number with six or more significant digits is cast by Ecto as at
+  # least 100000 mm, which the range validation rejects.
+  @cm_format ~r/\A([-+]?)0*(\d{1,5})(?:[.,](\d))?\z/
 
-  @catalog_keys Enum.map(Catalog.keys(), &Atom.to_string/1)
+  # Unparseable values longer than this (in characters) are truncated before they are passed
+  # through, so a huge input is neither stored in the changeset nor echoed back to the form.
+  @max_passthrough_length 20
+
+  @catalog_keys Enum.map(Measurements.keys(), &Atom.to_string/1)
 
   @doc """
   Parses a centimetre string into integer millimetres.
 
   Surrounding whitespace is ignored. Anything other than a whole number with at most one
-  decimal (`.` or `,`) is `:error`. The range is not checked here.
+  decimal (`.` or `,`) is `:error`, as is a number with more than five significant digits
+  (leading zeros do not count). The range is not checked here.
 
       iex> ToileWeb.Centimeters.parse("72,5")
       {:ok, 725}
@@ -32,6 +41,9 @@ defmodule ToileWeb.Centimeters do
       {:ok, 720}
 
       iex> ToileWeb.Centimeters.parse("72.55")
+      :error
+
+      iex> ToileWeb.Centimeters.parse("123456")
       :error
   """
   @spec parse(String.t()) :: {:ok, integer()} | :error
@@ -69,11 +81,13 @@ defmodule ToileWeb.Centimeters do
   @doc """
   Converts the centimetre values in measurement form params to millimetres.
 
-  Only the string keys of `Toile.Measurements.Catalog` are touched; params keys are never
+  Only the string keys of `Toile.Measurements.keys/0` are touched; params keys are never
   converted to atoms and other keys are left as they are. A parseable value becomes integer
   millimetres. Blank and unparseable values are left unchanged, so a blank value clears the
   measurement and an unparseable one fails the schema's integer cast (with the format error)
-  while the form keeps what the user typed.
+  while the form keeps what the user typed. An unparseable value longer than
+  #{@max_passthrough_length} characters is cut to its first #{@max_passthrough_length}
+  characters followed by `…`, which still fails the integer cast.
 
       iex> ToileWeb.Centimeters.to_mm_params(%{"waist" => "72,5", "hip" => "", "neck" => "abc"})
       %{"waist" => 725, "hip" => "", "neck" => "abc"}
@@ -89,7 +103,14 @@ defmodule ToileWeb.Centimeters do
   defp to_mm(value) do
     case parse(value) do
       {:ok, mm} -> mm
-      :error -> value
+      :error -> truncate(value)
+    end
+  end
+
+  defp truncate(value) do
+    case String.split_at(value, @max_passthrough_length) do
+      {_head, ""} -> value
+      {head, _rest} -> head <> "…"
     end
   end
 

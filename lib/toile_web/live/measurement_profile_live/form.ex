@@ -13,7 +13,6 @@ defmodule ToileWeb.MeasurementProfileLive.Form do
   use ToileWeb, :live_view
 
   alias Toile.Measurements
-  alias Toile.Measurements.Catalog
   alias Toile.Measurements.MeasurementProfile
   alias ToileWeb.Centimeters
   alias ToileWeb.MeasurementTexts
@@ -78,7 +77,7 @@ defmodule ToileWeb.MeasurementProfileLive.Form do
   def mount(params, _session, socket) do
     {:ok,
      socket
-     |> assign(:keys, Catalog.keys())
+     |> assign(:keys, Measurements.keys())
      |> assign(:return_to, return_to(params["return_to"]))
      |> apply_action(socket.assigns.live_action, params)}
   end

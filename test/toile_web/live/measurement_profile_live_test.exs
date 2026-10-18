@@ -6,7 +6,6 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
   import Toile.MeasurementsFixtures
 
   alias Toile.Measurements
-  alias Toile.Measurements.Catalog
 
   describe "logged out" do
     test "redirects every page to log in", %{conn: conn} do
@@ -129,7 +128,7 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
         |> follow_redirect(conn)
 
       assert [profile] = Measurements.list_measurement_profiles(scope)
-      assert length(Measurements.missing_measurements(profile)) == length(Catalog.keys())
+      assert length(Measurements.missing_measurements(profile)) == length(Measurements.keys())
     end
 
     test "shows range, format and name errors while typing", %{conn: conn} do
@@ -189,6 +188,40 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
       assert html =~ "should be at most 100 character(s)"
     end
 
+    test "rejects over-long input with the format error and echoes it truncated", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/measurements/new")
+
+      view
+      |> form("#measurement-profile-form",
+        measurement_profile: %{name: "Me", measurements: %{waist: String.duplicate("9", 100_000)}}
+      )
+      |> render_change()
+
+      assert has_element?(
+               view,
+               "#measurement-field-waist",
+               "must be a number in cm with at most one decimal"
+             )
+
+      truncated = String.duplicate("9", 20) <> "…"
+      assert has_element?(view, ~s(#measurement-field-waist input[value="#{truncated}"]))
+    end
+
+    test "rejects a number with more than five significant digits as out of range", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, ~p"/measurements/new")
+
+      html =
+        view
+        |> form("#measurement-profile-form",
+          measurement_profile: %{name: "Me", measurements: %{waist: "123456"}}
+        )
+        |> render_change()
+
+      assert html =~ "must be more than 0 and at most 300 cm"
+    end
+
     test "does not save invalid input", %{conn: conn, scope: scope} do
       {:ok, view, _html} = live(conn, ~p"/measurements/new")
 
@@ -208,7 +241,7 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
     } do
       {:ok, view, _html} = live(conn, ~p"/measurements/new")
 
-      for key <- Catalog.keys() do
+      for key <- Measurements.keys() do
         input = "#measurement-input-#{key}"
 
         assert has_element?(
@@ -325,7 +358,7 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
       assert has_element?(view, "#measurement-bust-value", "92.1 cm")
       refute has_element?(view, "#measurement-bust-missing")
 
-      for key <- Catalog.keys() -- [:bust] do
+      for key <- Measurements.keys() -- [:bust] do
         assert has_element?(view, "#measurement-#{key}-missing", "Missing")
       end
 

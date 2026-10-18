@@ -11,8 +11,10 @@ defmodule ToileWeb.Endpoint do
     same_site: "Lax"
   ]
 
+  # LiveView messages here are small form payloads; the frame limit (default 10 MB in
+  # WebSockAdapter) is lowered so a client cannot push multi-megabyte events.
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options]],
+    websocket: [connect_info: [session: @session_options], max_frame_size: 256_000],
     longpoll: [connect_info: [session: @session_options]]
 
   # Serve at "/" the static files from "priv/static" directory.

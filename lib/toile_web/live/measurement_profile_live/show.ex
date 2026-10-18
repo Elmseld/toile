@@ -8,7 +8,6 @@ defmodule ToileWeb.MeasurementProfileLive.Show do
   use ToileWeb, :live_view
 
   alias Toile.Measurements
-  alias Toile.Measurements.Catalog
   alias Toile.Measurements.MeasurementProfile
   alias ToileWeb.Centimeters
   alias ToileWeb.MeasurementTexts
@@ -72,7 +71,7 @@ defmodule ToileWeb.MeasurementProfileLive.Show do
 
     {:ok,
      socket
-     |> assign(:keys, Catalog.keys())
+     |> assign(:keys, Measurements.keys())
      |> assign_profile(profile)}
   end
 

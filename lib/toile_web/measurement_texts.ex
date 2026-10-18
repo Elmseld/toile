@@ -1,6 +1,6 @@
 defmodule ToileWeb.MeasurementTexts do
   @moduledoc """
-  The UI label and help text of each measurement key in `Toile.Measurements.Catalog`.
+  The UI label and help text of each measurement key in `Toile.Measurements.keys/0`.
 
   Every text is a literal `gettext/1` call so `mix gettext.extract` finds it and the
   translation test covers it. There is deliberately no catch-all clause: a key added to
