@@ -7,6 +7,7 @@ import {
   MAX_COORDINATE,
   piecePathData,
 } from "./index";
+import type { DuplicateNameError, ElementSource, InvalidNameError } from "./index";
 
 test("distance between two points", () => {
   expect(distance({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(5);
@@ -59,4 +60,20 @@ test("pattern definitions can be compiled once through the package entry point",
     expect(compiled.evaluate(input)).toEqual(evaluatePattern(definition, input));
   }
   expect(MAX_COORDINATE).toBe(1e7);
+});
+
+test("the name errors of a pattern result are typed through the package entry point", () => {
+  const result = evaluatePattern(
+    { version: 1, measurements: ["a", "a"], points: [{ name: "1x", op: "start", x: "0", y: "0" }] },
+    { measurements: { a: 1 } },
+  );
+  const errors = result.ok ? [] : result.errors;
+  const duplicate = errors.find(
+    (error): error is DuplicateNameError<ElementSource> => error.kind === "duplicate_name",
+  );
+  const invalid = errors.find(
+    (error): error is InvalidNameError<ElementSource> => error.kind === "invalid_name",
+  );
+  expect(duplicate?.name).toBe("a");
+  expect(invalid?.name).toBe("1x");
 });

@@ -2,9 +2,11 @@
 
 export type {
   CallError,
+  DuplicateNameError,
   ExpressionError,
   FormulaError,
   InputSource,
+  InvalidNameError,
   ParseError,
   Span,
 } from "./errors";
