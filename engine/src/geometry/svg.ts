@@ -1,7 +1,7 @@
 // SVG path data for computed curves and pieces, in mm user units (ADR 0004). The caller chooses
 // the `viewBox` and draws the grainline from `piece.grainline`.
 
-import type { ComputedCurve, ComputedPiece } from "./types";
+import type { ComputedCurve, ComputedPattern, ComputedPiece } from "./types";
 import type { Point } from "./vector";
 
 /**
@@ -43,6 +43,47 @@ export function piecePathData(piece: ComputedPiece): string {
   }
   parts.push("Z");
   return parts.join(" ");
+}
+
+/** An axis-aligned box in mm user units. */
+export type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
+
+/**
+ * The box around every piece: the end and control points of each outline curve (a cubic lies
+ * inside its control polygon, so the box always contains the drawn outline, sometimes with a little
+ * room) and the grainline points. `null` when there are no pieces or no finite coordinate; a
+ * non-finite number (only possible in hand-built input) is skipped, per axis. Callers use it to fit
+ * the `viewBox` without doing geometry themselves.
+ */
+export function patternBounds(pattern: Pick<ComputedPattern, "pieces">): Bounds | null {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  const include = (point: Point): void => {
+    if (Number.isFinite(point.x)) {
+      minX = Math.min(minX, point.x);
+      maxX = Math.max(maxX, point.x);
+    }
+    if (Number.isFinite(point.y)) {
+      minY = Math.min(minY, point.y);
+      maxY = Math.max(maxY, point.y);
+    }
+  };
+  for (const piece of Object.values(pattern.pieces)) {
+    for (const curve of piece.outline) {
+      include(curve.from);
+      if (curve.type === "cubic") {
+        include(curve.c1);
+        include(curve.c2);
+      }
+      include(curve.to);
+    }
+    include(piece.grainline.from);
+    include(piece.grainline.to);
+  }
+  if (minX > maxX || minY > maxY) return null;
+  return { minX, minY, maxX, maxY };
 }
 
 /** The drawing command of `curve` from its start point, or `null` for an unknown curve type. */
