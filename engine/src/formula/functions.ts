@@ -12,8 +12,8 @@
  * the call; the exception itself is not reported. `apply` should still return `NaN` rather than
  * throw for arguments it cannot handle.
  *
- * Callers can pass their own table (usually `FUNCTIONS` plus their own entries) to `parseFormula`
- * and `evaluateExpression`.
+ * Callers can pass their own table (usually a copy of `FUNCTIONS` plus their own entries, e.g.
+ * `new Map([...FUNCTIONS, ["distance", spec]])`) to `parseFormula` and `evaluateExpression`.
  */
 export type FunctionSpec =
   | {
@@ -46,8 +46,37 @@ const unary = (fn: (x: number) => number): FunctionSpec => ({
   apply: (args) => fn(args[0] ?? Number.NaN),
 });
 
-/** The built-in function table, used when no other table is given. */
-export const FUNCTIONS: FunctionTable = new Map<string, FunctionSpec>([
+/**
+ * Wraps `entries` in a frozen table that has only the read side of `Map` (`get`, `has`, `size`,
+ * `keys`, `values`, `entries`, `forEach` and iteration). The specs are frozen too, so a shared
+ * table such as `FUNCTIONS` cannot be changed by one caller for everyone else. The result still
+ * iterates like a `Map`, so `new Map([...table, [name, spec]])` builds an extended table.
+ */
+function readonlyTable(entries: Iterable<readonly [string, FunctionSpec]>): FunctionTable {
+  const map = new Map<string, FunctionSpec>();
+  for (const [name, spec] of entries) map.set(name, Object.freeze({ ...spec }));
+  const table: FunctionTable = {
+    get size() {
+      return map.size;
+    },
+    get: (name) => map.get(name),
+    has: (name) => map.has(name),
+    keys: () => map.keys(),
+    values: () => map.values(),
+    entries: () => map.entries(),
+    forEach: (callback, thisArg) => {
+      map.forEach((spec, name) => callback.call(thisArg, spec, name, table));
+    },
+    [Symbol.iterator]: () => map.entries(),
+  };
+  return Object.freeze(table);
+}
+
+/**
+ * The built-in function table, used when no other table is given. It is read-only: extend it by
+ * copying, e.g. `new Map([...FUNCTIONS, ["distance", spec]])`.
+ */
+export const FUNCTIONS: FunctionTable = readonlyTable([
   ["sqrt", unary(Math.sqrt)],
   ["abs", unary(Math.abs)],
   // A fold rather than `Math.min(...args)`: spreading a very long argument list overflows the stack.

@@ -39,7 +39,8 @@ formulas such as `waist / 4 + ease_waist` with a custom parser (no `eval`). See
 - **Limits.** Formulas over 10 000 characters or nested deeper than 100 levels are `syntax` errors.
 - **Lower level.** `parseFormula(source, options?)`, `references` and
   `evaluateExpression(expr, lookup, options?)` are exported for callers (such as geometry) that
-  resolve names themselves. `options.functions` replaces the function table (default `FUNCTIONS`);
+  resolve names themselves. `options.functions` replaces the function table (default `FUNCTIONS`,
+  which is read-only: extend a copy, `new Map([...FUNCTIONS, ["distance", spec]])`);
   a `FunctionSpec` with `takes: "names"` receives its arguments as bare names, unevaluated (for
   example `distance(A, B)`). Use the same table for parsing and evaluation. A function that returns
   a non-finite number or throws gives an `invalid_result` error for its call; a `lookup` that

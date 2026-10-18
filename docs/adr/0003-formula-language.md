@@ -44,7 +44,7 @@ immediately). Ticket 0003 (geometry) and the editor (0008) build on the API and 
    such as `constructor` or `__proto__` cannot reach prototype members.
 8. **Injectable function table with name arguments.** `parseFormula(source, { functions })` and
    `evaluateExpression(expr, lookup, { functions })` take a function table (a `Map` of
-   `FunctionSpec`, default the built-in `FUNCTIONS`). A `FunctionSpec` either takes numbers
+   `FunctionSpec`, default the built-in `FUNCTIONS`, a frozen read-only table that callers extend by copying). A `FunctionSpec` either takes numbers
    (arguments are evaluated first) or, with `takes: "names"`, takes bare names that are passed to it
    unevaluated, so geometry can add `distance(A, B)`, `angle(A, B)` or `length(curve)` by building a
    table whose functions close over its own points. Name arguments are still `reference` nodes, so
