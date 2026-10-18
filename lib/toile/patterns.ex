@@ -95,6 +95,33 @@ defmodule Toile.Patterns do
     |> preload_profile(scope)
   end
 
+  @doc """
+  Returns whether `id` is the id of one of the scope's pattern projects.
+
+  Never raises: a malformed id (not a UUID, or not a string) returns `false`, as does another
+  user's project. Meant for checking an id taken from request params before linking to it.
+
+  ## Examples
+
+      iex> pattern_project_exists?(scope, id)
+      true
+
+      iex> pattern_project_exists?(scope, "not-a-uuid")
+      false
+
+  """
+  def pattern_project_exists?(%Scope{} = scope, id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} ->
+        Repo.exists?(
+          from p in PatternProject, where: p.id == ^uuid and p.user_id == ^scope.user.id
+        )
+
+      :error ->
+        false
+    end
+  end
+
   # The profile query is scoped too, so a project can never expose another user's profile.
   defp preload_profile(%PatternProject{} = pattern_project, %Scope{} = scope) do
     profiles = from p in MeasurementProfile, where: p.user_id == ^scope.user.id

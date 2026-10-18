@@ -34,7 +34,8 @@ Both groups use the same engine but get different amounts of it exposed.
    skärmen") button. With the keyboard, the arrow keys pan, + and - zoom and 0 fits the pattern. A
    profile select on the page switches profile and redraws; if the switch is rejected, the page
    reloads showing the stored profile with the error flash "Det gick inte att byta måttprofil". If the profile lacks measurements the block needs, the page lists
-   them (with a link to edit the profile) instead of drawing. Projects can be renamed and deleted
+   them (with a link to edit the profile; saving or cancelling there returns to the project)
+   instead of drawing. Projects can be renamed and deleted
    from the list; a user can have at most 100. Deleting a profile keeps its projects, which then
    ask for a new profile. A project stores a copy of the block definition, so later changes to a
    block do not affect it.

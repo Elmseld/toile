@@ -113,6 +113,25 @@ defmodule Toile.PatternsTest do
     end
   end
 
+  describe "pattern_project_exists?/2" do
+    test "is true only for the scope's own projects" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+
+      assert Patterns.pattern_project_exists?(scope, pattern_project.id)
+      refute Patterns.pattern_project_exists?(user_scope_fixture(), pattern_project.id)
+    end
+
+    test "is false for unknown or malformed ids" do
+      scope = user_scope_fixture()
+
+      refute Patterns.pattern_project_exists?(scope, Ecto.UUID.generate())
+      refute Patterns.pattern_project_exists?(scope, "not-a-uuid")
+      refute Patterns.pattern_project_exists?(scope, nil)
+      refute Patterns.pattern_project_exists?(scope, %{"id" => "x"})
+    end
+  end
+
   describe "create_pattern_project/2" do
     test "copies the block definition and starts with no parameters" do
       scope = user_scope_fixture()

@@ -124,7 +124,7 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       assert has_element?(
                view,
-               ~s(#edit-profile-link[href="/measurements/#{profile.id}/edit?return_to=show"])
+               ~s(#edit-profile-link[href="/measurements/#{profile.id}/edit?return_to=pattern&pattern_id=#{project.id}"])
              )
 
       refute has_element?(view, "#pattern-canvas")

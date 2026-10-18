@@ -11,7 +11,8 @@ defmodule ToileWeb.PatternLive.Show do
 
     * `#no-profile`: the project has no measurement profile (it was deleted); the user picks one.
     * `#missing-measurements`: the profile lacks measurements the definition declares; they are
-      listed with a link to edit the profile, and nothing is drawn.
+      listed with a link to edit the profile, and nothing is drawn. The link passes
+      `return_to=pattern` and the project id, so saving or cancelling comes back to this page.
     * `#pattern`: the drawing. The hook computes the pattern once per input: when a profile
       switch changes `data-key`, `data-definition` or `data-input`, its `updated()` callback
       redraws (LiveView still patches the attributes of a `phx-update="ignore"` element). The
@@ -79,7 +80,7 @@ defmodule ToileWeb.PatternLive.Show do
         <.button
           id="edit-profile-link"
           class="btn btn-primary min-h-11"
-          navigate={~p"/measurements/#{@profile}/edit?return_to=show"}
+          navigate={~p"/measurements/#{@profile}/edit?return_to=pattern&pattern_id=#{@project.id}"}
         >
           <.icon name="hero-pencil-square" /> {gettext("Edit measurement profile")}
         </.button>
