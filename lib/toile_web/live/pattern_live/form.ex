@@ -2,7 +2,7 @@ defmodule ToileWeb.PatternLive.Form do
   @moduledoc """
   Creates (`:new`) or renames (`:edit`) a pattern project of the current user.
 
-  `:new` asks for a name, a block (`Toile.Patterns.Blocks`, preselected when there is only one)
+  `:new` asks for a name, a block (`Toile.Patterns.Blocks`, chosen from a select with a prompt, nothing preselected)
   and one of the user's measurement profiles. A user without profiles sees `#no-profiles` with a
   link to create one instead of the form, since a project needs a profile. `:edit` only changes
   the name; the block and definition of a project never change here.

@@ -199,3 +199,20 @@ The engine has no block registry.
   fitting skirt block. The constants are not yet checked against the book. The waist and hip seam
   lengths equal measurement plus ease by construction (tested within 1 mm). It uses no
   angle-dependent op, so it does not depend on the angle convention.
+- **`bodice.json`** ("Livstycke"): `back` (shoulder dart, waist dart) and `front` (bust dart in the
+  shoulder, waist dart). Measurements `bust`, `waist`, `neck`, `shoulder_width`, `back_width`,
+  `chest_width`, `back_length`, `armhole_depth`, `front_length`, `bust_height`, `bust_distance`.
+  Parameters: `ease_bust` (80 mm), `ease_waist` (40 mm), `ease_armhole_depth` (10 mm) and the draft
+  constants `ease_back_width`, `side_shift`, `back_neck_rise`, `front_neck_extra`,
+  `back_shoulder_drop`, `front_shoulder_drop`, `back_shoulder_dart`, `back_shoulder_dart_length`,
+  `back_waist_dart_gap`, `front_waist_dart_gap`. The `source` names Aldrich, the close fitting
+  bodice block, and its deviations: the bust dart follows from `front_length`, `bust_height` and
+  `bust_distance` (rotation about the bust point) instead of a size-chart value. The constants and
+  ease are not yet checked against the book. By construction (tested within 2 mm) the bust line
+  through the underarm points, net of darts, equals `bust` + `ease_bust`, the waist seam
+  segments equal `waist` + `ease_waist`, and the front and back shoulder seams (dart closed) are
+  equal. It exposes `armhole_length`, `back_armhole_length` and `front_armhole_length` (mm) in the
+  result `values`, for the sleeve (0007) to pass on as a measurement. It uses angle-dependent ops
+  (`along_angle`, `perpendicular`, `angle()`), so it relies on the confirmed angle convention
+  (ADR 0004 decision 6). Implausible profiles (e.g. `front_length <= bust_height`) make the engine
+  return errors, shown as the hook's generic error.
