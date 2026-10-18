@@ -20,8 +20,12 @@ Both groups use the same engine but get different amounts of it exposed.
   drafting, formulas, grading). The MVP has a single mode, closest to pro mode but kept simple.
 
 ## Core flows (MVP)
-1. **Measurements**: the user creates a measurement profile ("Jag", "Kund Anna") and fills in
-   measurements with help texts.
+1. **Measurements**: under "Mått" (`/measurements`) the user creates a measurement profile ("Jag",
+   "Kund Anna") and fills in a fixed list of 17 measurements with help texts. Input is in cm with
+   one decimal (`.` or `,`), stored in mm. A profile can be saved incomplete; the list shows how
+   many measurements are missing and the profile page marks each missing one. Values of 0 or over
+   300 cm are rejected. A user can have at most 100 profiles; the 101st shows a form error. The
+   form is touch-friendly: one field per row, 44 px minimum height, numeric keyboard.
 2. **New pattern**: the user picks a block and a measurement profile. The app calculates the pattern
    and displays it.
 3. **Modify**: the user drags points, edits formulas or parameters (e.g. ease), and the pattern is
@@ -34,7 +38,7 @@ The UI is Swedish, so the Swedish UI term is given in parentheses.
 
 | Term | Meaning |
 |------|---------|
-| Measurement (mått) | A body measurement in a measurement profile, e.g. `waist`, `hip`, `back_length`. |
+| Measurement (mått) | A body measurement in a measurement profile, e.g. `waist`, `hip`, `back_length`. The keys are fixed and defined in `engine/src/measurements.json` (ADR 0005). |
 | Measurement profile (måttprofil) | Named set of measurements for one person. |
 | Block (grundmönster) | Template pattern defined by formulas against measurements, without design and without seam allowance. |
 | Pattern definition (mönsterdefinition) | Data (JSON) describing parameters, points, curves and pattern pieces. This is what gets stored. |

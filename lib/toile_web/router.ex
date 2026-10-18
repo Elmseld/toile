@@ -53,7 +53,11 @@ defmodule ToileWeb.Router do
     live_session :require_authenticated_user,
       on_mount: [{ToileWeb.UserAuth, :require_authenticated}] do
       live "/patterns", PatternLive.Index, :index
-      # Measurement profiles (0004) and pattern projects (0005) go here.
+      live "/measurements", MeasurementProfileLive.Index, :index
+      live "/measurements/new", MeasurementProfileLive.Form, :new
+      live "/measurements/:id", MeasurementProfileLive.Show, :show
+      live "/measurements/:id/edit", MeasurementProfileLive.Form, :edit
+      # Pattern projects (0005) go here.
     end
 
     post "/users/update-password", UserSessionController, :update_password

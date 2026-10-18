@@ -1,0 +1,105 @@
+defmodule ToileWeb.CentimetersTest do
+  use ExUnit.Case, async: true
+
+  alias ToileWeb.Centimeters
+
+  doctest Centimeters
+
+  describe "parse/1" do
+    test "accepts both decimal separators and whole centimetres" do
+      assert Centimeters.parse("72.5") == {:ok, 725}
+      assert Centimeters.parse("72,5") == {:ok, 725}
+      assert Centimeters.parse("72") == {:ok, 720}
+      assert Centimeters.parse(" 72 ") == {:ok, 720}
+    end
+
+    test "returns the limits in millimetres" do
+      assert Centimeters.parse("300") == {:ok, 3000}
+      assert Centimeters.parse("0.1") == {:ok, 1}
+      assert Centimeters.parse("0") == {:ok, 0}
+    end
+
+    test "keeps the sign so the range check can report it" do
+      assert Centimeters.parse("-5") == {:ok, -50}
+      assert Centimeters.parse("-0,5") == {:ok, -5}
+      assert Centimeters.parse("+5") == {:ok, 50}
+    end
+
+    test "skips leading zeros" do
+      assert Centimeters.parse("000072,5") == {:ok, 725}
+      assert Centimeters.parse("-0005") == {:ok, -50}
+      assert Centimeters.parse(String.duplicate("0", 1000) <> "1") == {:ok, 10}
+    end
+
+    test "rejects more than five significant digits" do
+      assert Centimeters.parse("99999.9") == {:ok, 999_999}
+      assert Centimeters.parse("123456") == :error
+      assert Centimeters.parse("-123456,5") == :error
+      assert Centimeters.parse(String.duplicate("9", 100_000)) == :error
+    end
+
+    test "rejects more than one decimal, non-numbers and empty input" do
+      for input <- ["72.55", "72,", ".5", "abc", "", "  ", "1e3", "7 2", "72.5cm", "1,2,3"] do
+        assert Centimeters.parse(input) == :error, "expected #{inspect(input)} to be rejected"
+      end
+    end
+  end
+
+  describe "format/1" do
+    test "shows centimetres with exactly one decimal" do
+      assert Centimeters.format(725) == "72.5"
+      assert Centimeters.format(720) == "72.0"
+      assert Centimeters.format(1) == "0.1"
+      assert Centimeters.format(3000) == "300.0"
+      assert Centimeters.format(-50) == "-5.0"
+    end
+  end
+
+  describe "to_mm_params/1" do
+    test "converts parseable catalogue values to millimetres" do
+      assert Centimeters.to_mm_params(%{"waist" => "72,5", "hip" => "100"}) ==
+               %{"waist" => 725, "hip" => 1000}
+    end
+
+    test "keeps blank and unparseable values as typed" do
+      assert Centimeters.to_mm_params(%{"waist" => "", "hip" => "72.55", "neck" => "abc"}) ==
+               %{"waist" => "", "hip" => "72.55", "neck" => "abc"}
+    end
+
+    test "truncates over-long unparseable values so they still fail the integer cast" do
+      long = String.duplicate("9", 100_000)
+
+      assert %{"waist" => truncated} = Centimeters.to_mm_params(%{"waist" => long})
+      assert truncated == String.duplicate("9", 20) <> "…"
+      assert Ecto.Type.cast(:integer, truncated) == :error
+
+      assert Centimeters.to_mm_params(%{"hip" => String.duplicate("å", 25)}) ==
+               %{"hip" => String.duplicate("å", 20) <> "…"}
+    end
+
+    test "keeps unparseable values up to the length limit as typed" do
+      value = String.duplicate("x", 20)
+
+      assert Centimeters.to_mm_params(%{"waist" => value}) == %{"waist" => value}
+    end
+
+    test "leaves unknown keys and non-string values untouched" do
+      params = %{"evil" => "5", "waist" => %{"nested" => "1"}, "hip" => nil}
+
+      assert Centimeters.to_mm_params(params) == params
+    end
+  end
+
+  describe "input_value/1" do
+    test "formats millimetres, keeps strings and blanks nil" do
+      assert Centimeters.input_value(725) == "72.5"
+      assert Centimeters.input_value("72.55") == "72.55"
+      assert Centimeters.input_value(nil) == ""
+    end
+
+    test "shows any other value, such as a list or map, as empty" do
+      assert Centimeters.input_value(["72"]) == ""
+      assert Centimeters.input_value(%{"nested" => "72"}) == ""
+    end
+  end
+end

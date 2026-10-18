@@ -11,6 +11,7 @@ defmodule ToileWeb.LayoutsTest do
       assert has_element?(view, ~s(#nav-log-in[href="/users/log-in"]), "Log in")
       assert has_element?(view, ~s(#nav-register[href="/users/register"]), "Register")
       refute has_element?(view, "#nav-my-patterns")
+      refute has_element?(view, "#nav-measurements")
       refute has_element?(view, "#nav-settings")
       refute has_element?(view, "#nav-log-out")
     end
@@ -27,10 +28,11 @@ defmodule ToileWeb.LayoutsTest do
   describe "header for logged-in users" do
     setup :register_and_log_in_user
 
-    test "links to My patterns, Settings and Log out", %{conn: conn, user: user} do
+    test "links to My patterns, Measurements, Settings and Log out", %{conn: conn, user: user} do
       {:ok, view, _html} = live(conn, ~p"/patterns")
 
       assert has_element?(view, ~s(#nav-my-patterns[href="/patterns"]), "My patterns")
+      assert has_element?(view, ~s(#nav-measurements[href="/measurements"]), "Measurements")
       assert has_element?(view, ~s(#nav-settings[href="/users/settings"]), "Settings")
 
       assert has_element?(
@@ -40,6 +42,16 @@ defmodule ToileWeb.LayoutsTest do
              )
 
       assert has_element?(view, "header", user.email)
+
+      # The email is hidden below lg and truncated so the header never scrolls sideways on a
+      # tablet; the full address stays available as a tooltip.
+      assert has_element?(
+               view,
+               ~s(#nav-user-email.hidden.lg\\:block.truncate[title="#{user.email}"]),
+               user.email
+             )
+
+      assert has_element?(view, "header nav.min-w-0 > ul.flex-wrap")
       refute has_element?(view, "#nav-log-in")
       refute has_element?(view, "#nav-register")
     end

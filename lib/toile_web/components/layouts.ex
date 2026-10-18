@@ -14,7 +14,7 @@ defmodule ToileWeb.Layouts do
   @doc """
   Renders the app layout with the Toile header.
 
-  The header shows "Mina mönster", "Inställningar" and "Logga ut" when
+  The header shows "Mina mönster", "Mått", "Inställningar" and "Logga ut" when
   `@current_scope` holds a user, and "Logga in" and "Registrera" otherwise.
   Pass `current_scope` from every page so the header matches the session.
 
@@ -45,15 +45,24 @@ defmodule ToileWeb.Layouts do
           <.icon name="hero-scissors" class="size-5 text-primary" /> Toile
         </.link>
       </div>
-      <nav class="flex-none" aria-label={gettext("Main menu")}>
-        <ul class="flex flex-wrap items-center gap-2 px-1 sm:gap-4">
+      <nav class="min-w-0 flex-initial" aria-label={gettext("Main menu")}>
+        <ul class="flex flex-wrap items-center justify-end gap-2 px-1 sm:gap-4">
           <%= if @current_scope && @current_scope.user do %>
             <li>
               <.link id="nav-my-patterns" navigate={~p"/patterns"} class="btn btn-ghost btn-sm">
                 {gettext("My patterns")}
               </.link>
             </li>
-            <li class="hidden text-sm text-base-content/70 md:block">
+            <li>
+              <.link id="nav-measurements" navigate={~p"/measurements"} class="btn btn-ghost btn-sm">
+                {gettext("Measurements")}
+              </.link>
+            </li>
+            <li
+              id="nav-user-email"
+              class="hidden max-w-56 truncate text-sm text-base-content/70 lg:block"
+              title={@current_scope.user.email}
+            >
               {@current_scope.user.email}
             </li>
             <li>

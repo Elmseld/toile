@@ -4,7 +4,7 @@ Read `docs/product.md` for what the product is and its principles, and `AGENTS.m
 
 ## Layout
 - `lib/`: Phoenix/LiveView app. Stores and validates pattern definitions but never computes geometry.
-- `engine/`: pattern engine in TypeScript (Bun). Pure functions, no DOM, no I/O. All geometry lives here.
+- `engine/`: pattern engine in TypeScript (Bun). Pure functions, no DOM, no I/O. All geometry lives here. `engine/src/measurements.json` is the single list of measurement keys; `lib/` reads it at compile time (`docs/adr/0005-measurement-keys.md`).
 - `docs/tickets/`: work items for `/ship`. `docs/adr/`: architecture decisions.
 
 ## Running things
