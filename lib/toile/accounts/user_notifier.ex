@@ -8,8 +8,8 @@ defmodule Toile.Accounts.UserNotifier do
 
   # Emails go to the account owner and there is no per-user language yet, so
   # they always use the app default locale. Pinning it keeps a locale set on
-  # the calling process from leaking into an email to someone else.
-  @locale Application.compile_env!(:toile, [ToileWeb.Gettext, :default_locale])
+  # the calling process from leaking into an email to someone else. The default
+  # is read at send time because it comes from DEFAULT_LOCALE at runtime.
 
   # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do
@@ -27,7 +27,9 @@ defmodule Toile.Accounts.UserNotifier do
     end
   end
 
-  defp in_email_locale(fun), do: Gettext.with_locale(ToileWeb.Gettext, @locale, fun)
+  defp in_email_locale(fun) do
+    Gettext.with_locale(ToileWeb.Gettext, Application.fetch_env!(:gettext, :default_locale), fun)
+  end
 
   @doc """
   Deliver instructions to update a user email.

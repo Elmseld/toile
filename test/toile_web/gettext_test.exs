@@ -2,21 +2,38 @@ defmodule ToileWeb.GettextTest do
   # Guards the translation files: the UI is Swedish, so every message the
   # code can show must have a Swedish translation. Other tests run in "en" and
   # assert the English msgids, so only these tests look at the sv files.
-  use ExUnit.Case, async: true
+  # async: false because the locale tests change the DEFAULT_LOCALE env var.
+  use ExUnit.Case, async: false
 
   alias Expo.Message
 
   @gettext_dir Path.expand("../../priv/gettext", __DIR__)
   @sv_dir Path.join(@gettext_dir, "sv/LC_MESSAGES")
-  @config_path Path.expand("../../config/config.exs", __DIR__)
+  @runtime_path Path.expand("../../config/runtime.exs", __DIR__)
 
-  # The test env overrides the default locale with "en", so read the config
-  # files as dev and prod would load them instead of asking the running app.
-  for env <- [:dev, :prod] do
-    test "sv is the default locale in #{env}" do
-      config = Config.Reader.read!(@config_path, env: unquote(env))
+  # The test env pins "en", so read config/runtime.exs as dev would load it
+  # instead of asking the running app.
+  describe "default locale in dev" do
+    setup do
+      previous = System.get_env("DEFAULT_LOCALE")
 
-      assert get_in(config, [:toile, ToileWeb.Gettext, :default_locale]) == "sv"
+      on_exit(fn ->
+        if previous,
+          do: System.put_env("DEFAULT_LOCALE", previous),
+          else: System.delete_env("DEFAULT_LOCALE")
+      end)
+    end
+
+    test "is sv when DEFAULT_LOCALE is unset" do
+      System.delete_env("DEFAULT_LOCALE")
+
+      assert dev_default_locale() == "sv"
+    end
+
+    test "comes from DEFAULT_LOCALE when it is set" do
+      System.put_env("DEFAULT_LOCALE", "en")
+
+      assert dev_default_locale() == "en"
     end
   end
 
@@ -62,6 +79,12 @@ defmodule ToileWeb.GettextTest do
              "#{Path.relative_to_cwd(po)} lacks msgids from #{Path.basename(pot)}, " <>
                "run `mix gettext.extract --merge`: " <> inspect(missing)
     end
+  end
+
+  defp dev_default_locale do
+    @runtime_path
+    |> Config.Reader.read!(env: :dev)
+    |> get_in([:gettext, :default_locale])
   end
 
   defp untranslated?(%Message.Singular{msgstr: msgstr}), do: blank?(msgstr)

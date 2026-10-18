@@ -35,9 +35,6 @@ config :toile, ToileWeb.Endpoint,
   pubsub_server: Toile.PubSub,
   live_view: [signing_salt: "+t1qMWc1"]
 
-# The UI is Swedish: source strings are English and `sv` is the default locale.
-config :toile, ToileWeb.Gettext, default_locale: "sv"
-
 # Configure the mailer
 #
 # By default it uses the "Local" adapter which stores the emails

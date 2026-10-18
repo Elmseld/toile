@@ -22,6 +22,20 @@ end
 
 config :toile, ToileWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# The UI is Swedish: source strings are English and `sv` is the default locale
+# unless DEFAULT_LOCALE says otherwise. This sets the gettext app env rather than
+# the backend's `default_locale` option, because the backend option is read at
+# compile time and this one at runtime. Tests pin `en` in config/test.exs.
+if config_env() != :test do
+  default_locale =
+    case System.get_env("DEFAULT_LOCALE") do
+      locale when locale in [nil, ""] -> "sv"
+      locale -> locale
+    end
+
+  config :gettext, :default_locale, default_locale
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||
