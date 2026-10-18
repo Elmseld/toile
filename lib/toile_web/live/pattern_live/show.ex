@@ -122,12 +122,20 @@ defmodule ToileWeb.PatternLive.Show do
             data-definition={JSON.encode!(@project.definition)}
             data-input={JSON.encode!(@engine_input)}
             data-piece-labels={JSON.encode!(@piece_labels)}
-            data-label={gettext("Drawing of the pattern %{name}", name: @project.name)}
             data-error-text={gettext("The pattern could not be computed with these measurements.")}
-            class="h-[70vh] w-full touch-none select-none overflow-hidden rounded-box border border-base-300 bg-base-100"
+            role="group"
+            aria-label={gettext("Drawing of the pattern %{name}", name: @project.name)}
+            tabindex="0"
+            aria-describedby="pattern-help"
+            class="h-[70vh] w-full touch-none select-none overflow-hidden rounded-box border border-base-300 bg-base-100 focus-visible:outline-2 focus-visible:outline-primary"
           >
           </div>
         </div>
+        <p id="pattern-help" class="text-sm text-base-content/70">
+          {gettext(
+            "Drag to move the pattern; scroll or pinch to zoom. With the keyboard: arrow keys move, + and - zoom, 0 fits to the screen."
+          )}
+        </p>
       </div>
     </Layouts.app>
     """
