@@ -5,6 +5,7 @@ import {
   type ExpressionError,
   invalidArgumentError,
   invalidResultError,
+  type Span,
   unknownFunctionError,
   unknownReferenceError,
   wrongArgumentCountError,
@@ -31,8 +32,10 @@ type Task =
  *
  * Stops at the first error, evaluating left to right: an unknown reference, a division by zero
  * (span of the divisor), a non-finite result such as `sqrt(-1)` (span of the operation), or a call
- * that does not match the function table. Never throws, also not for hand-built ASTs of any depth:
- * the walk uses an explicit stack instead of recursion.
+ * that does not match the function table. A function from the table that throws is an
+ * `invalid_result` error for that call. Never throws, also not for hand-built ASTs of any depth
+ * (the walk uses an explicit stack instead of recursion) or with nodes of an unknown type
+ * (`invalid_result`).
  */
 export function evaluateExpression(
   expr: Expr,
@@ -50,6 +53,8 @@ export function evaluateExpression(
     switch (task.step) {
       case "visit": {
         const node = task.expr;
+        // Hand-built ASTs may hold anything; `null` would otherwise throw on `.type`.
+        if (typeof node !== "object" || node === null) return fail(invalidResultError(null, NO_SPAN));
         switch (node.type) {
           case "number":
             if (!Number.isFinite(node.value)) return fail(invalidResultError(null, node.span));
@@ -89,6 +94,10 @@ export function evaluateExpression(
             }
             break;
           }
+
+          default:
+            // Only reachable for hand-built nodes of an unknown type.
+            return fail(invalidResultError(null, spanOf(node)));
         }
         break;
       }
@@ -120,7 +129,13 @@ export function evaluateExpression(
     }
   }
 
-  return { ok: true, value: pop() };
+  // Every task above pushes or fails, so exactly one finite value is left; checked anyway so a
+  // malformed hand-built AST can never come back as `ok` with a non-finite value.
+  const [value] = values;
+  if (values.length !== 1 || value === undefined || !Number.isFinite(value)) {
+    return fail(invalidResultError(null, spanOf(expr)));
+  }
+  return { ok: true, value };
 }
 
 /** Checks a call against the function table, as the parser does for parsed formulas. */
@@ -142,13 +157,29 @@ function checkCall(
   return { ok: true, value: spec };
 }
 
-/** Applies `spec`, taking its evaluated arguments (if any) off the end of `values`. */
+/**
+ * Applies `spec`, taking its evaluated arguments (if any) off the end of `values`. A throwing
+ * `apply` (caller-supplied functions may) gives `NaN`, which the caller reports as `invalid_result`.
+ */
 function applyFunction(spec: FunctionSpec, call: CallExpr, values: number[]): number {
-  if (spec.takes === "names") {
-    // `checkCall` made sure every argument is a reference.
-    return spec.apply(call.args.map((arg) => (arg.type === "reference" ? arg.name : "")));
+  const args = spec.takes === "names" ? [] : values.splice(values.length - call.args.length);
+  try {
+    if (spec.takes === "names") {
+      // `checkCall` made sure every argument is a reference.
+      return spec.apply(call.args.map((arg) => (arg.type === "reference" ? arg.name : "")));
+    }
+    return spec.apply(args);
+  } catch {
+    return Number.NaN;
   }
-  return spec.apply(values.splice(values.length - call.args.length));
+}
+
+const NO_SPAN: Span = { start: 0, end: 0 };
+
+/** The span of a node, or an empty one for a hand-built node without one. */
+function spanOf(node: unknown): Span {
+  const span = (node as { span?: unknown } | null)?.span;
+  return typeof span === "object" && span !== null ? (span as Span) : NO_SPAN;
 }
 
 function applyOperator(op: "+" | "-" | "*" | "/", left: number, right: number): number {

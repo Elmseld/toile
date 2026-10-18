@@ -32,6 +32,8 @@ describe("FUNCTIONS", () => {
     expect(call("max", 2)).toBe(2);
     expect(call("max", 2, 7, 3)).toBe(7);
     expect(call("abs", -3)).toBe(3);
+    expect(call("min", 0, -0)).toBe(-0);
+    expect(call("max", -0, 0)).toBe(0);
   });
 
   test("trigonometry works in degrees", () => {

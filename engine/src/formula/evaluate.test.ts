@@ -135,6 +135,39 @@ describe("evaluateExpression on hand-built ASTs", () => {
     });
   });
 
+  test("a node of an unknown type is an invalid result, never ok with NaN", () => {
+    const unknown = { type: "mystery", span: { start: 4, end: 5 } } as unknown as Expr;
+    const expr: Expr = { type: "binary", op: "+", left: { type: "number", value: 1, span }, right: unknown, span };
+    expect(evaluateExpression(expr, () => undefined)).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_result", function: null, span: { start: 4, end: 5 } },
+    });
+    expect(evaluateExpression({ type: "mystery" } as unknown as Expr, () => undefined)).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_result", function: null, span: { start: 0, end: 0 } },
+    });
+  });
+
+  test("a missing node is an invalid result", () => {
+    const expr = { type: "negate", operand: null, span } as unknown as Expr;
+    expect(evaluateExpression(expr, () => undefined)).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_result", function: null },
+    });
+  });
+
+  test("min and max with a million arguments do not overflow the stack", () => {
+    const args: Expr[] = Array.from({ length: 1_000_000 }, (_, i) => ({ type: "number", value: i, span }));
+    expect(evaluateExpression({ type: "call", function: "min", args, span }, () => undefined)).toEqual({
+      ok: true,
+      value: 0,
+    });
+    expect(evaluateExpression({ type: "call", function: "max", args, span }, () => undefined)).toEqual({
+      ok: true,
+      value: 999_999,
+    });
+  });
+
   test("a non-finite number node is an invalid result", () => {
     const expr: Expr = { type: "number", value: Number.POSITIVE_INFINITY, span };
     expect(evaluateExpression(expr, () => undefined)).toMatchObject({
@@ -219,6 +252,22 @@ describe("evaluateExpression with a custom function table", () => {
         message: "distance() expects a name here",
       },
     });
+  });
+
+  test("a throwing function from the table is an invalid result for that call", () => {
+    const throwing: FunctionTable = new Map<string, FunctionSpec>([
+      ...functions,
+      ["boom", { min: 1, max: 1, apply: () => { throw new Error("boom"); } }],
+      ["named_boom", { min: 1, max: 1, takes: "names", apply: () => { throw new Error("boom"); } }],
+    ]);
+    for (const [source, name] of [["1 + boom(2)", "boom"], ["1 + named_boom(A)", "named_boom"]] as const) {
+      const parsed = parseFormula(source, { functions: throwing });
+      if (!parsed.ok) throw new Error("unexpected parse error");
+      expect(evaluateExpression(parsed.expr, () => 1, { functions: throwing })).toMatchObject({
+        ok: false,
+        error: { kind: "invalid_result", function: name, span: { start: 4, end: source.length } },
+      });
+    }
   });
 
   test("a function missing from the table given is unknown", () => {

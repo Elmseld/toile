@@ -7,8 +7,10 @@
  * By default a function takes numbers: each argument is an expression, evaluated before `apply`.
  * With `takes: "names"` every argument must be a bare name, which is passed to `apply` unevaluated
  * so the function can resolve it itself (for example a point in `distance(A, B)`). Such names are
- * still listed by `references`, so they count as dependencies. A non-finite result from `apply`
- * is an `invalid_result` error.
+ * still listed by `references`, so they count as dependencies. A non-finite result from `apply`,
+ * or an exception thrown by it, is an `invalid_result` error naming the function, on the span of
+ * the call; the exception itself is not reported. `apply` should still return `NaN` rather than
+ * throw for arguments it cannot handle.
  *
  * Callers can pass their own table (usually `FUNCTIONS` plus their own entries) to `parseFormula`
  * and `evaluateExpression`.
@@ -44,8 +46,9 @@ const unary = (fn: (x: number) => number): FunctionSpec => ({
 export const FUNCTIONS: FunctionTable = new Map<string, FunctionSpec>([
   ["sqrt", unary(Math.sqrt)],
   ["abs", unary(Math.abs)],
-  ["min", { min: 1, max: null, apply: (args) => Math.min(...args) }],
-  ["max", { min: 1, max: null, apply: (args) => Math.max(...args) }],
+  // A fold rather than `Math.min(...args)`: spreading a very long argument list overflows the stack.
+  ["min", { min: 1, max: null, apply: (args) => args.reduce((a, b) => Math.min(a, b), Infinity) }],
+  ["max", { min: 1, max: null, apply: (args) => args.reduce((a, b) => Math.max(a, b), -Infinity) }],
   ["sin", unary((x) => Math.sin(toRad(x)))],
   ["cos", unary((x) => Math.cos(toRad(x)))],
   ["tan", unary((x) => Math.tan(toRad(x)))],
