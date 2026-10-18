@@ -51,7 +51,9 @@ formulas such as `waist / 4 + ease_waist` with a custom parser (no `eval`). See
 ## Pattern definitions
 
 `evaluatePattern(definition, { measurements, parameters? })` (in `src/geometry/`) takes a stored
-pattern definition (JSON) and a measurement profile and returns computed geometry. The Phoenix app
+pattern definition (JSON) and a measurement profile and returns computed geometry;
+`compilePattern(definition).evaluate(input)` does the same with the definition-only work done once
+(see Compiling below). The Phoenix app
 does not use it yet (0005). See `docs/adr/0004-pattern-definition-format.md` for the reasoning.
 
 ```json
@@ -125,9 +127,21 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   `circular_dependency`, dependants `failed_dependency` (as in Formulas).
 - **User offsets.** `user_offset` is added after the operation and is the point's position
   everywhere downstream (dependent points, curves, `distance`/`angle`, pieces).
-- **Result.** `{ ok: true, values, points, curves, pieces }` or the same plus `errors`. All
-  records hold what computed, in declaration order, even when other parts failed. Points are final
-  positions; curves and pieces hold computed points and `length`.
+- **Result.** `{ ok: true, values, points, basePoints, curves, pieces }` or the same plus
+  `errors`. All records hold what computed, in declaration order, even when other parts failed.
+  `points` are final positions; `basePoints` are positions before the user offset (for every point
+  whose operation computed, also when the offset position did not), so an editor turns a pointer
+  position `p` into the offset `p - basePoints[name]`. Curves and pieces hold computed points and
+  `length`.
+- **Compiling.** `compilePattern(definition)` does all the work that depends only on the
+  definition once (validation, names and references, parsing, outline closure, dependency order
+  and cycles) and returns `{ evaluate(input, options?) }`, which gives exactly what
+  `evaluatePattern(definition, input)` gives. Keep it while the definition is unchanged (a drag,
+  switching measurement profiles); evaluations share no state or result objects. `options.offsets`
+  (`{ [point]: { dx, dy } | null }`) replaces the definition's `user_offset` of those points for
+  one evaluation (`null` removes it; other names are ignored; an entry without numeric `dx`/`dy`
+  makes the point `degenerate_geometry`). For a 300-point block a compiled evaluation takes about
+  0.4 ms, `evaluatePattern` about 2.5 ms.
 - **Errors** are values, never thrown, for any input. Structural errors have `path`; the others
   have `kind`, `name` (the element) and optionally `field` (e.g. `distance`, `line1/0`,
   `outline/2/curve`) and `span` into that field. Kinds are those of Formulas plus

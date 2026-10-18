@@ -71,6 +71,24 @@ export type PatternDefinition = {
   pieces: PieceDefinition[];
 };
 
+/** Options of one evaluation of a compiled pattern. */
+export type EvaluateOptions = {
+  /**
+   * User offsets by point name that replace the definition's `user_offset` for this evaluation,
+   * e.g. while a point is dragged; `null` means no offset. Names that are not points are ignored.
+   */
+  offsets?: Readonly<Record<string, UserOffset | null>>;
+};
+
+/** A definition prepared by `compilePattern`, to be evaluated against any number of inputs. */
+export type CompiledPattern = {
+  /**
+   * The same result as `evaluatePattern(definition, input)` (with `options.offsets` applied).
+   * Never throws.
+   */
+  readonly evaluate: (input: PatternInput, options?: EvaluateOptions) => PatternResult;
+};
+
 /** What a definition is evaluated against. */
 export type PatternInput = {
   /** A measurement profile; names the definition does not declare are ignored. */
@@ -95,6 +113,12 @@ export type ComputedPattern = {
   values: Record<string, number>;
   /** Final positions, user offsets included. */
   points: Record<string, Point>;
+  /**
+   * Positions before the user offset (the operation's result), for every point whose operation
+   * computed within bounds, also when its offset position did not. The editor turns a pointer
+   * position `p` into the offset `p - basePoints[name]`.
+   */
+  basePoints: Record<string, Point>;
   curves: Record<string, ComputedCurve>;
   pieces: Record<string, ComputedPiece>;
 };

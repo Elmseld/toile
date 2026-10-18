@@ -1,6 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import type { FormulaError } from "./errors";
-import { components, type DependencyGraph, type Edge, evaluateGraph, shortestCycleThrough } from "./graph";
+import {
+  components,
+  type DependencyGraph,
+  type Edge,
+  evaluateGraph,
+  planGraph,
+  runGraphPlan,
+  shortestCycleThrough,
+} from "./graph";
 
 // Builds a graph from `{ node: "dep1 dep2" }`; each edge's span is its index in that list.
 function graph(nodes: Record<string, string>): DependencyGraph {
@@ -119,5 +127,48 @@ describe("evaluateGraph", () => {
     const failed = new Set(["m"]);
     evaluateGraph(graph({ a: "m" }), { position: () => 0, failed, evaluate: () => null });
     expect([...failed]).toEqual(["m"]);
+  });
+});
+
+describe("planGraph and runGraphPlan", () => {
+  test("one plan, run with different failed inputs, matches evaluateGraph every time", () => {
+    const g = graph({ a: "m", b: "a n", c: "d", d: "c", e: "b", f: "" });
+    const names = [...g.keys()];
+    const position = (name: string): number => names.indexOf(name);
+    const plan = planGraph(g, { position, failed: new Set() });
+    for (const failedInputs of [[], ["m"], ["n"], ["m", "n"], []]) {
+      const failed = new Set(failedInputs);
+      const evaluatedByPlan: string[] = [];
+      const evaluatedByGraph: string[] = [];
+      const fromPlan = runGraphPlan(plan, {
+        failed,
+        evaluate: (name) => {
+          evaluatedByPlan.push(name);
+          return null;
+        },
+      });
+      const direct = evaluateGraph(g, {
+        position,
+        failed,
+        evaluate: (name) => {
+          evaluatedByGraph.push(name);
+          return null;
+        },
+      });
+      expect(fromPlan).toEqual(direct);
+      expect(evaluatedByPlan).toEqual(evaluatedByGraph);
+    }
+  });
+
+  test("planned cycle errors are copied on every run", () => {
+    const plan = planGraph(graph({ a: "b", b: "a" }), { position: () => 0, failed: new Set() });
+    const first = runGraphPlan<FormulaError>(plan, { failed: new Set(), evaluate: () => null });
+    const cycle = first.find((error) => error.kind === "circular_dependency");
+    if (cycle?.kind !== "circular_dependency") throw new Error("expected a cycle");
+    cycle.cycle.push("changed");
+    const second = runGraphPlan(plan, { failed: new Set(), evaluate: () => null });
+    expect(second).toContainEqual(
+      expect.objectContaining({ kind: "circular_dependency", cycle: ["b", "a", "b"] }),
+    );
   });
 });

@@ -1,5 +1,7 @@
 // Evaluates a pattern definition against a measurement profile (ADR 0004): one namespace, one
 // dependency graph of formulas, points, curves and pieces, errors as values and partial results.
+// `compilePattern` does everything that depends only on the definition once; the evaluation it
+// returns does only what depends on the input, so the editor can call it on every pointer move.
 
 import { appendAll } from "../formula/arrays";
 import {
@@ -9,25 +11,28 @@ import {
   unknownReferenceError,
 } from "../formula/errors";
 import { evaluateExpression } from "../formula/evaluate";
-import { type Edge, evaluateGraph } from "../formula/graph";
+import { type Edge, type GraphPlan, planGraph, runGraphPlan } from "../formula/graph";
 import { Namespace } from "../formula/namespace";
-import { type Expr, parseFormula } from "../formula/parser";
+import { type Expr, type FormulaOptions, parseFormula } from "../formula/parser";
 import { cubicLength } from "./bezier";
 import { geometryFunctions } from "./functions";
 import { computePoint, curveFields, pointFields } from "./operations";
 import { classifyReferences } from "./references";
 import type {
+  CompiledPattern,
   ComputedCurve,
   ComputedPiece,
   CurveDefinition,
   ElementError,
   ElementSource,
+  EvaluateOptions,
   PatternDefinition,
   PatternInput,
   PatternResult,
   PieceDefinition,
   PointDefinition,
   ReferenceKind,
+  UserOffset,
 } from "./types";
 import { validateDefinition } from "./validate";
 import { distance, MAX_COORDINATE, type Point } from "./vector";
@@ -41,6 +46,31 @@ type Node =
   | { type: "curve"; definition: CurveDefinition }
   | { type: "piece"; definition: PieceDefinition };
 
+/** The computed geometry of one evaluation, read by the geometry functions while it runs. */
+type GeometryHolder = {
+  points: ReadonlyMap<string, Point>;
+  curves: ReadonlyMap<string, ComputedCurve>;
+};
+
+/** Everything about a valid definition that does not depend on the input. */
+type Compiled = {
+  definition: PatternDefinition;
+  namespace: Namespace<ElementSource>;
+  /** `invalid_name` / `duplicate_name`, in the order they were found. */
+  nameErrors: readonly ElementError[];
+  /** Parse, reference and outline errors, in the order they were found. */
+  collectionErrors: readonly ElementError[];
+  /** Names with a name or collection error. */
+  failed: ReadonlySet<string>;
+  /** Names with a name error: their values never resolve. */
+  nameFailed: ReadonlySet<string>;
+  nodes: ReadonlyMap<string, Node>;
+  graph: ReadonlyMap<string, readonly FieldEdge[]>;
+  plan: GraphPlan;
+  holder: GeometryHolder;
+  formulaOptions: FormulaOptions;
+};
+
 const KIND_OF_SOURCE: Readonly<Record<ElementSource, ReferenceKind>> = {
   measurement: "value",
   parameter: "value",
@@ -53,9 +83,41 @@ const KIND_OF_SOURCE: Readonly<Record<ElementSource, ReferenceKind>> = {
 const NAN_POINT: Point = Object.freeze({ x: Number.NaN, y: Number.NaN });
 
 /**
+ * Validates `definition` (untrusted) and prepares it for evaluation: checks names and every
+ * reference, parses every formula once and orders the dependency graph, with its cycles. The
+ * returned `evaluate(input, options?)` does only the work that depends on the input (measurement
+ * values, parameter overrides and replacement user offsets), and returns exactly what
+ * `evaluatePattern(definition, input)` does for the same definition and input. Never throws.
+ *
+ * Keep the compiled pattern while the definition stays the same (during a drag, while switching
+ * measurement profiles) and compile again when it changes. Evaluations are independent: nothing of
+ * one input is visible in the next. `definition` is not read again after this call.
+ */
+export function compilePattern(definition: unknown): CompiledPattern {
+  const validated = validateDefinition(definition);
+  if (!validated.ok) {
+    const errors = validated.errors;
+    return Object.freeze({
+      evaluate: (): PatternResult => ({
+        ok: false,
+        ...emptyRecords(),
+        errors: structuredClone(errors),
+      }),
+    });
+  }
+  const compiled = compileValid(validated.definition);
+  return Object.freeze({
+    evaluate: (input: PatternInput, options?: EvaluateOptions): PatternResult =>
+      evaluateCompiled(compiled, readInput(input), readOffsets(options)),
+  });
+}
+
+/**
  * Evaluates `definition` (untrusted, validated first with `validateDefinition`) against `input`
- * and returns the computed values, points, curves and pieces in declaration order, together with
- * every error. Never throws, for any input.
+ * and returns the computed values, points (final and base positions), curves and pieces in
+ * declaration order, together with every error. Never throws, for any input. The same as
+ * `compilePattern(definition).evaluate(input)`; compile once instead when evaluating the same
+ * definition repeatedly.
  *
  * - A structurally invalid definition gives its `invalid_definition` / `unsupported_version`
  *   errors and empty records.
@@ -64,9 +126,10 @@ const NAN_POINT: Point = Object.freeze({ x: Number.NaN, y: Number.NaN });
  *   (`missing_measurement`, `invalid_value`); parameter overrides replace the defaults
  *   (`unknown_parameter` for undeclared ones, reported after all others, `invalid_value`).
  * - Every reference must name a declared element (`unknown_reference`) of the right kind
- *   (`wrong_reference_kind`); the first such problem of an element is reported.
- * - Formulas, points, curves and pieces are evaluated once each, in dependency order, through
- *   `evaluateGraph` (ADR 0003): one `circular_dependency` per cycle group and `failed_dependency`
+ *   (`wrong_reference_kind`); the first such problem of an element is reported. A piece whose
+ *   outline does not close by point name is `open_outline`, whatever the geometry.
+ * - Formulas, points, curves and pieces are evaluated once each, in dependency order, through the
+ *   dependency graph (ADR 0003): one `circular_dependency` per cycle group and `failed_dependency`
  *   for dependants, each with the `field` of the reference. Points add their `user_offset` after
  *   the operation, and that final position is what everything downstream sees.
  * - Errors are sorted by the declaration order of the element they belong to.
@@ -75,24 +138,10 @@ const NAN_POINT: Point = Object.freeze({ x: Number.NaN, y: Number.NaN });
  * size of the definition, with no recursion that grows with it.
  */
 export function evaluatePattern(definition: unknown, input: PatternInput): PatternResult {
-  const validated = validateDefinition(definition);
-  if (!validated.ok) {
-    return { ok: false, values: {}, points: {}, curves: {}, pieces: {}, errors: validated.errors };
-  }
-  return evaluateValid(validated.definition, readInput(input));
+  return compilePattern(definition).evaluate(input);
 }
 
-type Profile = { measurements: Map<string, unknown>; parameters: Map<string, unknown> };
-
-function evaluateValid(definition: PatternDefinition, input: Profile): PatternResult {
-  const errors: ElementError[] = [];
-  const overrideErrors: ElementError[] = [];
-  const failed = new Set<string>();
-  const fail = (error: ElementError): void => {
-    errors.push(error);
-    failed.add(error.name);
-  };
-
+function compileValid(definition: PatternDefinition): Compiled {
   // 1. Names: declaration position (first occurrence) and every source of each name.
   const namespace = new Namespace<ElementSource>();
   for (const name of definition.measurements) namespace.declare(name, "measurement");
@@ -101,41 +150,17 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
   for (const point of definition.points) namespace.declare(point.name, "point");
   for (const curve of definition.curves) namespace.declare(curve.name, "curve");
   for (const piece of definition.pieces) namespace.declare(piece.name, "piece");
-  for (const error of namespace.nameErrors()) fail(error);
+  const nameErrors: ElementError[] = namespace.nameErrors();
+  const nameFailed = new Set(nameErrors.map((error) => error.name));
+  const failed = new Set(nameFailed);
+  const collectionErrors: ElementError[] = [];
 
-  // 2. Values. Every value is checked, also for a name that already failed, so an independent bad
-  // value is not hidden; only names without an error resolve.
-  const resolved = new Map<string, number>();
-  const checked = new Set<string>();
-  for (const name of definition.measurements) {
-    if (checked.has(name)) continue;
-    checked.add(name);
-    if (!input.measurements.has(name)) {
-      fail(missingMeasurementError(name));
-      continue;
-    }
-    const value = input.measurements.get(name);
-    if (!isFiniteNumber(value)) fail(invalidValueError(name, "measurement"));
-    else if (!failed.has(name)) resolved.set(name, value);
-  }
-  for (const [name, fallback] of Object.entries(definition.parameters)) {
-    const value = input.parameters.has(name) ? input.parameters.get(name) : fallback;
-    if (!isFiniteNumber(value)) fail(invalidValueError(name, "parameter"));
-    else if (!failed.has(name)) resolved.set(name, value);
-  }
-  for (const name of input.parameters.keys()) {
-    // Not `fail`: the name may belong to another element (a measurement, say), which must not
-    // fail because of a stray override.
-    if (!Object.hasOwn(definition.parameters, name)) {
-      overrideErrors.push(unknownParameterError(name));
-    }
-  }
-
-  // 3. Parse every formula and collect each element's edges, checking every reference.
-  const points = new Map<string, Point>();
-  const curves = new Map<string, ComputedCurve>();
-  const pieces = new Map<string, ComputedPiece>();
-  const functions = geometryFunctions({ points, curves });
+  // 2. Parse every formula and collect each element's edges, checking every reference. The
+  // function table reads the geometry of the evaluation that is running from `holder`, so parsed
+  // formulas stay valid across evaluations.
+  const holder: GeometryHolder = { points: new Map(), curves: new Map() };
+  const functions = geometryFunctions(holder);
+  const formulaOptions: FormulaOptions = { functions };
 
   const checkReference = (
     owner: string,
@@ -169,7 +194,7 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
 
     formula(field: string | undefined, source: string): Expr | null {
       if (this.error !== null) return null;
-      const parsed = parseFormula(source, { functions });
+      const parsed = parseFormula(source, formulaOptions);
       if (!parsed.ok) {
         this.error = { ...parsed.error, name: this.owner, ...located(field) };
         return null;
@@ -194,6 +219,10 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
 
   const nodes = new Map<string, Node>();
   const graph = new Map<string, FieldEdge[]>();
+  const fail = (error: ElementError): void => {
+    collectionErrors.push(error);
+    failed.add(error.name);
+  };
   const addNode = (name: string, collector: EdgeCollector, node: Node): void => {
     if (collector.error !== null) return fail(collector.error);
     nodes.set(name, node);
@@ -241,8 +270,77 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
     addNode(piece.name, collector, { type: "piece", definition: piece });
   }
 
-  // 4. Evaluate every node once, in dependency order. References were kind-checked above, so the
-  // lookups below only see names of the right kind that already computed.
+  // 3. Order the graph once. Its cycle errors only depend on which nodes failed, and no node can
+  // fail through the input: input errors belong to measurements and parameters, which are not
+  // nodes (a node sharing their name failed as a duplicate above).
+  const plan = planGraph(graph, { position: (name) => namespace.position(name), failed });
+
+  return {
+    definition,
+    namespace,
+    nameErrors,
+    collectionErrors,
+    failed,
+    nameFailed,
+    nodes,
+    graph,
+    plan,
+    holder,
+    formulaOptions,
+  };
+}
+
+type Profile = { measurements: Map<string, unknown>; parameters: Map<string, unknown> };
+
+function evaluateCompiled(
+  compiled: Compiled,
+  input: Profile,
+  offsets: ReadonlyMap<string, UserOffset | null>,
+): PatternResult {
+  const { definition, namespace, nodes, graph, holder, formulaOptions } = compiled;
+  const valueErrors: ElementError[] = [];
+  const overrideErrors: ElementError[] = [];
+  // Name and value failures; only names without an error resolve.
+  const valueFailed = new Set(compiled.nameFailed);
+  const failValue = (error: ElementError): void => {
+    valueErrors.push(error);
+    valueFailed.add(error.name);
+  };
+
+  // 1. Values. Every value is checked, also for a name that already failed, so an independent bad
+  // value is not hidden.
+  const resolved = new Map<string, number>();
+  const checked = new Set<string>();
+  for (const name of definition.measurements) {
+    if (checked.has(name)) continue;
+    checked.add(name);
+    if (!input.measurements.has(name)) {
+      failValue(missingMeasurementError(name));
+      continue;
+    }
+    const value = input.measurements.get(name);
+    if (!isFiniteNumber(value)) failValue(invalidValueError(name, "measurement"));
+    else if (!valueFailed.has(name)) resolved.set(name, value);
+  }
+  for (const [name, fallback] of Object.entries(definition.parameters)) {
+    const value = input.parameters.has(name) ? input.parameters.get(name) : fallback;
+    if (!isFiniteNumber(value)) failValue(invalidValueError(name, "parameter"));
+    else if (!valueFailed.has(name)) resolved.set(name, value);
+  }
+  for (const name of input.parameters.keys()) {
+    // Not `failValue`: the name may belong to another element (a measurement, say), which must not
+    // fail because of a stray override.
+    if (!Object.hasOwn(definition.parameters, name)) {
+      overrideErrors.push(unknownParameterError(name));
+    }
+  }
+
+  // 2. Evaluate every node once, in the planned dependency order. References were kind-checked
+  // when compiling, so the lookups below only see names of the right kind that already computed.
+  const points = new Map<string, Point>();
+  const basePoints = new Map<string, Point>();
+  const curves = new Map<string, ComputedCurve>();
+  const pieces = new Map<string, ComputedPiece>();
   const lookup = (name: string): number | undefined => resolved.get(name);
   const pointOf = (name: string): Point => points.get(name) ?? NAN_POINT;
 
@@ -252,19 +350,20 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
   ): ElementError | null => {
     const numbers = new Map<string, number>();
     for (const [field, expr] of node.formulas) {
-      const result = evaluateExpression(expr, lookup, { functions });
+      const result = evaluateExpression(expr, lookup, formulaOptions);
       if (!result.ok) return { ...result.error, name, field };
       numbers.set(field, result.value);
     }
     const result = computePoint(node.definition, numbers, pointOf);
     if (!result.ok) return { ...result.error, name };
-    const offset = node.definition.user_offset;
+    const base = result.point;
+    if (withinBounds(base)) basePoints.set(name, base);
+    const offset = offsets.has(name) ? offsets.get(name) : node.definition.user_offset;
     const point =
-      offset === undefined
-        ? result.point
-        : { x: result.point.x + offset.dx, y: result.point.y + offset.dy };
-    // `!(<=)` also catches NaN.
-    if (!(Math.abs(point.x) <= MAX_COORDINATE && Math.abs(point.y) <= MAX_COORDINATE)) {
+      offset === undefined || offset === null
+        ? base
+        : { x: base.x + offset.dx, y: base.y + offset.dy };
+    if (!withinBounds(point)) {
       return degenerateError(
         name,
         `The computed position is not a finite number within ${MAX_COORDINATE} mm of the origin`,
@@ -311,32 +410,46 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
     return null;
   };
 
-  const graphErrors = evaluateGraph<ElementError>(graph, {
-    position: (name) => namespace.position(name),
-    failed,
-    evaluate: (name) => {
-      const node = nodes.get(name);
-      switch (node?.type) {
-        case undefined:
-          return null;
-        case "formula": {
-          const result = evaluateExpression(node.expr, lookup, { functions });
-          if (!result.ok) return { ...result.error, name };
-          resolved.set(name, result.value);
-          return null;
+  // Evaluation is synchronous and never calls back into a compiled pattern, so the holder belongs
+  // to this run until it is cleared again below.
+  holder.points = points;
+  holder.curves = curves;
+  let graphErrors: ElementError[];
+  try {
+    graphErrors = runGraphPlan<ElementError>(compiled.plan, {
+      failed: new Set([...compiled.failed, ...valueFailed]),
+      evaluate: (name) => {
+        const node = nodes.get(name);
+        switch (node?.type) {
+          case undefined:
+            return null;
+          case "formula": {
+            const result = evaluateExpression(node.expr, lookup, formulaOptions);
+            if (!result.ok) return { ...result.error, name };
+            resolved.set(name, result.value);
+            return null;
+          }
+          case "point":
+            return evaluatePoint(name, node);
+          case "curve":
+            return evaluateCurve(name, node.definition);
+          case "piece":
+            return evaluatePiece(name, node.definition);
         }
-        case "point":
-          return evaluatePoint(name, node);
-        case "curve":
-          return evaluateCurve(name, node.definition);
-        case "piece":
-          return evaluatePiece(name, node.definition);
-      }
-    },
-  });
+      },
+    });
+  } finally {
+    holder.points = EMPTY_POINTS;
+    holder.curves = EMPTY_CURVES;
+  }
 
-  // 5. Graph errors get the field of the edge `evaluateGraph` chose: the first edge of the element
-  // to the dependency it names (`cycle[1]` for the head of a cycle).
+  // 3. Errors in the order they would be found by a single pass (name, value, collection, graph
+  // errors), then sorted by declaration order. Errors of the compiled definition are copied, so
+  // results never share objects. Graph errors get the field of the edge the graph chose: the
+  // first edge of the element to the dependency it names (`cycle[1]` for the head of a cycle).
+  const errors: ElementError[] = structuredClone([...compiled.nameErrors]);
+  appendAll(errors, valueErrors);
+  appendAll(errors, structuredClone([...compiled.collectionErrors]));
   for (const error of graphErrors) {
     if (error.kind !== "circular_dependency" && error.kind !== "failed_dependency") {
       errors.push(error);
@@ -346,15 +459,15 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
     const field = graph.get(error.name)?.find((edge) => edge.name === target)?.field;
     errors.push(field === undefined ? error : { ...error, field });
   }
-
   namespace.sortByPosition(errors);
   appendAll(errors, overrideErrors);
 
-  // 6. Records in declaration order, built in one pass over the names. `fromEntries` defines own
+  // 4. Records in declaration order, built in one pass over the names. `fromEntries` defines own
   // data properties, so names such as `__proto__` are stored safely.
   const entries = {
     values: [] as [string, number][],
     points: [] as [string, Point][],
+    basePoints: [] as [string, Point][],
     curves: [] as [string, ComputedCurve][],
     pieces: [] as [string, ComputedPiece][],
   };
@@ -363,6 +476,8 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
     if (value !== undefined) entries.values.push([name, value]);
     const point = points.get(name);
     if (point !== undefined) entries.points.push([name, point]);
+    const base = basePoints.get(name);
+    if (base !== undefined) entries.basePoints.push([name, base]);
     const curve = curves.get(name);
     if (curve !== undefined) entries.curves.push([name, curve]);
     const piece = pieces.get(name);
@@ -371,10 +486,23 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
   const computed = {
     values: Object.fromEntries(entries.values),
     points: Object.fromEntries(entries.points),
+    basePoints: Object.fromEntries(entries.basePoints),
     curves: Object.fromEntries(entries.curves),
     pieces: Object.fromEntries(entries.pieces),
   };
   return errors.length === 0 ? { ok: true, ...computed } : { ok: false, ...computed, errors };
+}
+
+const EMPTY_POINTS: ReadonlyMap<string, Point> = new Map();
+const EMPTY_CURVES: ReadonlyMap<string, ComputedCurve> = new Map();
+
+function emptyRecords() {
+  return { values: {}, points: {}, basePoints: {}, curves: {}, pieces: {} };
+}
+
+/** Both coordinates within `MAX_COORDINATE` of 0 (`NaN` fails the comparison, so it is out). */
+function withinBounds(point: Point): boolean {
+  return Math.abs(point.x) <= MAX_COORDINATE && Math.abs(point.y) <= MAX_COORDINATE;
 }
 
 /**
@@ -383,17 +511,47 @@ function evaluateValid(definition: PatternDefinition, input: Profile): PatternRe
  * while being read (a hostile getter or proxy).
  */
 function readInput(input: unknown): Profile {
-  const read = (key: "measurements" | "parameters"): Map<string, unknown> => {
-    try {
-      if (typeof input !== "object" || input === null) return new Map();
-      const record: unknown = (input as Record<string, unknown>)[key];
-      if (typeof record !== "object" || record === null) return new Map();
-      return new Map(Object.entries(record));
-    } catch {
-      return new Map();
-    }
+  return {
+    measurements: readRecord(input, "measurements"),
+    parameters: readRecord(input, "parameters"),
   };
-  return { measurements: read("measurements"), parameters: read("parameters") };
+}
+
+/**
+ * The replacement user offsets of `options`, by point name. An entry that is `null` or `undefined`
+ * means no offset; any other entry that is not `{ dx, dy }` with numbers gives `NaN`, so the point
+ * fails as `degenerate_geometry` instead of silently using another offset. Unreadable `offsets`
+ * count as none.
+ */
+function readOffsets(options: unknown): Map<string, UserOffset | null> {
+  const offsets = new Map<string, UserOffset | null>();
+  try {
+    for (const [name, value] of readRecord(options, "offsets")) {
+      if (value === null || value === undefined) {
+        offsets.set(name, null);
+        continue;
+      }
+      const record = typeof value === "object" ? (value as Record<string, unknown>) : {};
+      const dx = typeof record.dx === "number" ? record.dx : Number.NaN;
+      const dy = typeof record.dy === "number" ? record.dy : Number.NaN;
+      offsets.set(name, { dx, dy });
+    }
+  } catch {
+    offsets.clear();
+  }
+  return offsets;
+}
+
+/** Own enumerable entries of `source[key]`; empty when either is not an object or throws. */
+function readRecord(source: unknown, key: string): Map<string, unknown> {
+  try {
+    if (typeof source !== "object" || source === null) return new Map();
+    const record: unknown = (source as Record<string, unknown>)[key];
+    if (typeof record !== "object" || record === null) return new Map();
+    return new Map(Object.entries(record));
+  } catch {
+    return new Map();
+  }
 }
 
 function isFiniteNumber(value: unknown): value is number {

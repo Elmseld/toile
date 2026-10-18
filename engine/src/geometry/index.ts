@@ -2,6 +2,7 @@
 // (ADR 0004).
 
 export type {
+  CompiledPattern,
   ComputedCurve,
   ComputedPattern,
   ComputedPiece,
@@ -9,6 +10,7 @@ export type {
   DefinitionError,
   ElementError,
   ElementSource,
+  EvaluateOptions,
   OutlineEntry,
   PatternDefinition,
   PatternError,
@@ -20,7 +22,7 @@ export type {
   ReferenceKind,
   UserOffset,
 } from "./types";
-export { evaluatePattern } from "./evaluate";
+export { compilePattern, evaluatePattern } from "./evaluate";
 export { curvePathData, formatNumber, piecePathData } from "./svg";
 export { PATTERN_FORMAT_VERSION, type ValidationResult, validateDefinition } from "./validate";
 export { distance, MAX_COORDINATE, type Point } from "./vector";

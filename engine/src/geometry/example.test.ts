@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { evaluatePattern } from "./evaluate";
+import { compilePattern, evaluatePattern } from "./evaluate";
 import { piecePathData } from "./svg";
 import type { PatternResult } from "./types";
 import { validateDefinition } from "./validate";
@@ -156,5 +156,34 @@ describe("example: rectangle with a dart", () => {
       expect(piecePathData(front)).toContain("L 127.5 100");
       expectPoint(front.grainline.from, [127.5, 120]);
     }
+  });
+});
+
+describe("example: compiled once", () => {
+  test("evaluates both measurement sets exactly as evaluatePattern does, in any order", () => {
+    const compiled = compilePattern(example());
+    for (const set of [SET_1, SET_2, SET_1, SET_2]) {
+      const input = { measurements: set.measurements };
+      const result = compiled.evaluate(input);
+      expectSet(result, set);
+      expect(result).toEqual(evaluatePattern(example(), input));
+    }
+  });
+
+  test("a dragged P through offsets equals the same user_offset in the definition", () => {
+    const compiled = compilePattern(example());
+    const input = { measurements: SET_1.measurements };
+    for (const dx of [5, -3, 0.25]) {
+      const definition = example();
+      const p = definition.points.find((point) => point.name === "P");
+      if (p === undefined) throw new Error("P is missing from the example");
+      p.user_offset = { dx, dy: 10 };
+      const dragged = compiled.evaluate(input, { offsets: { P: { dx, dy: 10 } } });
+      expect(dragged).toEqual(evaluatePattern(definition, input));
+      expectPoint(dragged.basePoints.P, SET_1.points.P ?? [Number.NaN, Number.NaN]);
+      expectPoint(dragged.points.P, [122.5 + dx, 100]);
+    }
+    // Without the override, the next evaluation is back to the definition.
+    expectSet(compiled.evaluate(input), SET_1);
   });
 });

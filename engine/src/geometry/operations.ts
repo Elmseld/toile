@@ -79,7 +79,10 @@ export function pointFields(point: PointDefinition): PointField[] {
     if ((kind === "name" || kind === "formula") && typeof value === "string") {
       result.push([field, kind, value]);
     } else if (kind === "line" && Array.isArray(value)) {
-      result.push([`${field}/0`, "name", String(value[0])], [`${field}/1`, "name", String(value[1])]);
+      result.push(
+        [`${field}/0`, "name", String(value[0])],
+        [`${field}/1`, "name", String(value[1])],
+      );
     }
   }
   return result;

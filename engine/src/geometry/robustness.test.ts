@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { evaluatePattern } from "./evaluate";
+import { compilePattern, evaluatePattern } from "./evaluate";
 import type { PatternError, PatternInput } from "./types";
 import { validateDefinition } from "./validate";
 
@@ -202,6 +202,25 @@ describe("robustness", () => {
     }
     // Many points do compute, so the operations themselves are exercised, not just the checks.
     expect(computedPoints).toBeGreaterThan(1_000);
+  });
+
+  test("a compiled definition evaluated against alternating inputs matches fresh evaluations", () => {
+    const next = random(7);
+    const inputs: PatternInput[] = [
+      INPUT,
+      { measurements: {} },
+      { measurements: { m: -40 }, parameters: { w: 0.5 } },
+      { measurements: { m: Number.NaN }, parameters: { w: 7, stray: 1 } },
+    ];
+    for (let i = 0; i < 500; i++) {
+      const definition = next() < 0.8 ? wellFormedDefinition(next) : randomDefinition(next);
+      const compiled = compilePattern(definition);
+      for (let round = 0; round < 2; round++) {
+        for (const input of inputs) {
+          expect(compiled.evaluate(input)).toEqual(evaluatePattern(definition, input));
+        }
+      }
+    }
   });
 
   test("hostile inputs return errors instead of throwing", () => {

@@ -47,8 +47,10 @@ a drag. The definition and its formulas are untrusted user input. This ADR build
    `from -> to`. Dropping a foot point onto a line is not added; add an op (no version bump, see
    decision 1) when a block needs it.
 8. **Geometry functions via the injectable table** (ADR 0003 decision 8): `distance(A, B)`,
-   `angle(A, B)` and `length(curve)` with `takes: "names"`, in a table that closes over the computed
-   points and curves. Not added: `x(A)` / `y(A)`; `length` takes one curve (sum with `+`).
+   `angle(A, B)` and `length(curve)` with `takes: "names"`, in a table that reads the points and
+   curves of the running evaluation from a state holder when applied (so parsed formulas can be
+   reused across evaluations, decision 15). Not added: `x(A)` / `y(A)`; `length` takes one curve
+   (sum with `+`).
 9. **One dependency graph.** Formulas, points, curves and pieces are nodes of the same
    `evaluateGraph` (ADR 0003 decision 4): ordering by dependency, one `circular_dependency` per
    cycle, `failed_dependency` for dependants, partial results. Pieces are leaves that fail through
@@ -74,6 +76,16 @@ a drag. The definition and its formulas are untrusted user input. This ADR build
 14. **No schema file.** The TypeScript validator is the source of truth. How the Phoenix app
     validates stored definitions is decided in 0005/0008 (Elixir validates but never computes
     geometry).
+15. **Compile once, evaluate per input.** `compilePattern(definition)` validates, checks names and
+    references, parses every formula, checks outline closure and orders the dependency graph
+    (cycle errors included) once; its `evaluate(input, { offsets }?)` only reads measurement and
+    parameter values, evaluates the parsed formulas and computes the geometry, with `offsets`
+    replacing points' `user_offset` for that evaluation. `evaluatePattern(definition, input)` is
+    the composition, with identical results. The editor (0008) keeps one compiled pattern during a
+    drag, and turns a pointer position into an offset with the pre-offset `basePoints` of the
+    result. Measured for a 300-point block: about 0.4 ms per compiled evaluation against 2.5 ms
+    for `evaluatePattern` (Bun, one core), so per-node allocation in the expression evaluator
+    (about a third of the remaining time) is not worth optimising yet.
 
 Rejected alternatives:
 - A schema/validation dependency (zod, a JSON Schema validator): a new dependency for a small

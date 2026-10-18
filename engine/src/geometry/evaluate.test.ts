@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { evaluatePattern } from "./evaluate";
-import type { PatternError, PatternInput, PatternResult } from "./types";
+import { compilePattern, evaluatePattern } from "./evaluate";
+import type { PatternError, PatternInput, PatternResult, UserOffset } from "./types";
 
 type Json = Record<string, unknown>;
 
@@ -537,7 +537,14 @@ describe("result shape", () => {
       "failed_dependency:c:from",
     ]);
     const ok = evaluatePattern(def({ points: [start("A", 0, 0)] }), NO_INPUT);
-    expect(ok).toEqual({ ok: true, values: {}, points: { A: { x: 0, y: 0 } }, curves: {}, pieces: {} });
+    expect(ok).toEqual({
+      ok: true,
+      values: {},
+      points: { A: { x: 0, y: 0 } },
+      basePoints: { A: { x: 0, y: 0 } },
+      curves: {},
+      pieces: {},
+    });
     expect("errors" in ok).toBe(false);
   });
 
@@ -546,6 +553,7 @@ describe("result shape", () => {
       ok: false,
       values: {},
       points: {},
+      basePoints: {},
       curves: {},
       pieces: {},
       errors: [{ kind: "invalid_definition", path: "/points", message: expect.any(String) }],
@@ -599,5 +607,118 @@ describe("result shape", () => {
   test("a name only on the prototype is unknown", () => {
     const result = evaluatePattern(def({ formulas: { f: "toString + 1" } }), NO_INPUT);
     expect(summary(result)).toEqual(["unknown_reference:f"]);
+  });
+});
+
+describe("compilePattern", () => {
+  const definition = def({
+    measurements: ["m"],
+    parameters: { p: 2 },
+    formulas: { f: "m * p", g: "distance(A, B) + length(ab)", c1: "c2", c2: "c1" },
+    points: [
+      start("A", 0, 0),
+      start("B", "f", 0, { user_offset: { dx: 0, dy: 5 } }),
+      { name: "C", op: "along_line", from: "A", to: "B", distance: "g / 4" },
+    ],
+    curves: [line("ab", "A", "B")],
+  });
+  const inputs: PatternInput[] = [
+    { measurements: { m: 10 } },
+    { measurements: {} },
+    { measurements: { m: 30 }, parameters: { p: 3, stray: 1 } },
+    { measurements: { m: Number.NaN } },
+  ];
+  const FIRST = inputs[0] as PatternInput;
+
+  test("every evaluation equals evaluatePattern, with no state carried between inputs", () => {
+    const compiled = compilePattern(definition);
+    for (let round = 0; round < 3; round++) {
+      for (const input of inputs) {
+        expect(compiled.evaluate(input)).toEqual(evaluatePattern(definition, input));
+      }
+    }
+  });
+
+  test("results share no objects with each other", () => {
+    const compiled = compilePattern(definition);
+    const first = compiled.evaluate(FIRST);
+    const expected = compiled.evaluate(FIRST);
+    if (first.ok) throw new Error("the cycle c1 <-> c2 must be reported");
+    for (const error of first.errors) {
+      error.message = "changed";
+      if (error.kind === "circular_dependency") error.cycle.push("changed");
+    }
+    (first.points.B as { x: number }).x = 999;
+    first.values.f = 999;
+    expect(compiled.evaluate(FIRST)).toEqual(expected);
+  });
+
+  test("offsets replace user offsets for one evaluation; null removes one", () => {
+    const compiled = compilePattern(definition);
+    const moved = compiled.evaluate(FIRST, { offsets: { A: { dx: 1, dy: 2 }, B: null } });
+    expect(moved.points.A).toEqual({ x: 1, y: 2 });
+    expect(moved.basePoints.A).toEqual({ x: 0, y: 0 });
+    expect(moved.points.B).toEqual({ x: 20, y: 0 });
+    expect(moved.curves.ab).toMatchObject({ from: { x: 1, y: 2 }, to: { x: 20, y: 0 } });
+    const plain = compiled.evaluate(FIRST);
+    expect(plain.points.A).toEqual({ x: 0, y: 0 });
+    expect(plain.points.B).toEqual({ x: 20, y: 5 });
+    expect(plain.basePoints.B).toEqual({ x: 20, y: 0 });
+  });
+
+  test("offsets for other names are ignored and malformed ones fail the point", () => {
+    const compiled = compilePattern(definition);
+    const ignored = compiled.evaluate(FIRST, { offsets: { m: { dx: 1, dy: 1 }, zz: { dx: 1, dy: 1 } } });
+    expect(ignored).toEqual(compiled.evaluate(FIRST));
+    const malformed = { A: { dx: "1", dy: 0 } } as unknown as Record<string, UserOffset>;
+    const result = compiled.evaluate(FIRST, { offsets: malformed });
+    expect(summary(result)).toEqual([
+      "failed_dependency:g",
+      "circular_dependency:c1",
+      "failed_dependency:c2",
+      "degenerate_geometry:A",
+      "failed_dependency:C:from",
+      "failed_dependency:ab:from",
+    ]);
+    expect(result.basePoints.A).toEqual({ x: 0, y: 0 });
+    expect(result.points.A).toBeUndefined();
+  });
+
+  test("an offset beyond the coordinate bound keeps the base position", () => {
+    const compiled = compilePattern(def({ points: [start("A", 3, 4)] }));
+    const result = compiled.evaluate(NO_INPUT, { offsets: { A: { dx: 2e7, dy: 0 } } });
+    expect(summary(result)).toEqual(["degenerate_geometry:A"]);
+    expect(result.points).toEqual({});
+    expect(result.basePoints).toEqual({ A: { x: 3, y: 4 } });
+  });
+
+  test("unreadable options count as none", () => {
+    const compiled = compilePattern(definition);
+    const hostile = {
+      get offsets(): never {
+        throw new Error("boom");
+      },
+    };
+    const expected = compiled.evaluate(FIRST);
+    for (const options of [hostile, null, 5, { offsets: null }, { offsets: "x" }]) {
+      expect(compiled.evaluate(FIRST, options as never)).toEqual(expected);
+    }
+  });
+
+  test("a structurally invalid definition gives fresh copies of its errors on every evaluation", () => {
+    const invalid = { version: 1, points: 5 };
+    const compiled = compilePattern(invalid);
+    const first = compiled.evaluate(NO_INPUT);
+    expect(first).toEqual(evaluatePattern(invalid, NO_INPUT));
+    if (first.ok) throw new Error("must not validate");
+    (first.errors[0] as { path: string }).path = "changed";
+    expect(compiled.evaluate(NO_INPUT)).toEqual(evaluatePattern(invalid, NO_INPUT));
+  });
+
+  test("the definition is not read after compiling", () => {
+    const raw = def({ points: [start("A", 1, 2)] });
+    const compiled = compilePattern(raw);
+    (raw.points as Json[]).push(start("B", 3, 4));
+    expect(compiled.evaluate(NO_INPUT).points).toEqual({ A: { x: 1, y: 2 } });
   });
 });

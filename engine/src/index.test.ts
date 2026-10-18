@@ -1,5 +1,12 @@
 import { expect, test } from "bun:test";
-import { distance, evaluateFormulas, evaluatePattern, piecePathData } from "./index";
+import {
+  compilePattern,
+  distance,
+  evaluateFormulas,
+  evaluatePattern,
+  MAX_COORDINATE,
+  piecePathData,
+} from "./index";
 
 test("distance between two points", () => {
   expect(distance({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(5);
@@ -38,4 +45,18 @@ test("pattern definitions are evaluated and drawn through the package entry poin
   const piece = result.pieces.t;
   expect(piece).toBeDefined();
   if (piece !== undefined) expect(piecePathData(piece)).toBe("M 0 0 L 100 0 L 0 100 L 0 0 Z");
+});
+
+test("pattern definitions can be compiled once through the package entry point", () => {
+  const definition = {
+    version: 1,
+    measurements: ["side"],
+    points: [{ name: "A", op: "start", x: "side", y: "0" }],
+  };
+  const compiled = compilePattern(definition);
+  for (const side of [10, 20]) {
+    const input = { measurements: { side } };
+    expect(compiled.evaluate(input)).toEqual(evaluatePattern(definition, input));
+  }
+  expect(MAX_COORDINATE).toBe(1e7);
 });
