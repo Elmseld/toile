@@ -373,6 +373,7 @@ msgid "Save password"
 msgstr ""
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
+#: lib/toile_web/live/pattern_live/form.ex
 #: lib/toile_web/live/user_live/settings.ex
 #, elixir-autogen, elixir-format
 msgid "Saving..."
@@ -580,6 +581,7 @@ msgid "At the side, from the waist down to the fullest part of the hips."
 msgstr ""
 
 #: lib/toile_web/live/measurement_profile_live/show.ex
+#: lib/toile_web/live/pattern_live/show.ex
 #, elixir-autogen, elixir-format
 msgid "Back"
 msgstr ""
@@ -610,6 +612,7 @@ msgid "Bust point distance"
 msgstr ""
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
+#: lib/toile_web/live/pattern_live/form.ex
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
@@ -625,6 +628,7 @@ msgid "Complete"
 msgstr ""
 
 #: lib/toile_web/live/measurement_profile_live/index.ex
+#: lib/toile_web/live/pattern_live/index.ex
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr ""
@@ -641,6 +645,7 @@ msgid "Edit"
 msgstr ""
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
+#: lib/toile_web/live/pattern_live/show.ex
 #, elixir-autogen, elixir-format
 msgid "Edit measurement profile"
 msgstr ""
@@ -709,6 +714,8 @@ msgstr ""
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
 #: lib/toile_web/live/measurement_profile_live/index.ex
+#: lib/toile_web/live/pattern_live/form.ex
+#: lib/toile_web/live/pattern_live/index.ex
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
@@ -720,11 +727,13 @@ msgstr ""
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
 #: lib/toile_web/live/measurement_profile_live/index.ex
+#: lib/toile_web/live/pattern_live/form.ex
 #, elixir-autogen, elixir-format
 msgid "New measurement profile"
 msgstr ""
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
+#: lib/toile_web/live/pattern_live/form.ex
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr ""
@@ -783,4 +792,137 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgctxt "decimal separator"
 msgid "."
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "A pattern is drafted from a measurement profile. Create one first."
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/form.ex
+#: lib/toile_web/live/pattern_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Block"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/form.ex
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Choose a measurement profile"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Choose a measurement profile to draw this pattern."
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Could not change the measurement profile"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Delete this pattern?"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Drag to move the pattern; scroll or pinch to zoom. With the keyboard: arrow keys move, + and - zoom, 0 fits to the screen."
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Drawing of the pattern %{name}"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Fit to screen"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/form.ex
+#: lib/toile_web/live/pattern_live/index.ex
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Measurement profile"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Measurements missing for this pattern"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/form.ex
+#: lib/toile_web/live/pattern_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "New pattern"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "No measurement profile"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Open"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Pattern created"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/index.ex
+#, elixir-autogen, elixir-format
+msgid "Pattern deleted"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Pattern renamed"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/index.ex
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Rename"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Rename pattern"
+msgstr ""
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Straight skirt"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "The pattern could not be computed with these measurements."
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Zoom in"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Zoom out"
+msgstr ""
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgctxt "pattern piece"
+msgid "Back"
+msgstr ""
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgctxt "pattern piece"
+msgid "Front"
 msgstr ""
