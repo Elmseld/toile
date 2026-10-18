@@ -121,6 +121,27 @@ describe("intersectLineCircle", () => {
     expectPoint(hits?.[1], 0, 10);
   });
 
+  test("the tangent tolerance is in mm, also for a large radius", () => {
+    // 0.5 nm outside a 1 m circle: within EPSILON in mm, although r^2 - offset^2 is about -1e-6.
+    const near = intersectLineCircle(p(-5, 1000 + 5e-10), p(5, 1000 + 5e-10), p(0, 0), 1000);
+    expectPoint(near?.[0], 0, 1000);
+    expectPoint(near?.[1], 0, 1000);
+    // An exact tangent to a 1 m circle at 30 degrees, built with rounding in every coordinate.
+    const angle = Math.PI / 6;
+    const touch = p(1000 * Math.cos(angle), 1000 * Math.sin(angle));
+    const along = p(-Math.sin(angle), Math.cos(angle));
+    const tangent = intersectLineCircle(
+      p(touch.x - 300 * along.x, touch.y - 300 * along.y),
+      p(touch.x + 700 * along.x, touch.y + 700 * along.y),
+      p(0, 0),
+      1000,
+    );
+    expectPoint(tangent?.[0], touch.x, touch.y, 4);
+    expectPoint(tangent?.[1], touch.x, touch.y, 4);
+    // Clearly outside is still a miss.
+    expect(intersectLineCircle(p(-5, 1000 + 1e-6), p(5, 1000 + 1e-6), p(0, 0), 1000)).toBeNull();
+  });
+
   test("a miss, a negative radius and a degenerate line give null", () => {
     expect(intersectLineCircle(p(0, 11), p(1, 11), p(0, 0), 10)).toBeNull();
     expect(intersectLineCircle(p(-1, 0), p(1, 0), p(0, 0), -1)).toBeNull();

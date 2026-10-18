@@ -114,8 +114,9 @@ export function intersectLineCircle(
   const along = dot(sub(center, a), unit);
   const foot = add(a, scale(unit, along));
   const offset = distance(foot, center);
-  const discriminant = radius * radius - offset * offset;
-  if (discriminant < -EPSILON) return null;
-  const half = Math.sqrt(Math.max(discriminant, 0));
+  // Compared in mm, not mm^2: `r^2 - offset^2` of an exact tangent with a large radius rounds to
+  // far more than EPSILON either side of zero.
+  if (offset > radius + EPSILON) return null;
+  const half = Math.sqrt(Math.max(radius * radius - offset * offset, 0));
   return [add(foot, scale(unit, -half)), add(foot, scale(unit, half))];
 }
