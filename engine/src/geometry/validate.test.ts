@@ -67,7 +67,7 @@ describe("validateDefinition", () => {
 
   test("any other version number is unsupported_version and nothing else is checked", () => {
     expect(errorsOf({ version: 2, bogus: true, points: 5 })).toEqual([
-      { kind: "unsupported_version", version: 2, message: expect.any(String) },
+      { kind: "unsupported_version", path: "/version", version: 2, message: expect.any(String) },
     ]);
     expect(errorsOf({ version: 0 })[0]?.kind).toBe("unsupported_version");
     expect(errorsOf({ version: 1.5 })[0]?.kind).toBe("unsupported_version");

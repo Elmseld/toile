@@ -100,7 +100,7 @@ export type ReferenceKind = "value" | "point" | "curve" | "piece";
 /** A structural problem: the definition does not have the version 1 shape. */
 export type DefinitionError =
   | { kind: "invalid_definition"; path: string; message: string }
-  | { kind: "unsupported_version"; version: number; message: string };
+  | { kind: "unsupported_version"; path: "/version"; version: number; message: string };
 
 /** Where inside a point, curve or piece an error is: `distance`, `line1/0`, `outline/2`. */
 type Located = { field?: string };

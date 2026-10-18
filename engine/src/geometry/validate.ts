@@ -38,9 +38,10 @@ type JsonObject = Readonly<Record<string, unknown>>;
  *
  * Never throws. Every structural problem is reported at once as `invalid_definition` with a JSON
  * pointer `path` (`""` is the root, `/points/3/distnce` an unknown field). A `version` other than
- * `1` is a single `unsupported_version` error and nothing else is checked. Unknown fields,
- * formulas that are not strings and arrays with empty slots are rejected. An object that throws
- * while being read (a hostile getter or proxy) is reported as `invalid_definition` at the root.
+ * `1` is a single `unsupported_version` error (path `/version`) and nothing else is checked.
+ * Unknown fields, formulas that are not strings and arrays with empty slots are rejected. An
+ * object that throws while being read (a hostile getter or proxy) is reported as
+ * `invalid_definition` at the root.
  */
 export function validateDefinition(value: unknown): ValidationResult {
   try {
@@ -71,6 +72,7 @@ class Validator {
         errors: [
           {
             kind: "unsupported_version",
+            path: "/version",
             version: value.version,
             message: `Unsupported definition version ${value.version} (this engine reads version ${PATTERN_FORMAT_VERSION})`,
           },

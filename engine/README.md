@@ -79,7 +79,8 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   fields must be strings (`"distance": "50"`, not `50`).
 - **Validation.** `validateDefinition(value: unknown)` never throws and reports every structural
   problem at once as `invalid_definition` with a JSON-pointer `path` (`/points/3/distnce`), or
-  `unsupported_version` for any version other than `1`. `evaluatePattern` runs it first.
+  `unsupported_version` (path `/version`) for any version other than `1`. `evaluatePattern` runs
+  it first.
 - **Points.** `name`, `op`, the op's fields and an optional `user_offset: { dx, dy }`. Name fields
   hold point names; formula fields hold formulas (ADR 0003) that may also call the geometry
   functions below. Lengths are mm.

@@ -163,7 +163,7 @@ function expectWellFormedErrors(errors: PatternError[]): void {
   for (const error of errors) {
     expect(typeof error.kind).toBe("string");
     expect(typeof error.message).toBe("string");
-    expect("name" in error || "path" in error || error.kind === "unsupported_version").toBe(true);
+    expect("name" in error || "path" in error).toBe(true);
   }
 }
 
