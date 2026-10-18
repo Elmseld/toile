@@ -1,7 +1,7 @@
 ---
 id: 0003
 title: Pattern engine - points, curves and pattern pieces
-status: todo
+status: in-progress
 type: feature
 ---
 
