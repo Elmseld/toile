@@ -4,18 +4,45 @@ import { FUNCTIONS, type FunctionSpec, type FunctionTable } from "../formula/fun
 import type { ComputedCurve } from "./types";
 import { angleOf, distance, type Point } from "./vector";
 
-/** The geometry computed so far, read by the geometry functions when they are applied. */
+/**
+ * The geometry computed so far, read by the geometry functions each time they are applied (never
+ * captured), so a caller may swap in fresh maps for every evaluation and reuse one table.
+ */
 export type GeometryState = {
-  points: ReadonlyMap<string, Point>;
-  curves: ReadonlyMap<string, ComputedCurve>;
+  readonly points: ReadonlyMap<string, Point>;
+  readonly curves: ReadonlyMap<string, ComputedCurve>;
 };
 
+/** What the name arguments of a geometry function must refer to. */
+type NameKind = "point" | "curve";
+
+/** Each geometry function with the kind of its name arguments and its spec over a state. */
+const GEOMETRY_FUNCTIONS: readonly (readonly [
+  name: string,
+  kind: NameKind,
+  spec: (state: GeometryState) => FunctionSpec,
+])[] = [
+  ["distance", "point", (state) => ofTwoPoints(state, distance)],
+  ["angle", "point", (state) => ofTwoPoints(state, angleOf)],
+  [
+    "length",
+    "curve",
+    (state) => ({
+      min: 1,
+      max: 1,
+      takes: "names",
+      apply: (names) => {
+        const name = names[0];
+        return (name === undefined ? undefined : state.curves.get(name))?.length ?? Number.NaN;
+      },
+    }),
+  ],
+];
+
 /** What the name arguments of each geometry function must refer to. */
-export const NAME_ARGUMENT_KINDS: ReadonlyMap<string, "point" | "curve"> = new Map([
-  ["distance", "point"],
-  ["angle", "point"],
-  ["length", "curve"],
-] as const);
+export const NAME_ARGUMENT_KINDS: ReadonlyMap<string, NameKind> = new Map(
+  GEOMETRY_FUNCTIONS.map(([name, kind]) => [name, kind] as const),
+);
 
 /**
  * A copy of `FUNCTIONS` plus `distance(A, B)` (mm), `angle(A, B)` (degrees, 0 = right, 90 = down,
@@ -25,31 +52,23 @@ export const NAME_ARGUMENT_KINDS: ReadonlyMap<string, "point" | "curve"> = new M
  * gives `NaN`, which the evaluator reports as `invalid_result` on the call.
  */
 export function geometryFunctions(state: GeometryState): FunctionTable {
+  return new Map([
+    ...FUNCTIONS,
+    ...GEOMETRY_FUNCTIONS.map(([name, , spec]) => [name, spec(state)] as const),
+  ]);
+}
+
+function ofTwoPoints(state: GeometryState, measure: (a: Point, b: Point) => number): FunctionSpec {
   const point = (name: string | undefined): Point | undefined =>
     name === undefined ? undefined : state.points.get(name);
-  const ofPoints =
-    (measure: (a: Point, b: Point) => number) =>
-    (names: readonly string[]): number => {
+  return {
+    min: 2,
+    max: 2,
+    takes: "names",
+    apply: (names) => {
       const a = point(names[0]);
       const b = point(names[1]);
       return a === undefined || b === undefined ? Number.NaN : measure(a, b);
-    };
-
-  const geometry: [string, FunctionSpec][] = [
-    ["distance", { min: 2, max: 2, takes: "names", apply: ofPoints(distance) }],
-    ["angle", { min: 2, max: 2, takes: "names", apply: ofPoints(angleOf) }],
-    [
-      "length",
-      {
-        min: 1,
-        max: 1,
-        takes: "names",
-        apply: (names) => {
-          const name = names[0];
-          return (name === undefined ? undefined : state.curves.get(name))?.length ?? Number.NaN;
-        },
-      },
-    ],
-  ];
-  return new Map([...FUNCTIONS, ...geometry]);
+    },
+  };
 }

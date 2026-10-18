@@ -81,4 +81,28 @@ describe("geometryFunctions", () => {
       ["length", "curve"],
     ]);
   });
+
+  test("the name-taking functions of the table are exactly those with a kind", () => {
+    const takingNames = [...functions].filter(([, spec]) => spec.takes === "names").map(([name]) => name);
+    expect(takingNames).toEqual([...NAME_ARGUMENT_KINDS.keys()]);
+  });
+
+  test("the state is read when a function is applied, so its maps can be swapped", () => {
+    const holder: { points: ReadonlyMap<string, Point>; curves: ReadonlyMap<string, ComputedCurve> } = {
+      points: new Map(),
+      curves: new Map(),
+    };
+    const table = geometryFunctions(holder);
+    const parsed = parseFormula("distance(A, B)", { functions: table });
+    if (!parsed.ok) throw new Error("does not parse");
+    const run = () => evaluateExpression(parsed.expr, () => undefined, { functions: table });
+    expect(run()).toMatchObject({ ok: false, error: { kind: "invalid_result" } });
+    holder.points = state.points;
+    expect(run()).toEqual({ ok: true, value: 50 });
+    holder.points = new Map([
+      ["A", { x: 0, y: 0 }],
+      ["B", { x: 0, y: 7 }],
+    ]);
+    expect(run()).toEqual({ ok: true, value: 7 });
+  });
 });
