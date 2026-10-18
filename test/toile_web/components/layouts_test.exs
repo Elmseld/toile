@@ -56,4 +56,20 @@ defmodule ToileWeb.LayoutsTest do
       refute has_element?(view, "#nav-register")
     end
   end
+
+  describe "content width" do
+    test "is narrow by default and wide on request" do
+      narrow = render_component(&ToileWeb.Layouts.app/1, flash: %{}, inner_block: slot("x"))
+
+      wide =
+        render_component(&ToileWeb.Layouts.app/1, flash: %{}, wide: true, inner_block: slot("x"))
+
+      assert narrow =~ ~r/id="main-content" class="[^"]*max-w-2xl/
+      refute narrow =~ "max-w-7xl"
+      assert wide =~ ~r/id="main-content" class="[^"]*max-w-7xl/
+      refute wide =~ "max-w-2xl"
+    end
+  end
+
+  defp slot(text), do: [%{__slot__: :inner_block, inner_block: fn _, _ -> text end}]
 end

@@ -18,10 +18,17 @@ defmodule ToileWeb.Layouts do
   `@current_scope` holds a user, and "Logga in" and "Registrera" otherwise.
   Pass `current_scope` from every page so the header matches the session.
 
+  The content column is `max-w-2xl`, sized for forms and lists. Pass `wide` for pages that
+  need the screen width, such as the pattern drawing; it widens the column to `max-w-7xl`.
+
   ## Examples
 
       <Layouts.app flash={@flash} current_scope={@current_scope}>
         <h1>Content</h1>
+      </Layouts.app>
+
+      <Layouts.app flash={@flash} current_scope={@current_scope} wide>
+        <div id="drawing">...</div>
       </Layouts.app>
 
   """
@@ -30,6 +37,8 @@ defmodule ToileWeb.Layouts do
   attr :current_scope, :map,
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
+
+  attr :wide, :boolean, default: false, doc: "widens the content column for drawings"
 
   slot :inner_block, required: true
 
@@ -100,7 +109,7 @@ defmodule ToileWeb.Layouts do
     </header>
 
     <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
+      <div id="main-content" class={["mx-auto space-y-4", (@wide && "max-w-7xl") || "max-w-2xl"]}>
         {render_slot(@inner_block)}
       </div>
     </main>
