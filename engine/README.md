@@ -77,6 +77,10 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   ignored), `parameters` (`{ name: default number }`), `formulas` (`{ name: formula }`), `points`,
   `curves` and `pieces` (arrays in declaration order). Unknown fields are rejected, and formula
   fields must be strings (`"distance": "50"`, not `50`).
+- **Versions.** The version is bumped only when the meaning of existing fields changes or a field
+  becomes required or changes shape, with an explicit migration in the engine. New optional
+  fields, ops and curve types keep version 1; an older engine rejects definitions that use them as
+  `invalid_definition` (unknown field) instead of misreading them.
 - **Validation.** `validateDefinition(value: unknown)` never throws and reports every structural
   problem at once as `invalid_definition` with a JSON-pointer `path` (`/points/3/distnce`), or
   `unsupported_version` (path `/version`) for any version other than `1`. `evaluatePattern` runs
@@ -104,7 +108,8 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   number finite. Field order in the table is the order of the point's dependency edges, which
   decides the `field` of a `failed_dependency`.
 - **Angles.** Degrees, 0 = right, 90 = down (clockwise on screen, since y points down),
-  normalised to `[0, 360)`. `angle(A, B)`, `along_angle` and `perpendicular` all use this.
+  normalised to `[0, 360)`. `angle(A, B)`, `along_angle` and `perpendicular` all use this. The
+  convention is to be confirmed before 0005 stores the first block (an open question there).
 - **Curves.** `{ name, type: "line", from, to }` or `{ name, type: "cubic", from, c1, c2, to }`;
   every end and control point is a named point. Computed curves carry their `length` (arc length
   of a cubic, within 0.01 mm).
@@ -126,11 +131,16 @@ A complete example (a rectangle with a dart, tested against two measurement sets
 - **Errors** are values, never thrown, for any input. Structural errors have `path`; the others
   have `kind`, `name` (the element) and optionally `field` (e.g. `distance`, `line1/0`,
   `outline/2/curve`) and `span` into that field. Kinds are those of Formulas plus
-  `invalid_definition`, `unsupported_version`, `missing_measurement`, `unknown_parameter`, `wrong_reference_kind`,
-  `degenerate_geometry`, `no_intersection` and `open_outline`. Errors are sorted by declaration
-  order (measurements, parameters, formulas, points, curves, pieces), with `unknown_parameter`
-  for undeclared overrides last; an override never fails the element that has its name.
+  `invalid_definition`, `unsupported_version`, `missing_measurement`, `unknown_parameter`,
+  `wrong_reference_kind`, `degenerate_geometry`, `no_intersection` and `open_outline`. Coincident
+  points are reported where they are used: in `angle(A, B)` inside a formula they are
+  `invalid_result` on the span of the call (like any function without a finite result); in a point
+  operation that needs a direction they are `degenerate_geometry` with the operation's `field`.
+  Errors are sorted by declaration order (measurements, parameters, formulas, points, curves,
+  pieces), with `unknown_parameter` for undeclared overrides last; an override never fails the
+  element that has its name.
 - **SVG.** `curvePathData(curve)` and `piecePathData(piece)` return path `d` strings (`M`, `L`, `C`,
   `Z`, single spaces, numbers rounded to 0.01 mm, no `-0`) in mm user units. The caller chooses the
   `viewBox` and draws the grainline from `piece.grainline`. `formatNumber(value)` is the number
-  formatting they use.
+  formatting they use. Hand-built input never makes them throw: curves of an unknown type are
+  skipped (or give `""`), and non-finite numbers are written as `0`.

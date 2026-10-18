@@ -13,9 +13,14 @@ a drag. The definition and its formulas are untrusted user input. This ADR build
 1. **JSON with an integer `version`, strict.** The top level has `"version": 1`
    (`PATTERN_FORMAT_VERSION`). A missing or non-numeric version is `invalid_definition`; any other
    number is `unsupported_version`. Unknown fields (top level or on an element) are rejected so typos
-   such as `distnce` are caught. The version is bumped for any change an older engine could
-   misread, including new optional fields and new `op`s (they are rejected as unknown). When version
-   2 arrives, an explicit migration `1 -> 2` is added in the engine, never silent reinterpretation.
+   such as `distnce` are caught. The version is bumped only for changes in meaning (an existing
+   field or op computing something else, such as a new angle convention) or in required shape (a
+   field becoming required, renamed or restructured); each such bump comes with an explicit
+   migration in the engine (`1 -> 2`), never silent reinterpretation. Additive optional fields and
+   new `op`s or curve types do not bump the version and need no migration: every existing
+   definition keeps its meaning, and because validation is strict an older engine rejects a
+   definition that uses them as `invalid_definition` (unknown field or op) instead of misreading
+   it. So version 1 can grow through 0005-0009 without a chain of trivial migrations.
 2. **Points are operations.** Each point has a `name`, an `op` and that op's fields. Name fields
    hold a point name; formula fields hold a formula string (ADR 0003). Free coordinates exist only
    as `start` and `user_offset`. Ops: `start`, `offset`, `along_line`, `along_angle`,
@@ -35,11 +40,12 @@ a drag. The definition and its formulas are untrusted user input. This ADR build
    `angle(A, B)`, `along_angle` and `perpendicular` share it, so
    `along_angle(A, angle(A, B), d)` equals `along_line(A, B, d)`. `perpendicular` with a positive
    distance lies at `angle(from, to) + 90`: for a line pointing right, positive is down. Seamly2D
-   and Valentina use 90 = up; decide before 0005 writes the first block, as later stored
-   definitions would change meaning.
+   and Valentina use 90 = up. This is the default until confirmed: it is an open question of
+   ticket 0005, to be settled before 0005 stores the first block, since switching afterwards
+   changes the meaning of stored definitions (a version bump and a migration).
 7. **Perpendicular op.** A point at a signed distance on the perpendicular erected at `from` on
-   `from -> to`. Dropping a foot point onto a line is not added; add an op (new version) when a block
-   needs it.
+   `from -> to`. Dropping a foot point onto a line is not added; add an op (no version bump, see
+   decision 1) when a block needs it.
 8. **Geometry functions via the injectable table** (ADR 0003 decision 8): `distance(A, B)`,
    `angle(A, B)` and `length(curve)` with `takes: "names"`, in a table that closes over the computed
    points and curves. Not added: `x(A)` / `y(A)`; `length` takes one curve (sum with `+`).
@@ -77,10 +83,14 @@ Rejected alternatives:
 - Outline closure by coordinates: depends on measurements, so an outline could be valid for one
   profile and not another.
 - Adaptive arc length: recursion and variable cost on the drag path.
+- A version bump for every additive field or op: strict validation already stops an older engine
+  from misreading such a definition, so the bumps would only add trivial migrations.
 
 ## Consequences
 - Stored definitions are versioned; changing the angle convention or any field meaning needs a
-  version bump and a migration.
+  version bump and a migration. Adding an optional field or an op does not, so the version number
+  alone does not say which fields a definition uses; an engine older than a definition rejects it
+  as `invalid_definition` rather than drawing it wrongly.
 - Switching the angle convention before 0005 touches only `vector.ts`, `functions.ts`, their tests
   and this ADR.
 - References between pieces or projects (0007) are not part of version 1: `length(curve)` only sees
