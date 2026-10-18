@@ -33,7 +33,8 @@ type Task =
  * Stops at the first error, evaluating left to right: an unknown reference, a division by zero
  * (span of the divisor), a non-finite result such as `sqrt(-1)` (span of the operation), or a call
  * that does not match the function table. A function from the table that throws is an
- * `invalid_result` error for that call. Never throws, also not for hand-built ASTs of any depth
+ * `invalid_result` error for that call; a `lookup` that throws is an `invalid_result` error
+ * (`function: null`) on the span of the reference. Never throws, also not for hand-built ASTs of any depth
  * (the walk uses an explicit stack instead of recursion) or with malformed nodes, such as nodes of
  * an unknown type or calls without an `args` array of nodes (`invalid_result`).
  */
@@ -62,7 +63,8 @@ export function evaluateExpression(
             break;
 
           case "reference": {
-            const value = lookup(node.name);
+            const value = resolve(lookup, node.name);
+            if (value === THREW) return fail(invalidResultError(null, node.span));
             if (value === undefined) return fail(unknownReferenceError(node.name, node.span));
             if (!Number.isFinite(value)) return fail(invalidResultError(null, node.span));
             values.push(value);
@@ -139,6 +141,20 @@ export function evaluateExpression(
     return fail(invalidResultError(null, spanOf(expr)));
   }
   return { ok: true, value };
+}
+
+const THREW: unique symbol = Symbol("threw");
+
+/** Calls `lookup`, turning an exception (caller-supplied lookups may throw) into `THREW`. */
+function resolve(
+  lookup: (name: string) => number | undefined,
+  name: string,
+): number | undefined | typeof THREW {
+  try {
+    return lookup(name);
+  } catch {
+    return THREW;
+  }
 }
 
 /**

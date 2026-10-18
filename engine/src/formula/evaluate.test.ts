@@ -270,6 +270,21 @@ describe("evaluateExpression with a custom function table", () => {
     }
   });
 
+  test("a throwing lookup is an invalid result on the span of the reference", () => {
+    const throwing = (name: string): number | undefined => {
+      if (name === "b") throw new Error("boom");
+      return 1;
+    };
+    for (const source of ["a + b", "a + -b", "a + max(1, b)"]) {
+      const start = source.indexOf("b");
+      expect(() => evaluateExpression(parse(source), throwing)).not.toThrow();
+      expect(evaluateExpression(parse(source), throwing)).toMatchObject({
+        ok: false,
+        error: { kind: "invalid_result", function: null, span: { start, end: start + 1 } },
+      });
+    }
+  });
+
   test("a hand-built call without a well-formed args array is an invalid result", () => {
     const span = { start: 0, end: 1 };
     const callSpan = { start: 2, end: 9 };

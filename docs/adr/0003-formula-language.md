@@ -16,7 +16,8 @@ immediately). Ticket 0003 (geometry) and the editor (0008) build on the API and 
    return structured errors with `kind`, `name` and a `span` (0-based offsets into the formula source,
    end exclusive). No input makes them throw, including hand-built ASTs of any depth (the evaluator
    walks the tree with an explicit stack) or with malformed nodes (`invalid_result`), calls with any
-   number of arguments, and `null` sections from untyped callers. The `message`
+   number of arguments, `null` sections from untyped callers, and a caller-supplied `lookup` that
+   throws (`invalid_result` on the span of the reference). The `message`
    field is English developer text; UI text (Swedish) is built from `kind` and the structured fields.
 3. **One namespace.** Measurements, parameters and formulas share one namespace of identifiers
    (`[A-Za-z_][A-Za-z0-9_]*`). A name in more than one source is a `duplicate_name` error rather than

@@ -42,4 +42,5 @@ formulas such as `waist / 4 + ease_waist` with a custom parser (no `eval`). See
   resolve names themselves. `options.functions` replaces the function table (default `FUNCTIONS`);
   a `FunctionSpec` with `takes: "names"` receives its arguments as bare names, unevaluated (for
   example `distance(A, B)`). Use the same table for parsing and evaluation. A function that returns
-  a non-finite number or throws gives an `invalid_result` error for its call.
+  a non-finite number or throws gives an `invalid_result` error for its call; a `lookup` that
+  throws (or returns a non-finite number) gives one on the span of the reference.
