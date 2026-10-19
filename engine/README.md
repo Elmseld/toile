@@ -174,7 +174,9 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   pieces), with `unknown_parameter` for undeclared overrides last; an override never fails the
   element that has its name.
 - **SVG.** `curvePathData(curve)` and `piecePathData(piece)` return path `d` strings (`M`, `L`, `C`,
-  `Z`, single spaces, numbers rounded to 0.01 mm, no `-0`) in mm user units. The caller chooses the
+  `Z`, single spaces, numbers rounded to 0.01 mm, no `-0`) in mm user units.
+  `cuttingLinePathData(points)` does the same for a cutting line (`M x y L ... Z`, `""` for fewer
+  than two points). The caller chooses the
   `viewBox` and draws the grainline from `piece.grainline`. `formatNumber(value)` is the number
   formatting they use. Hand-built input never makes them throw: curves of an unknown type are
   skipped (or give `""`), and non-finite numbers are written as `0`.
@@ -190,6 +192,41 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   Views draw the grainline arrowheads `GRAINLINE_ARROW_SIZE` (8 mm) long and wide, tip on the end
   point, as placement assumes. It costs about 7 to 14 ms per bodice piece, so a view should not
   call it on every pointer move (`engine/src/geometry/label.ts`).
+
+## Seam allowance
+
+`cuttingLine(piece, allowances)` (in `src/geometry/seam-allowance.ts`) returns the cutting line of a
+computed piece: its outline offset outwards. Reasoning and rejected alternatives:
+`docs/adr/0007-seam-allowance.md`.
+
+```ts
+cuttingLine(piece, { default: 10, edges: { b_hem: 40, b_cb: 0 } })
+// { ok: true, points: Point[] } or { ok: false, errors }
+```
+
+- **Input.** `allowances.default` applies to every outline edge not listed in `edges`, which is
+  keyed by curve name. Values are mm, finite, `0` to `MAX_SEAM_ALLOWANCE` (100). `0` puts the line
+  on the edge (a fold). Names not in the piece are ignored. Every invalid value is its own
+  `invalid_seam_allowance` error (`edge` names the curve; none for the default) and no line is
+  returned. Allowances are not part of the pattern definition; the caller stores them.
+- **Result.** `points` is a closed, simple polygon in mm (SVG coordinates, last point not
+  repeated), in the same rotational direction as the outline, starting at the leftmost point, with
+  every outline point inside or on it. It is a polyline within about 0.02 mm of the true offset.
+  `cuttingLinePathData(points)` gives its SVG path data. A caller that fits a `viewBox` must include
+  the cutting line: `patternBounds` covers outlines only.
+- **Corners.** Convex corners are mitered, clipped at `MITER_LIMIT` (4) times the larger
+  allowance; concave corners are the intersection of the offset edges; smooth joins have no
+  corner (a straight step when the allowances differ). Tight concave curves and allowances wider
+  than a narrow part never make the line loop or cross itself.
+- **Darts.** A dart is two straight, equal-length legs at a concave apex with a wedge of at most
+  60 degrees. Its cut edge is the neighbouring seams' cutting line with the dart closed and pressed
+  toward the seam before it, then unfolded (the dart peak); the legs are not on the cutting line.
+  Darts with curved or unequal legs are not detected and get an ordinary concave corner.
+- **Errors** are values, never thrown: `invalid_seam_allowance` and `degenerate_geometry` (empty or
+  zero-area outline, non-finite coordinates, a self-intersecting outline). Work is bounded by
+  `MAX_CUTTING_LINE_SEGMENTS` (20 000) per piece.
+- **Cost.** A view should compute it once per drawn input, not on every pointer move. Measured
+  cost is added here when the implementation is done.
 
 ## Blocks
 
