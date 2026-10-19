@@ -58,9 +58,19 @@ Builds on the engine (0002, 0003) and the project view (0005).
   `chest_width`, under 0.4 mm per mm of `bust` and under 0.5 mm per mm of `bust_height`
   (tested). The front always meets the back at
   the shoulder.
-- **Wide back width is not corrected:** a `back_width` that puts the back width point outside
-  the shoulder point (e.g. 450 mm with a 125 mm shoulder and 355 mm neck) gives an S-shaped back
-  armhole. That is treated as a measuring error. The block has no guard.
+- **Armhole shape:** each armhole is two cubics through the back width point (front: the chest
+  point) that share one direction there, chosen so that their curvature is about equal (Hobby's
+  mock curvature), instead of a vertical tangent. Their handles stay within the triangle of the
+  end tangents, so the armhole turns one way only. The first version used a vertical tangent and
+  fixed handles of a third of the chord: a real profile (bust 1060, back width 380, shoulder
+  125, neck 355) whose back width point lay almost straight below the shoulder point got an
+  S-shaped back and front armhole with a jump in curvature at the join. The right angle at the
+  shoulder seam is kept unless the width or chest point lies nearly on the perpendicular to the
+  seam.
+- **Very wide back width is not corrected:** a `back_width` that puts the back width point
+  outside the line from the shoulder point to the side point (size 12: above about 415 mm)
+  leaves no armhole that turns one way. That is treated as a measuring error. The block has no
+  guard.
 - **Ease defaults:** bust 80 mm, waist 40 mm, armhole depth 10 mm. These and the draft constants are
   parameters, not yet checked against the book.
 - **Armhole length:** the bodice exposes three `values` keys, `armhole_length`,

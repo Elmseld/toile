@@ -227,10 +227,25 @@ The engine has no block registry.
   only guards against implausible input such as a chest width measured far too narrow. The
   constants and ease are not yet checked against the book. The `back_width` is measured at
   underarm level, and the block draws it as a vertical line from there up to half the armhole
-  depth. A `back_width` much wider than the
-  shoulders (back width point outside the shoulder point) gives an S-shaped back armhole. The
-  block does not correct it: it points to a measuring error. The front armhole is 10 to 25 mm
-  longer than the back one in the test figures (shape of the front armhole curve). By
+  depth. Each armhole is two cubics, from the shoulder point through the back width point
+  (front: the chest point) to the side point. The curve leaves the shoulder seam at a right
+  angle and reaches the side point horizontally. At the width or chest point both cubics share
+  the direction that makes their curvature about equal there (Hobby's mock curvature for three
+  points with given end directions; values `b_arm_width_angle` and `f_arm_chest_angle`), so the
+  curve need not be vertical at that point. It passes at most about 2 mm inside the back width
+  or chest line in sets A, B and large, and up to about 4 mm (front) and 6 mm (back, whose
+  shoulder point already lies inside the back width line) in the low-bust set. Each cubic gets
+  the handles of a circular arc with the same turn, shortened where needed to the intersection
+  of its two end tangents, so the control polygon is convex and the curve turns one way only. All directions keep at least
+  `armhole_turn_margin` (5 degrees) from the chords between the three points; the right angle at
+  the shoulder gives way only where the chord to the width or chest point comes closer to it
+  than that. So a width point straight below the shoulder point or outside it still gives one
+  smooth armhole (tested without a turn the other way for the test figures, back widths 300 to
+  400 mm and chest widths 280 to 400 mm). A back width point outside the line from the shoulder
+  point to the side point (size 12: a `back_width` above about 415 mm) leaves no such curve and
+  the armhole turns the other way near it. The block does not correct that: it points to a
+  measuring error. The front armhole is about 10 to 17 mm longer than the back one in the test
+  figures (shape of the front armhole curve). By
   construction (tested within 2 mm) the bust line through the underarm points, net of darts,
   equals `bust` + `ease_bust`, the waist seam segments equal `waist` + `ease_waist`, and the
   front and back shoulder seams (dart closed) are equal. The bodice exposes three `values` keys

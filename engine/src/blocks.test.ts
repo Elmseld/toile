@@ -5,7 +5,8 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { compilePattern, distance, evaluatePattern, validateDefinition } from "./geometry";
-import type { ComputedPattern, ComputedPiece, PatternResult } from "./geometry";
+import type { ComputedPattern, ComputedPiece, PatternResult, Point } from "./geometry";
+import { cubicAt } from "./geometry/bezier";
 import { isMeasurementKey, MEASUREMENT_KEYS } from "./measurements";
 
 const BLOCKS_DIR = join(import.meta.dir, "..", "blocks");
@@ -904,3 +905,183 @@ for (const [label, measurements] of BODICE_SETS) {
     });
   });
 }
+
+/**
+ * The profile from the user report on a wobbly (S-shaped) armhole: its back width point lies
+ * almost straight below the back shoulder point. The report also gave hip 1080 and front_length
+ * 500, which the bodice does not use.
+ */
+const BODICE_REPORTED: Measurements = {
+  bust: 1060,
+  waist: 900,
+  neck: 355,
+  shoulder_width: 125,
+  back_width: 380,
+  chest_width: 390,
+  back_length: 420,
+  armhole_depth: 200,
+  bust_height: 340,
+  bust_distance: 210,
+};
+
+/** The two armholes, each as its cubics in drawing order: back from the shoulder, front to it. */
+const ARMHOLES = {
+  back: ["b_armhole_upper", "b_armhole_lower"],
+  front: ["f_armhole_lower", "f_armhole_upper"],
+} as const;
+
+const ARMHOLE_SAMPLES = 64;
+
+/** Allowed numerical noise in the sine of a turn or in a y step between samples. */
+const ARMHOLE_NOISE = 1e-9;
+
+type Cubic = { from: Point; c1: Point; c2: Point; to: Point };
+
+function cubic(result: ComputedPattern, name: string): Cubic {
+  const curve = result.curves[name];
+  if (curve === undefined || curve.type !== "cubic") throw new Error(`${name} is not a cubic`);
+  return curve;
+}
+
+/** Points along the cubics in order, each junction once. */
+function samples(result: ComputedPattern, names: readonly string[]): Point[] {
+  const points: Point[] = [];
+  for (const name of names) {
+    const { from, c1, c2, to } = cubic(result, name);
+    for (let i = points.length === 0 ? 0 : 1; i <= ARMHOLE_SAMPLES; i++) {
+      points.push(cubicAt(from, c1, c2, to, i / ARMHOLE_SAMPLES));
+    }
+  }
+  return points;
+}
+
+/**
+ * The sine of the turn at every inner sample: positive turns clockwise on screen (y down),
+ * negative counter-clockwise. A curve without inflection has one sign throughout.
+ */
+function turns(points: readonly Point[]): number[] {
+  const result: number[] = [];
+  for (let i = 1; i < points.length - 1; i++) {
+    const a = { x: points[i]!.x - points[i - 1]!.x, y: points[i]!.y - points[i - 1]!.y };
+    const b = { x: points[i + 1]!.x - points[i]!.x, y: points[i + 1]!.y - points[i]!.y };
+    result.push((a.x * b.y - a.y * b.x) / (Math.hypot(a.x, a.y) * Math.hypot(b.x, b.y)));
+  }
+  return result;
+}
+
+/** The sine of the angle from direction `a -> b` to direction `c -> d`. */
+function sineBetween(a: Point, b: Point, c: Point, d: Point): number {
+  const u = { x: b.x - a.x, y: b.y - a.y };
+  const v = { x: d.x - c.x, y: d.y - c.y };
+  return (u.x * v.y - u.y * v.x) / (Math.hypot(u.x, u.y) * Math.hypot(v.x, v.y));
+}
+
+/** The cosine of the angle between directions `a -> b` and `c -> d`. */
+function cosineBetween(a: Point, b: Point, c: Point, d: Point): number {
+  const u = { x: b.x - a.x, y: b.y - a.y };
+  const v = { x: d.x - c.x, y: d.y - c.y };
+  return (u.x * v.x + u.y * v.y) / (Math.hypot(u.x, u.y) * Math.hypot(v.x, v.y));
+}
+
+/** Both armholes turn counter-clockwise on screen at every sample, the junction included. */
+function expectArmholesTurnOneWay(result: ComputedPattern): void {
+  for (const names of Object.values(ARMHOLES)) {
+    const sines = turns(samples(result, names));
+    expect(Math.max(...sines)).toBeLessThan(ARMHOLE_NOISE);
+    expect(Math.min(...sines)).toBeLessThan(0);
+  }
+}
+
+for (const [label, measurements] of [...BODICE_SETS, ["reported", BODICE_REPORTED]] as const) {
+  describe(`bodice: armhole shape, measurement set ${label}`, () => {
+    const result = expectOk(compilePattern(bodice()).evaluate({ measurements }));
+
+    // The back armhole runs down from the shoulder and turns toward the side point, the front
+    // one runs from the side point and turns up to the shoulder: both counter-clockwise on
+    // screen. A turn the other way anywhere is the S-shape of the user report.
+    test("each armhole turns one way from end to end, without an S-shape", () => {
+      expectArmholesTurnOneWay(result);
+    });
+
+    test("the back armhole only runs down and the front one only up", () => {
+      const back = samples(result, ARMHOLES.back);
+      const front = samples(result, ARMHOLES.front);
+      for (let i = 1; i < back.length; i++) {
+        expect(back[i]!.y - back[i - 1]!.y).toBeGreaterThan(-ARMHOLE_NOISE);
+      }
+      for (let i = 1; i < front.length; i++) {
+        expect(front[i]!.y - front[i - 1]!.y).toBeLessThan(ARMHOLE_NOISE);
+      }
+    });
+
+    test("the curves meet with one tangent at the back width point and the chest point", () => {
+      const [backUpper, backLower] = ARMHOLES.back.map((name) => cubic(result, name));
+      const [frontLower, frontUpper] = ARMHOLES.front.map((name) => cubic(result, name));
+      for (const [incoming, outgoing] of [
+        [backUpper!, backLower!],
+        [frontLower!, frontUpper!],
+      ] as const) {
+        const join = outgoing.from;
+        expect(Math.abs(sineBetween(incoming.c2, join, join, outgoing.c1))).toBeLessThan(1e-9);
+        expect(cosineBetween(incoming.c2, join, join, outgoing.c1)).toBeGreaterThan(0);
+      }
+    });
+
+    test("each armhole leaves the shoulder seam at a right angle, within 1 degree", () => {
+      const backSeam = cosineBetween(
+        point(result, "b_sdart_arm"),
+        point(result, "b_shoulder"),
+        point(result, "b_shoulder"),
+        point(result, "b_arm_c1"),
+      );
+      const frontSeam = cosineBetween(
+        point(result, "f_bdart_arm"),
+        point(result, "f_shoulder"),
+        point(result, "f_shoulder"),
+        point(result, "f_arm_c4"),
+      );
+      expect(Math.abs(backSeam)).toBeLessThan(Math.sin((1 * Math.PI) / 180));
+      expect(Math.abs(frontSeam)).toBeLessThan(Math.sin((1 * Math.PI) / 180));
+    });
+
+    test("each armhole reaches the side point horizontally", () => {
+      expect(point(result, "b_arm_c4").y).toBeCloseTo(point(result, "b_side_top").y, 9);
+      expect(point(result, "b_arm_c4").x).toBeLessThan(point(result, "b_side_top").x);
+      expect(point(result, "f_arm_c1").y).toBeCloseTo(point(result, "f_side_top").y, 9);
+      expect(point(result, "f_arm_c1").x).toBeGreaterThan(point(result, "f_side_top").x);
+    });
+  });
+}
+
+describe("bodice: armhole shape over a range of widths", () => {
+  const compiled = compilePattern(bodice());
+
+  // Covers a back width point well inside the shoulder point (300 mm), almost straight below it
+  // (the user report) and outside it (400 mm), and chest widths on either side. A back width
+  // point outside the line from the shoulder point to the side point (set A from about 415 mm)
+  // leaves no curve without a turn the other way.
+  test("each armhole turns one way for back widths 300 to 400 mm and chest widths 280 to 400 mm", () => {
+    for (const base of [BODICE_A, BODICE_B, BODICE_REPORTED]) {
+      for (let backWidth = 300; backWidth <= 400; backWidth += 25) {
+        for (let chestWidth = 280; chestWidth <= 400; chestWidth += 20) {
+          const measurements = { ...base, back_width: backWidth, chest_width: chestWidth };
+          expectArmholesTurnOneWay(expectOk(compiled.evaluate({ measurements })));
+        }
+      }
+    }
+  });
+
+  test("each armhole turns one way after a user offset on the back width point or chest point", () => {
+    for (const [dx, dy] of [
+      [-20, 0],
+      [20, 0],
+      [0, -20],
+      [0, 20],
+    ] as const) {
+      const offsets = { b_width_pt: { dx, dy }, f_chest: { dx: -dx, dy } };
+      expectArmholesTurnOneWay(
+        expectOk(compiled.evaluate({ measurements: BODICE_A }, { offsets })),
+      );
+    }
+  });
+});
