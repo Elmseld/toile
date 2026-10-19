@@ -361,6 +361,46 @@ describe("pieces with a curved edge (J)", () => {
   });
 });
 
+describe("the conservative construction", () => {
+  // A wide allowance on a short line between two curves that curl away from it: the miters and
+  // extensions of the first construction cut across the piece there.
+  const piece: CuttingPiece = {
+    outline: [
+      { name: "e20", type: "line", from: p(508.2, 162.1), to: p(510.6, 359.7) },
+      {
+        name: "e1",
+        type: "cubic",
+        from: p(510.6, 359.7),
+        c1: p(501.4, 386.1),
+        c2: p(484.6, 401.9),
+        to: p(454.8, 399.4),
+      },
+      { name: "e2", type: "line", from: p(454.8, 399.4), to: p(434.0, 452.3) },
+      {
+        name: "e3",
+        type: "cubic",
+        from: p(434.0, 452.3),
+        c1: p(422.9, 469.0),
+        c2: p(398.0, 461.3),
+        to: p(387.3, 478.8),
+      },
+      { name: "e4", type: "line", from: p(387.3, 478.8), to: p(508.2, 162.1) },
+    ],
+  };
+  const allowances = { default: 8, edges: { e2: 28 } };
+
+  test("is reported, and still gives a simple line around the piece", () => {
+    const result = cuttingLine(piece, allowances);
+    expect(result.ok && result.approximations).toEqual([{ kind: "safe_construction" }]);
+    const line = points(result);
+    expect(selfIntersects(line)).toBe(false);
+    for (const edge of piece.outline) {
+      const inside = insidePolygon(line, edge.from.x, edge.from.y);
+      expect(inside || polygonDistance(line, edge.from) < TOLERANCE).toBe(true);
+    }
+  });
+});
+
 describe("darts through cuttingLine (K)", () => {
   const W = 10;
   const H = 100;
@@ -442,12 +482,34 @@ describe("darts through cuttingLine (K)", () => {
   test("two darts too close for both peaks keep the allowance; the second is a plain notch", () => {
     const corners = twoDarts(0.5);
     for (const allowance of [10, 25]) {
-      const line = points(cuttingLine(polygonPiece(corners), { default: allowance }));
+      const result = cuttingLine(polygonPiece(corners), { default: allowance });
+      const line = points(result);
       expect(selfIntersects(line)).toBe(false);
       for (const corner of corners) {
         expect(polygonDistance(line, corner)).toBeGreaterThan(allowance - TOLERANCE);
       }
+      expect(result.ok && result.approximations).toEqual([
+        { kind: "dart_without_peak", legs: [4, 5] },
+      ]);
     }
+    // The legs are indices into the piece's outline, point-like entries included.
+    const piece = polygonPiece(corners);
+    const dotted = {
+      outline: [
+        { name: "dot", type: "line", from: corners[0]!, to: corners[0]! },
+        ...piece.outline,
+      ] as Edge[],
+    };
+    const result = cuttingLine(dotted, { default: 10 });
+    expect(result.ok && result.approximations).toEqual([
+      { kind: "dart_without_peak", legs: [5, 6] },
+    ]);
+  });
+
+  test("a line built as described has no approximations", () => {
+    const result = cuttingLine(polygonPiece(twoDarts(40)), { default: 10 });
+    expect(result.ok).toBe(true);
+    expect("approximations" in result).toBe(false);
   });
 
   test("dart leg allowances are validated but not used", () => {

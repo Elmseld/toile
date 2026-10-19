@@ -91,8 +91,21 @@ export type CuttingLineError =
   | { kind: "invalid_seam_allowance"; edge?: string; message: string }
   | { kind: "degenerate_geometry"; message: string };
 
+/**
+ * Where a cutting line is not the construction described on `cuttingLine`:
+ * - `safe_construction`: that construction failed its checks, and the conservative one was used
+ *   (every convex corner round, no extended edges, darts as ordinary edges);
+ * - `dart_without_peak`: a detected dart whose legs (indices into the piece's `outline`) are cut
+ *   as ordinary edges, with a notch instead of a dart peak.
+ */
+export type CuttingLineApproximation =
+  | { kind: "safe_construction" }
+  | { kind: "dart_without_peak"; legs: [number, number] };
+
+/** `approximations` is there only when there are any. */
 export type CuttingLineResult =
-  { ok: true; points: Point[] } | { ok: false; errors: CuttingLineError[] };
+  | { ok: true; points: Point[]; approximations?: CuttingLineApproximation[] }
+  | { ok: false; errors: CuttingLineError[] };
 
 /** The largest seam allowance (mm) accepted for an edge. */
 export const MAX_SEAM_ALLOWANCE = 100;
@@ -115,7 +128,8 @@ export const MAX_RAW_LINE_POINTS = 50_000;
 const SELF_CROSSING = "The outline crosses itself, so it has no cutting line";
 const TOO_COMPLEX = "The piece is too complex for a cutting line";
 
-type ReadEdge = { edge: Edge; allowance: number };
+/** An outline edge with its allowance and its index in the piece's `outline`. */
+type ReadEdge = { edge: Edge; allowance: number; index: number };
 
 /**
  * The cutting line of `piece`: a closed polygon (last point not repeated) in mm, SVG coordinates,
@@ -134,9 +148,14 @@ type ReadEdge = { edge: Edge; allowance: number };
  *   to a curve that curls away sharply), the corner is round. Tight concave curves and allowances
  *   wider than a narrow part do not make the line loop or cross itself. Should that construction
  *   still fail its checks (outlines with sharply curling curves), a conservative one is tried: all
- *   convex corners round, no extended edges, darts as ordinary edges.
+ *   convex corners round, no extended edges, darts as ordinary edges. The result then lists
+ *   `safe_construction` in `approximations`.
  * - A detected dart (darts.ts) gets a dart peak, pressed toward the seam before it in outline
  *   order. Its legs are not on the cutting line; their allowances are validated but not used.
+ *   Two darts with one seam between them get a peak each, the line running from one to the
+ *   other, unless that seam is too short for the allowance. A detected dart without a peak (that,
+ *   a failed construction or the conservative construction) is cut as ordinary edges with a notch
+ *   and listed as `dart_without_peak` in `approximations`.
  *
  * Every invalid allowance value is its own `invalid_seam_allowance` error (at most
  * MAX_ALLOWANCE_ERRORS of them; a map of more than MAX_SECTION_ENTRIES edges is a single error),
@@ -168,12 +187,23 @@ function compute(piece: unknown, input: unknown): CuttingLineResult {
   if (findCrossings(flat, budget).length > 0) return degenerate(SELF_CROSSING);
   const sign = Math.sign(area);
 
-  const line =
-    trace(outline, steps, sign, flat, "exact", budget) ??
-    trace(outline, steps, sign, flat, "safe", budget);
-  if (line === null) return degenerate("No cutting line could be constructed for this outline");
+  const exact = trace(outline, steps, sign, flat, "exact", budget);
+  const traced = exact ?? trace(outline, steps, sign, flat, "safe", budget);
+  if (traced === null) return degenerate("No cutting line could be constructed for this outline");
+  const { line, unshaped } = traced;
+  const approximations: CuttingLineApproximation[] = [
+    ...(exact === null ? [{ kind: "safe_construction" } as const] : []),
+    ...unshaped.map(({ legIndex }) => ({
+      kind: "dart_without_peak" as const,
+      legs: [outline[legIndex]!.index, outline[(legIndex + 1) % outline.length]!.index] as [
+        number,
+        number,
+      ],
+    })),
+  ];
   const start = leftmostIndex(line);
-  return { ok: true, points: [...line.slice(start), ...line.slice(0, start)] };
+  const points = [...line.slice(start), ...line.slice(0, start)];
+  return approximations.length > 0 ? { ok: true, points, approximations } : { ok: true, points };
 }
 
 /**
@@ -185,9 +215,9 @@ function compute(piece: unknown, input: unknown): CuttingLineResult {
  */
 type Mode = "exact" | "safe";
 
-// The checked cutting line in `mode`, or null when it fails a check: it must not cross itself or
-// the flattened outline, run in the outline's direction and have every outline vertex inside or
-// on it. Throws WorkLimitError when the raw line gets longer than MAX_RAW_LINE_POINTS or the
+// The checked cutting line in `mode` with the detected darts that got no peak, or null when it
+// fails a check: it must not cross itself or the flattened outline, run in the outline's
+// direction and have every outline vertex inside or on it. Throws WorkLimitError when the raw line gets longer than MAX_RAW_LINE_POINTS or the
 // crossing sweeps exhaust `budget`.
 function trace(
   outline: readonly ReadEdge[],
@@ -196,9 +226,10 @@ function trace(
   flat: readonly Point[],
   mode: Mode,
   budget: SweepBudget,
-): Point[] | null {
-  const units = buildUnits(outline, steps, sign, mode);
-  if (units === null) return null;
+): { line: Point[]; unshaped: Dart[] } | null {
+  const built = buildUnits(outline, steps, sign, mode);
+  if (built === null) return null;
+  const { units, unshaped } = built;
   joinUnits(units, sign, mode);
 
   // One round removes every crossing it finds; more only matter for rounding at crossings that
@@ -212,7 +243,7 @@ function trace(
         polygonArea(traced) * sign > 0 &&
         !polygonsCross(traced, flat, budget) &&
         enclosesOutline(traced, outline);
-      return valid ? traced : null;
+      return valid ? { line: traced, unshaped } : null;
     }
     loop = traced;
   }
@@ -232,21 +263,21 @@ type Unit = {
   readonly endAllowance: number;
 };
 
-// The offset edges and dart peaks in outline order, or null when an edge has no tangent.
+// The offset edges and dart peaks in outline order, with the detected darts that got no peak (all
+// of them in safe mode), or null when an edge has no tangent.
 function buildUnits(
   outline: readonly ReadEdge[],
   steps: readonly number[],
   sign: number,
   mode: Mode,
-): Unit[] | null {
+): { units: Unit[]; unshaped: Dart[] } | null {
   const n = outline.length;
-  const darts =
-    mode === "exact"
-      ? findDarts(
-          outline.map(({ edge }) => edge),
-          sign,
-        )
-      : [];
+  const detected = findDarts(
+    outline.map(({ edge }) => edge),
+    sign,
+  );
+  const darts = mode === "exact" ? detected : [];
+  const shaped = new Set<Dart>();
   const dartAt = new Map<number, Dart>(darts.map((dart) => [dart.s1Index, dart]));
   const inside = new Set(
     darts.flatMap((dart) => [dart.legIndex, (dart.legIndex + 1) % n, dart.s2Index]),
@@ -263,7 +294,8 @@ function buildUnits(
       const chain = dartUnit(dart, dartAt, outline, steps, sign);
       if (chain !== null) {
         units.push(chain.unit);
-        k += chain.edges;
+        for (const peaked of chain.darts) shaped.add(peaked);
+        k += 1 + 3 * chain.darts.length;
         continue;
       }
     }
@@ -284,19 +316,19 @@ function buildUnits(
     });
     k++;
   }
-  return units;
+  return { units, unshaped: detected.filter((dart) => !shaped.has(dart)) };
 }
 
 // The unit of `dart` and of the darts chained after it (each one's S1 is the previous one's S2),
-// with the number of outline edges it covers; null when `dart` itself gets no peak. A chained dart
-// whose peak fails ends the chain; its edges become ordinary edges.
+// with those darts; null when `dart` itself gets no peak. A chained dart whose peak fails ends the
+// chain; its edges become ordinary edges.
 function dartUnit(
   dart: Dart,
   dartAt: ReadonlyMap<number, Dart>,
   outline: readonly ReadEdge[],
   steps: readonly number[],
   sign: number,
-): { unit: Unit; edges: number } | null {
+): { unit: Unit; darts: Dart[] } | null {
   const startTangent = edgeTangent(dart.s1, 0);
   if (startTangent === null) return null;
   const peakOf = (of: Dart, seam1?: Point[]): DartPeak | null => {
@@ -307,10 +339,10 @@ function dartUnit(
   };
   let peak = peakOf(dart);
   if (peak === null) return null;
-  let last = dart;
-  let edges = 4;
-  for (let next = dartAt.get(last.s2Index); next !== undefined; next = dartAt.get(last.s2Index)) {
-    if (next === dart) break;
+  const darts = [dart];
+  for (;;) {
+    const next = dartAt.get(darts[darts.length - 1]!.s2Index);
+    if (next === undefined || next === dart) break;
     const seam = peak.points.slice(peak.tail);
     // The line after the first fold must start on the offset of the seam between the darts and
     // before the next fold. It does not when that seam is too short for the allowance: then the
@@ -328,9 +360,9 @@ function dartUnit(
       points: [...peak.points.slice(0, peak.tail), ...chained.points],
       tail: peak.tail + chained.tail,
     };
-    last = next;
-    edges += 3;
+    darts.push(next);
   }
+  const last = darts[darts.length - 1]!;
   return {
     unit: {
       points: peak.points,
@@ -342,7 +374,7 @@ function dartUnit(
       startAllowance: outline[dart.s1Index]!.allowance,
       endAllowance: outline[last.s2Index]!.allowance,
     },
-    edges,
+    darts,
   };
 }
 
@@ -543,7 +575,7 @@ function readOutline(
   const edges: ReadEdge[] = [];
   let previous: Point | null = null;
   let first: Point | null = null;
-  for (const entry of entries) {
+  for (const [index, entry] of entries.entries()) {
     const edge = readEdge(entry);
     if (edge === null) return "An outline edge is not a finite line or cubic within the bounds";
     if (previous !== null && distance(previous, edge.from) > MERGE_TOLERANCE) {
@@ -554,7 +586,7 @@ function readOutline(
     if (pointLike(edge)) continue;
     const allowance =
       typeof edge.name === "string" ? (allowances.get(edge.name) ?? fallback) : fallback;
-    edges.push({ edge, allowance });
+    edges.push({ edge, allowance, index });
   }
   if (first !== null && previous !== null && distance(previous, first) > MERGE_TOLERANCE) {
     return "The outline does not close";

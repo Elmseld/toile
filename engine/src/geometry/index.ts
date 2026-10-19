@@ -30,6 +30,7 @@ export {
   placeLabel,
 } from "./label";
 export {
+  type CuttingLineApproximation,
   type CuttingLineError,
   type CuttingLineResult,
   type CuttingPiece,
