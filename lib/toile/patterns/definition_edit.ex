@@ -163,8 +163,6 @@ defmodule Toile.Patterns.DefinitionEdit do
   defp pointer(path, key), do: "#{path}/#{escape(key)}"
 
   # RFC 6901: "~" and "/" in a key are escaped. Keys of decoded JSON are strings.
-  defp escape(key) when is_binary(key),
-    do: key |> String.replace("~", "~0") |> String.replace("/", "~1")
-
-  defp escape(key), do: inspect(key)
+  defp escape(key),
+    do: key |> to_string() |> String.replace("~", "~0") |> String.replace("/", "~1")
 end

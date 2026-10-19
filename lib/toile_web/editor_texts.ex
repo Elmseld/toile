@@ -38,7 +38,7 @@ defmodule ToileWeb.EditorTexts do
       "fields" => fields(),
       "errors" => errors(),
       "status" => %{
-        "saving" => gettext("Saving…"),
+        "saving" => gettext("Saving..."),
         "saved" => gettext("Saved"),
         "failed" => gettext("Your changes could not be saved")
       },

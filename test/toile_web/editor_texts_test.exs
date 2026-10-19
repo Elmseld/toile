@@ -35,7 +35,7 @@ defmodule ToileWeb.EditorTextsTest do
     end
 
     assert texts["status"] == %{
-             "saving" => "Saving…",
+             "saving" => "Saving...",
              "saved" => "Saved",
              "failed" => "Your changes could not be saved"
            }

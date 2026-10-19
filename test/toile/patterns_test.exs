@@ -503,6 +503,18 @@ defmodule Toile.PatternsTest do
       assert Patterns.get_pattern_project!(scope, pattern_project.id) == pattern_project
     end
 
+    test "accepts no parameter overrides for a definition without parameters" do
+      project = %PatternProject{definition: %{"version" => 1, "points" => []}, parameters: %{}}
+      attrs = %{"definition" => project.definition}
+
+      assert PatternProject.edit_changeset(project, Map.put(attrs, "parameters", %{}), nil).valid?
+
+      changeset =
+        PatternProject.edit_changeset(project, Map.put(attrs, "parameters", %{"x" => 1}), nil)
+
+      assert %{parameters: ["is invalid"]} = errors_on(changeset)
+    end
+
     test "broadcasts the update" do
       scope = user_scope_fixture()
       pattern_project = pattern_project_fixture(scope)
