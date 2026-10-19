@@ -5,13 +5,16 @@ defmodule Toile.Patterns.Blocks.Loader do
   Kept apart from the catalogue so the checks can be tested on files that would not compile.
   Only the shape is checked, never the geometry: the key (file name) must be a snake_case
   identifier (`^[a-z][a-z0-9_]*$`), the content a JSON object with an integer `"version"` and a
-  `"measurements"` list of strings, and the encoded definition no larger than
-  `Toile.Patterns.DefinitionSize.max_bytes/0`, the cap a project's definition is stored under.
+  `"measurements"` list of strings, optional `"imports"` an object whose values are references
+  `"<part>.<value>"` (two identifiers, as the engine requires; ADR 0007), and the encoded
+  definition no larger than `Toile.Patterns.DefinitionSize.max_bytes/0`, the cap a project's
+  definition is stored under.
   """
 
   alias Toile.Patterns.DefinitionSize
 
   @key_format ~r/\A[a-z][a-z0-9_]*\z/
+  @import_reference ~r/\A[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*\z/
 
   @doc """
   Reads the block file at `path` and returns `{key, definition}`.
@@ -36,6 +39,11 @@ defmodule Toile.Patterns.Blocks.Loader do
             "\"measurements\" list of strings"
     end
 
+    if not valid_imports?(definition) do
+      raise CompileError,
+        description: "#{path}: \"imports\" must be a JSON object of references \"<part>.<value>\""
+    end
+
     if DefinitionSize.too_large?(definition) do
       raise CompileError,
         description:
@@ -51,4 +59,13 @@ defmodule Toile.Patterns.Blocks.Loader do
        do: Enum.all?(measurements, &is_binary/1)
 
   defp valid_shape?(_definition), do: false
+
+  defp valid_imports?(%{"imports" => imports}) when is_map(imports) do
+    Enum.all?(imports, fn {_name, reference} ->
+      is_binary(reference) and Regex.match?(@import_reference, reference)
+    end)
+  end
+
+  defp valid_imports?(%{"imports" => _imports}), do: false
+  defp valid_imports?(_definition), do: true
 end

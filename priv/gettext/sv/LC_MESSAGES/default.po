@@ -946,3 +946,14 @@ msgstr "Knyt ett band runt överkroppen, vågrätt och så högt upp i armhålor
 #, elixir-autogen, elixir-format
 msgid "At the band at underarm level: across the back between the armhole creases."
 msgstr "Vid bandet i armhålsnivå: tvärs över ryggen mellan armhålsvecken."
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Straight sleeve"
+msgstr "Rak ärm"
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgctxt "pattern piece"
+msgid "Sleeve"
+msgstr "Ärm"

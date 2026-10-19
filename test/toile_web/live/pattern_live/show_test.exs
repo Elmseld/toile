@@ -64,7 +64,7 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       assert canvas_data(view, "input") == %{
                "measurements" => Map.new(@skirt, fn {k, v} -> {Atom.to_string(k), v} end),
-               "parameters" => %{}
+               "parameters" => %{"straight_skirt" => %{}}
              }
 
       assert canvas_data(view, "piece-labels") == %{"back" => "Back", "front" => "Front"}
