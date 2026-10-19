@@ -41,10 +41,10 @@ engine in the browser.
   esbuild and computes the pattern once per input. Zoom and pan change only the SVG `viewBox`. The
   hook element is `phx-update="ignore"`, but LiveView still patches its data attributes: switching
   profile changes `data-key` and `data-input`, and the hook's `updated()` callback redraws when
-  `data-key`, `data-parts` (the definitions of all parts) or `data-input` differ from what it last drew. No `push_event`. A
+  `data-key`, `data-parts` (the definitions of all parts) or `data-input` differ from what it last drew. No `push_event`. After a profile switch the page re-reads the project from the database (a fresh read, not the socket's copy), so the hook gets the stored parts and profile. A
   wrapper keyed by the profile id is only an extra measure; LiveView may move the hook element by
   its id instead of mounting it again. CI builds the JS bundle so a broken engine import fails.
-- **Piece labels.** Each piece's name is written inside the piece, centred at the point whose
+- **Piece labels.** The server sends the label texts as `data-piece-labels`, keyed by part name and then piece name (`{part: {piece: label}}`), so same-named pieces of different parts cannot overwrite each other. Each piece's name is written inside the piece, centred at the point whose
   text box is farthest from every drawn line (the outline with its darts, and the grainline with
   its arrowheads), found on a fixed grid over the piece's bounding box and refined once; the text
   shrinks, down to 40 %, when the piece is too narrow. Placement is geometry, so it lives in the

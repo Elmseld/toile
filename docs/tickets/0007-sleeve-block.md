@@ -1,7 +1,7 @@
 ---
 id: 0007
 title: Sleeve block, fitted to the bodice
-status: in-progress
+status: in-review
 type: feature
 ---
 
@@ -13,11 +13,11 @@ When the user creates a bodice project, a sleeve can be added. The sleeve is dra
 measurements and from the bodice armhole length, and is recomputed when the bodice changes.
 
 ## Acceptance criteria
-- [ ] The block "Rak ärm" (Straight sleeve; a simple one-piece sleeve) as a pattern definition, with parameters for sleeve length, width, and cap height/cap ease.
-- [ ] The sleeve can reference values from another pattern piece in the same project (the armhole length).
-- [ ] Sleeve cap length = armhole length + cap ease, within 2 mm, verified with an engine test.
-- [ ] If the bodice changes so that the armhole gets longer, the sleeve follows.
-- [ ] Notches (front/back) are marked on the sleeve cap and at the corresponding place on the armhole.
+- [x] The block "Rak ärm" (Straight sleeve; a simple one-piece sleeve) as a pattern definition, with parameters for sleeve length, width, and cap height/cap ease.
+- [x] The sleeve can reference values from another pattern piece in the same project (the armhole length).
+- [x] Sleeve cap length = armhole length + cap ease, within 2 mm, verified with an engine test.
+- [x] If the bodice changes so that the armhole gets longer, the sleeve follows.
+- [x] Notches (front/back) are marked on the sleeve cap and at the corresponding place on the armhole.
 
 ## Out of scope
 - Two-piece sleeve, puff sleeve and other variants.

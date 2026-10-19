@@ -371,7 +371,8 @@ The engine has no block registry.
   `front_cap_solved`), a half width of 0 or less, or a cap height of 0 or less makes `cap_fit_ok`
   fail; every cap arc depends on both, so an implausible input (for example a far too narrow
   `upper_arm`, such as 60 mm on armhole halves of 220 and 240 mm) gives `invalid_result` instead
-  of a looped cap or one of the wrong length. The cap height and the crown
+  of a looped cap or one of the wrong length. With a non-default, larger `cap_inflection_tilt` (for
+  example 30) some tall caps can trip this fit guard and give an error rather than a drawing. The cap height and the crown
   shift `cap_split` (front half `bicep / 2 + cap_split` wide, back `bicep / 2 - cap_split`) are
   solved so that each half equals its armhole half plus `cap_ease / 2`: a chord estimate, then
   Newton steps on the height, the shift and the height again, unrolled as formulas (values `cap_h_0`
