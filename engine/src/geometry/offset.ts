@@ -38,7 +38,7 @@ export const SMOOTH_JOIN_ANGLE = 0.5;
 export const MERGE_TOLERANCE = 1e-6;
 /** At most this many segments at each side of a concave corner are searched for the join. */
 const MAX_JOIN_SEGMENTS = 256;
-/** Two consecutive segments that turn back by less than this (radians) count as a spike. */
+/** Consecutive segments within this angle (radians) of straight on or straight back are merged. */
 const SPIKE_TOLERANCE = 1e-9;
 
 type EdgePoint = Readonly<Point>;
@@ -186,28 +186,73 @@ export function joinCorner(
   a2: number,
   sign: number,
 ): Point[] {
-  if (a1 === 0 && a2 === 0) return [copy(vertex)];
+  return cornerJoin(vertex, t1, a1, t2, a2, sign).points;
+}
+
+/**
+ * Two offset strands joined at outline vertex `vertex`: `a` ends there (end tangent `t1`,
+ * allowance `a1`), `b` starts there (`t2`, `a2`). Returns the new strands, whose concatenation is
+ * the joined line: `a` with the corner points of `joinCorner` appended, or, at a concave corner,
+ * both strands cut back (or extended) to the point where they meet (`concaveJoin`, within
+ * MITER_LIMIT times the larger allowance of the vertex). When they do not meet there, the corner
+ * goes through the vertex and `outerBoundary` cleans it up. Pass the same array as `a` and `b`
+ * for a single strand that closes on itself; it is then never trimmed.
+ */
+export function joinStrands(
+  a: readonly Point[],
+  b: readonly Point[],
+  vertex: Point,
+  t1: Point,
+  a1: number,
+  t2: Point,
+  a2: number,
+  sign: number,
+): { a: Point[]; b: Point[] } {
+  const { points: corner, concave } = cornerJoin(vertex, t1, a1, t2, a2, sign);
+  if (concave && a !== b) {
+    const join = concaveJoin(a, b, t1, t2, vertex, MITER_LIMIT * Math.max(a1, a2));
+    if (join !== null) {
+      return { a: [...a.slice(0, join.keepA), join.point], b: b.slice(join.keepB) };
+    }
+  }
+  return { a: [...a, ...corner], b: [...b] };
+}
+
+// joinCorner, also telling whether the corner is concave.
+function cornerJoin(
+  vertex: Point,
+  t1: Point,
+  a1: number,
+  t2: Point,
+  a2: number,
+  sign: number,
+): { points: Point[]; concave: boolean } {
+  if (a1 === 0 && a2 === 0) return { points: [copy(vertex)], concave: false };
   const n1 = outwardNormal(t1, sign);
   const n2 = outwardNormal(t2, sign);
   const q1 = add(vertex, scale(n1, a1));
   const q2 = add(vertex, scale(n2, a2));
-  if (distance(q1, q2) < MERGE_TOLERANCE) return [q1];
+  if (distance(q1, q2) < MERGE_TOLERANCE) return { points: [q1], concave: false };
   const turn = cross(t1, t2);
   const smooth = Math.atan2(Math.abs(turn), dot(t1, t2)) <= (SMOOTH_JOIN_ANGLE * Math.PI) / 180;
-  if (smooth && a1 !== a2) return [q1, q2];
-  if (!(turn * sign > 0)) return merged([q1, copy(vertex), q2]);
+  if (smooth && a1 !== a2) return { points: [q1, q2], concave: false };
+  if (!(turn * sign > 0)) return { points: merged([q1, copy(vertex), q2]), concave: true };
 
   const limit = MITER_LIMIT * Math.max(a1, a2);
   const miter = intersectLines(q1, add(q1, t1), q2, add(q2, t2));
-  if (miter !== null && distance(miter, vertex) <= limit) return merged([q1, miter, q2]);
+  if (miter !== null && distance(miter, vertex) <= limit) {
+    return { points: merged([q1, miter, q2]), concave: false };
+  }
   // Cut the miter off on the line square to the outward bisector at `limit` from the vertex.
   const bisector = unit(add(n1, n2)) ?? unit(sub(t1, t2));
   const along1 = bisector === null ? 0 : dot(t1, bisector);
   const along2 = bisector === null ? 0 : -dot(t2, bisector);
-  if (bisector === null || !(along1 > EPSILON) || !(along2 > EPSILON)) return merged([q1, q2]);
+  if (bisector === null || !(along1 > EPSILON) || !(along2 > EPSILON)) {
+    return { points: merged([q1, q2]), concave: false };
+  }
   const c1 = add(q1, scale(t1, (limit - dot(sub(q1, vertex), bisector)) / along1));
   const c2 = sub(q2, scale(t2, (limit - dot(sub(q2, vertex), bisector)) / along2));
-  return merged([q1, c1, c2, q2]);
+  return { points: merged([q1, c1, c2, q2]), concave: false };
 }
 
 /**
@@ -230,7 +275,7 @@ export function concaveJoin(
   const firstB = b[0];
   if (lastA === undefined || firstB === undefined || !(limit > 0)) return null;
   if (distance(lastA, firstB) < MERGE_TOLERANCE) {
-    return { point: copy(lastA), keepA: a.length - 1, keepB: 1 };
+    return { point: copy(lastA), keepA: a.length, keepB: 0 };
   }
   const reach = limit + distance(lastA, vertex) + distance(firstB, vertex);
   const box = {
@@ -383,8 +428,8 @@ export function outerBoundary(loop: readonly Point[]): Point[] | null {
 
 /**
  * The closed polyline with consecutive points closer than MERGE_TOLERANCE merged (the last one
- * against the first too) and spikes removed: a point where the line turns straight back onto
- * itself.
+ * against the first too), and without the points where it goes straight on or turns straight back
+ * onto itself (the tip of a needle).
  */
 export function cleanLoop(points: readonly Point[]): Point[] {
   const out: Point[] = [];
@@ -393,9 +438,9 @@ export function cleanLoop(points: readonly Point[]): Point[] {
   for (let guard = out.length; guard > 0 && out.length >= 3; guard--) {
     const first = out[0]!;
     const last = out[out.length - 1]!;
-    if (distance(first, last) < MERGE_TOLERANCE || spike(out[out.length - 2]!, last, first)) {
+    if (distance(first, last) < MERGE_TOLERANCE || straightOrSpike(out[out.length - 2]!, last, first)) {
       out.pop();
-    } else if (spike(last, first, out[1]!)) {
+    } else if (straightOrSpike(last, first, out[1]!)) {
       out.shift();
     } else {
       break;
@@ -415,24 +460,24 @@ export function leftmostIndex(points: readonly Point[]): number {
   return best;
 }
 
-// Appends `point` unless it coincides with the last one, first popping points that would become
-// spikes.
+// Appends `point` unless it coincides with the last one, first popping points that it makes
+// straight or a spike.
 function pushPoint(out: Point[], point: Point): void {
   for (;;) {
     const last = out[out.length - 1];
     if (last !== undefined && distance(last, point) < MERGE_TOLERANCE) return;
     const before = out[out.length - 2];
-    if (last === undefined || before === undefined || !spike(before, last, point)) break;
+    if (last === undefined || before === undefined || !straightOrSpike(before, last, point)) break;
     out.pop();
   }
   out.push(copy(point));
 }
 
-// Whether a -> b -> c turns straight back: b is the tip of a needle.
-function spike(a: Point, b: Point, c: Point): boolean {
+// Whether a -> b -> c goes straight on or turns straight back at b: b can go.
+function straightOrSpike(a: Point, b: Point, c: Point): boolean {
   const u = sub(b, a);
   const v = sub(c, b);
-  return dot(u, v) < 0 && Math.abs(cross(u, v)) <= SPIKE_TOLERANCE * norm(u) * norm(v);
+  return Math.abs(cross(u, v)) <= SPIKE_TOLERANCE * norm(u) * norm(v);
 }
 
 // The total turning (radians) of the control polygon, skipping legs of zero length.

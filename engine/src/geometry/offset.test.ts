@@ -255,8 +255,8 @@ describe("concaveJoin", () => {
   test("coinciding ends join where they are; no intersection within the limit gives null", () => {
     expect(concaveJoin([p(0, 0), p(5, 5)], [p(5, 5), p(9, 0)], p(1, 1), p(1, -1), p(5, 6), 10)).toEqual({
       point: p(5, 5),
-      keepA: 1,
-      keepB: 1,
+      keepA: 2,
+      keepB: 0,
     });
     expect(concaveJoin([p(0, -10), p(100, -10)], [p(85, 0), p(85, -100)], p(1, 0), p(0, -1), p(100, 0), 5)).toBeNull();
     expect(concaveJoin([], [p(0, 0)], p(1, 0), p(0, 1), p(0, 0), 5)).toBeNull();
@@ -317,7 +317,7 @@ describe("findCrossings and outerBoundary (D)", () => {
 });
 
 describe("cleanLoop", () => {
-  test("merges coincident points, across the seam too, and removes spikes", () => {
+  test("merges coincident points, across the seam too, and removes straight points and spikes", () => {
     expect(cleanLoop([p(0, 0), p(10, 0), p(10, 0), p(10, 10), p(0, 10), p(0, 0)])).toEqual([
       p(0, 0),
       p(10, 0),
@@ -328,7 +328,6 @@ describe("cleanLoop", () => {
     expect(cleanLoop([p(0, 0), p(10, 0), p(10, 5), p(20, 5), p(10, 5), p(10, 10), p(0, 10)])).toEqual([
       p(0, 0),
       p(10, 0),
-      p(10, 5),
       p(10, 10),
       p(0, 10),
     ]);
