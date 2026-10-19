@@ -24,6 +24,7 @@ defmodule ToileWeb.EditorTextsTest do
     assert texts["errors"]["unknown_reference"] == "There is nothing called %{name}."
     assert texts["errors"]["wrong_reference_kind"] =~ "%{name}"
     assert texts["offset"] == "Moved %{x} cm sideways and %{y} cm up or down"
+    assert texts["default"] == "Default: %{value}"
   end
 
   test "has the error, status and unit texts the hook reads", %{texts: texts} do

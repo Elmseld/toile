@@ -786,7 +786,6 @@ msgstr ""
 
 #: lib/toile_web/centimeters.ex
 #: lib/toile_web/editor_texts.ex
-#: lib/toile_web/parameter_texts.ex
 #, elixir-autogen, elixir-format
 msgctxt "decimal separator"
 msgid "."
@@ -1025,7 +1024,7 @@ msgstr ""
 msgid "Click or tap a point in the pattern to select it."
 msgstr ""
 
-#: lib/toile_web/live/pattern_live/show.ex
+#: lib/toile_web/editor_texts.ex
 #, elixir-autogen, elixir-format
 msgid "Default: %{value}"
 msgstr ""

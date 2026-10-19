@@ -21,7 +21,8 @@ engine in the browser.
   The engine validates the definition on the client. Any release image build must include
   `engine/blocks` and `engine/src`.
 - **Limits.** At most 100 projects per user (advisory lock, as for measurement profiles) and a
-  definition of at most 1 000 000 bytes encoded (`Toile.Patterns.DefinitionSize`). A block file
+  definition of at most 200 000 bytes encoded (`Toile.Patterns.DefinitionSize`; 1 000 000 until
+  ADR 0008 lowered it so an editor save fits a websocket frame). A block file
   over that cap fails to compile (checked by `Toile.Patterns.Blocks.Loader`), so creating a project from a block never hits it.
 - **Ownership.** Scoped per user (ADR 0001). The chosen `measurement_profile_id` must belong to the
   same user: the context checks it (for a form error), and the database enforces it with a

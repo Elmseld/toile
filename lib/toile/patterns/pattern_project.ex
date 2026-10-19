@@ -25,6 +25,8 @@ defmodule Toile.Patterns.PatternProject do
   alias Toile.Patterns.DefinitionEdit
   alias Toile.Patterns.DefinitionSize
 
+  # The engine's MAX_PARAMETER (engine/src/editor/units.ts); test/toile/patterns/engine_limits_test.exs
+  # keeps the two equal.
   @max_parameter 1_000_000
 
   @primary_key {:id, :binary_id, autogenerate: true}
@@ -79,9 +81,12 @@ defmodule Toile.Patterns.PatternProject do
 
   Casts `definition` and `parameters`, both required. The definition may differ from the stored
   one only in user offsets and point formula fields (`Toile.Patterns.DefinitionEdit.validate/2`);
-  any other change gets the error "contains changes that cannot be saved". Every key of
+  any other change gets the error "contains changes that cannot be saved", with the JSON pointer
+  of the first difference as the error's `:path` option (for logs, not for users). Every key of
   `parameters` must be a parameter the definition declares, with a number of at most
-  #{@max_parameter} in absolute value as its value. The definition size cap applies as usual.
+  #{@max_parameter} in absolute value as its value. The definition size cap applies as usual,
+  and the definition and parameters together must fit `max_save_bytes/0` (a save is one
+  websocket frame).
   `user_scope` is unused for now, as in `changeset/3`.
   """
   def edit_changeset(pattern_project, attrs, _user_scope) do
@@ -95,8 +100,12 @@ defmodule Toile.Patterns.PatternProject do
         :ok ->
           []
 
-        {:error, _path} ->
-          [definition: dgettext_noop("errors", "contains changes that cannot be saved")]
+        {:error, path} ->
+          # The path is for the log line of a rejected save (`ToileWeb.PatternLive.Show`).
+          [
+            definition:
+              {dgettext_noop("errors", "contains changes that cannot be saved"), path: path}
+          ]
       end
     end)
     |> validate_change(:parameters, fn :parameters, parameters ->
@@ -105,6 +114,19 @@ defmodule Toile.Patterns.PatternProject do
         else: [parameters: dgettext_noop("errors", "is invalid")]
     end)
     |> validate_definition_size()
+    |> validate_save_size()
+  end
+
+  # Only checked once the rest is valid, so it does not encode a rejected payload.
+  defp validate_save_size(%Ecto.Changeset{valid?: false} = changeset), do: changeset
+
+  defp validate_save_size(changeset) do
+    definition = get_field(changeset, :definition)
+    parameters = get_field(changeset, :parameters)
+
+    if DefinitionSize.save_too_large?(definition, parameters),
+      do: add_error(changeset, :definition, dgettext_noop("errors", "is too large")),
+      else: changeset
   end
 
   # The declared parameters are the stored definition's: the edit cannot change them.
@@ -121,6 +143,12 @@ defmodule Toile.Patterns.PatternProject do
   (`Toile.Patterns.DefinitionSize.max_bytes/0`).
   """
   defdelegate max_definition_bytes, to: DefinitionSize, as: :max_bytes
+
+  @doc """
+  Returns the maximum size of an editor save, definition and parameters together, in bytes of
+  encoded JSON (`Toile.Patterns.DefinitionSize.max_save_bytes/0`).
+  """
+  defdelegate max_save_bytes, to: DefinitionSize
 
   defp put_block_definition(changeset) do
     block = get_change(changeset, :block)

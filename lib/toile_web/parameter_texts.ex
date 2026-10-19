@@ -3,6 +3,10 @@ defmodule ToileWeb.ParameterTexts do
   The UI label, display unit and display order of the parameters in the block definitions, for
   the parameter panel of the pattern editor (`docs/adr/0008-pattern-editor.md`).
 
+  Only the unit's name is decided here. Converting and formatting values in the display unit is
+  the engine's job (`engine/src/editor/units.ts`), so the server renders stored values raw and
+  the editor in the browser formats them.
+
   Every label is a literal gettext call so `mix gettext.extract` finds it and the translation
   test covers it. Unlike `ToileWeb.BlockTexts.label/1`, `label/1` falls back to the parameter
   name: a project keeps its own copy of a definition, which may hold parameters no block has
@@ -17,6 +21,31 @@ defmodule ToileWeb.ParameterTexts do
   degrees per cm (stored degrees per mm), or a plain number. The engine's `ParameterUnit`.
   """
   @type unit :: :length | :angle | :angle_per_length | :number
+
+  # The display unit of every parameter the blocks declare; any other name is a plain number.
+  @units %{
+    "ease_bust" => :length,
+    "ease_waist" => :length,
+    "ease_hip" => :length,
+    "ease_back_width" => :length,
+    "ease_armhole_depth" => :length,
+    "length_adjustment" => :length,
+    "side_shift" => :length,
+    "side_rise" => :length,
+    "back_neck_rise" => :length,
+    "front_neck_extra" => :length,
+    "back_shoulder_drop" => :length,
+    "front_shoulder_drop" => :length,
+    "back_dart_length" => :length,
+    "front_dart_length" => :length,
+    "back_shoulder_dart" => :length,
+    "back_shoulder_dart_length" => :length,
+    "back_waist_dart_gap" => :length,
+    "front_waist_dart_gap" => :length,
+    "bust_dart_rate" => :angle_per_length,
+    "bust_dart_offset" => :length,
+    "max_bust_dart_angle" => :angle
+  }
 
   # Ease first, then lengths, then the dart constants.
   @order ~w(ease_bust ease_waist ease_hip ease_back_width ease_armhole_depth length_adjustment
@@ -78,10 +107,7 @@ defmodule ToileWeb.ParameterTexts do
       :number
   """
   @spec unit(String.t()) :: unit()
-  def unit("bust_dart_rate"), do: :angle_per_length
-  def unit("max_bust_dart_angle"), do: :angle
-  def unit(name) when is_map_key(@positions, name), do: :length
-  def unit(name) when is_binary(name), do: :number
+  def unit(name) when is_binary(name), do: Map.get(@units, name, :number)
 
   @doc """
   Returns the unit text shown after a value in `unit`; empty for a plain number.
@@ -94,40 +120,6 @@ defmodule ToileWeb.ParameterTexts do
   def unit_label(:angle), do: gettext("degrees")
   def unit_label(:angle_per_length), do: gettext("degrees per cm")
   def unit_label(:number), do: ""
-
-  @doc """
-  Formats a stored parameter value in the display unit of `unit`, the way the editor shows it
-  (the engine's `toDisplay` and `formatDisplay`): lengths in cm with up to two decimals, angles
-  per length in degrees per cm with up to three, without trailing zeros and with the locale's
-  decimal separator. The unit text is not included.
-
-      iex> ToileWeb.ParameterTexts.format_value(12.5, :length)
-      "1.25"
-
-      iex> ToileWeb.ParameterTexts.format_value(0.12, :angle_per_length)
-      "1.2"
-
-      iex> ToileWeb.ParameterTexts.format_value(40, :length)
-      "4"
-  """
-  @spec format_value(number(), unit()) :: String.t()
-  def format_value(value, unit) when is_number(value) do
-    {factor, decimals} = display(unit)
-    shown = Float.round(value * factor * 1.0, decimals)
-
-    text =
-      if shown == Float.round(shown),
-        do: Integer.to_string(trunc(shown)),
-        else: :erlang.float_to_binary(shown, [:short])
-
-    String.replace(text, ".", pgettext("decimal separator", "."))
-  end
-
-  # Display value = stored value * factor, kept to this many decimals (as in the engine).
-  defp display(:length), do: {0.1, 2}
-  defp display(:angle), do: {1, 2}
-  defp display(:angle_per_length), do: {10, 3}
-  defp display(:number), do: {1, 3}
 
   @doc """
   Sorts parameter names in display order: ease first, then lengths, then the dart constants, and

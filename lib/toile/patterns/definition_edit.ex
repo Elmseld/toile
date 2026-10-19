@@ -27,6 +27,7 @@ defmodule Toile.Patterns.DefinitionEdit do
   alias Toile.Patterns.PointOps
 
   @max_formula_length 10_000
+  # The engine's MAX_COORDINATE; test/toile/patterns/engine_limits_test.exs keeps the two equal.
   @max_offset 10_000_000
 
   @doc """

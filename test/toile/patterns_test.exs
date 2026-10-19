@@ -428,6 +428,7 @@ defmodule Toile.PatternsTest do
                })
 
       assert %{definition: ["contains changes that cannot be saved"]} = errors_on(changeset)
+      assert {_message, path: "/points/0/name"} = changeset.errors[:definition]
       assert Patterns.get_pattern_project!(scope, pattern_project.id) == pattern_project
     end
 
@@ -533,6 +534,37 @@ defmodule Toile.PatternsTest do
       assert Patterns.get_pattern_project!(scope, pattern_project.id) == pattern_project
     end
 
+    test "rejects a save whose definition and parameters together are too large to send" do
+      names = for i <- 1..3000, do: "p#{i}"
+      defaults = Map.new(names, &{&1, 0})
+
+      definition = %{
+        "version" => 1,
+        "points" => [],
+        "parameters" => defaults,
+        "source" => String.duplicate("a", 150_000)
+      }
+
+      assert byte_size(JSON.encode!(definition)) <= PatternProject.max_definition_bytes()
+
+      project = %PatternProject{definition: definition, parameters: %{}}
+      attrs = %{"definition" => definition}
+
+      small = Map.new(Enum.take(names, 10), &{&1, 1})
+
+      assert PatternProject.edit_changeset(project, Map.put(attrs, "parameters", small), nil).valid?
+
+      large = Map.new(names, &{&1, -999_999.123456789})
+
+      changeset =
+        PatternProject.edit_changeset(project, Map.put(attrs, "parameters", large), nil)
+
+      assert byte_size(JSON.encode!(definition)) + byte_size(JSON.encode!(large)) >
+               PatternProject.max_save_bytes()
+
+      assert %{definition: ["is too large"]} = errors_on(changeset)
+    end
+
     test "accepts no parameter overrides for a definition without parameters" do
       project = %PatternProject{definition: %{"version" => 1, "points" => []}, parameters: %{}}
       attrs = %{"definition" => project.definition}
@@ -545,18 +577,18 @@ defmodule Toile.PatternsTest do
       assert %{parameters: ["is invalid"]} = errors_on(changeset)
     end
 
-    test "broadcasts the update" do
+    test "does not broadcast, since the project list shows nothing an edit changes" do
       scope = user_scope_fixture()
       pattern_project = pattern_project_fixture(scope)
       Patterns.subscribe_pattern_projects(scope)
 
-      {:ok, updated} =
+      {:ok, _updated} =
         Patterns.update_pattern_edits(scope, pattern_project, %{
           "definition" => pattern_project.definition,
           "parameters" => %{"ease_hip" => 50}
         })
 
-      assert_receive {:updated, ^updated}
+      refute_receive {:updated, _}
     end
 
     test "with another scope raises" do

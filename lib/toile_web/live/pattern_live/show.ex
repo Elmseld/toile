@@ -24,14 +24,21 @@ defmodule ToileWeb.PatternLive.Show do
   (`data-texts`, `ToileWeb.EditorTexts`). `data-editor` names the `#pattern-editor` aside, which
   HEEx renders once (`phx-update="ignore"`) and the hook then owns: the undo/redo buttons and the
   save status, the point panel (`#point-select`, with `#point-details` filled by the hook) and
-  one row per parameter of the definition (`#parameter-<name>`, with `data-unit` and
-  `data-default`, in `ToileWeb.ParameterTexts` order).
+  one row per parameter of the definition (`#parameter-<name>`, in `ToileWeb.ParameterTexts`
+  order). A row carries stored values only: `data-unit` (the `ParameterUnit` name),
+  `data-default` (the definition's default) and `data-value` (the override, else the default;
+  absent when the stored override is not a number). Its input and its `-hint` paragraph render
+  empty; the hook fills them in the display unit with the engine's `units.ts`, so the
+  conversion has one source.
 
   Every committed edit is saved by the hook with the `save_pattern` event,
   `%{"definition" => map, "parameters" => map}`, which `Toile.Patterns.update_pattern_edits/3`
   accepts only where the definition differs from the stored one in user offsets and point
   formulas. The reply is `%{ok: true}` or `%{ok: false}`. A save does not send the definition
-  back to the hook.
+  back to the hook. The whole event must fit one websocket frame: `data-max-save-bytes`
+  (`Toile.Patterns.PatternProject.max_save_bytes/0`) is the most the definition and parameters
+  may add up to, in bytes of encoded JSON, and the server rejects a larger save. Saves from two
+  tabs replace each other: the last one wins.
 
   Choosing another profile in `#profile-form` saves it on the project. The hook element stays
   (there is no wrapper keyed by the profile any more), so the edit history survives; its
@@ -44,6 +51,7 @@ defmodule ToileWeb.PatternLive.Show do
 
   alias Toile.Measurements
   alias Toile.Patterns
+  alias Toile.Patterns.PatternProject
   alias ToileWeb.BlockTexts
   alias ToileWeb.EditorTexts
   alias ToileWeb.MeasurementTexts
@@ -148,6 +156,7 @@ defmodule ToileWeb.PatternLive.Show do
               data-piece-labels={JSON.encode!(@piece_labels)}
               data-texts={@editor_texts_json}
               data-editor="pattern-editor"
+              data-max-save-bytes={PatternProject.max_save_bytes()}
               data-error-text={gettext("The pattern could not be computed with these measurements.")}
               role="group"
               aria-label={gettext("Drawing of the pattern %{name}", name: @project.name)}
@@ -219,21 +228,20 @@ defmodule ToileWeb.PatternLive.Show do
                 data-parameter={row.name}
                 data-unit={row.unit}
                 data-default={row.default}
+                data-value={row.value}
               >
                 <.input
                   type="text"
                   name={"parameters[#{row.name}]"}
                   id={"parameter-#{row.name}-input"}
-                  value={row.value}
+                  value=""
                   label={row.label}
                   inputmode="decimal"
                   autocomplete="off"
                   aria-describedby={"parameter-#{row.name}-hint parameter-#{row.name}-error"}
                   class="w-full input min-h-11"
                 />
-                <p id={"parameter-#{row.name}-hint"} class="-mt-1 text-sm text-base-content/70">
-                  {gettext("Default: %{value}", value: row.default_text)}
-                </p>
+                <p id={"parameter-#{row.name}-hint"} class="-mt-1 text-sm text-base-content/70"></p>
                 <p id={"parameter-#{row.name}-error"} class="text-sm text-error"></p>
               </div>
             </section>
@@ -356,19 +364,17 @@ defmodule ToileWeb.PatternLive.Show do
 
   defp parameter_rows(_project), do: []
 
+  # Values stay in stored units (mm, degrees): the hook formats them with the engine's units.
   defp parameter_row(name, default, overrides) do
     unit = ParameterTexts.unit(name)
-    unit_label = ParameterTexts.unit_label(unit)
     current = Map.get(overrides, name, default)
-    default_text = String.trim("#{ParameterTexts.format_value(default, unit)} #{unit_label}")
 
     %{
       name: name,
-      label: parameter_label(ParameterTexts.label(name), unit_label),
+      label: parameter_label(ParameterTexts.label(name), ParameterTexts.unit_label(unit)),
       unit: unit,
       default: default,
-      default_text: default_text,
-      value: if(is_number(current), do: ParameterTexts.format_value(current, unit), else: "")
+      value: if(is_number(current), do: current)
     }
   end
 

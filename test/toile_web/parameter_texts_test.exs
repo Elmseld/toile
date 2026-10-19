@@ -54,21 +54,4 @@ defmodule ToileWeb.ParameterTextsTest do
     assert ParameterTexts.unit_label(:angle_per_length) == "degrees per cm"
     assert ParameterTexts.unit_label(:number) == ""
   end
-
-  test "format_value/2 shows the display unit without trailing zeros" do
-    assert ParameterTexts.format_value(12.5, :length) == "1.25"
-    assert ParameterTexts.format_value(140, :length) == "14"
-    assert ParameterTexts.format_value(0, :length) == "0"
-    assert ParameterTexts.format_value(-5, :length) == "-0.5"
-    assert ParameterTexts.format_value(20, :angle) == "20"
-    assert ParameterTexts.format_value(0.12, :angle_per_length) == "1.2"
-    assert ParameterTexts.format_value(0.125, :angle_per_length) == "1.25"
-    assert ParameterTexts.format_value(2.5, :number) == "2.5"
-  end
-
-  test "format_value/2 uses the locale's decimal separator" do
-    Gettext.with_locale(ToileWeb.Gettext, "sv", fn ->
-      assert ParameterTexts.format_value(12.5, :length) == "1,25"
-    end)
-  end
 end

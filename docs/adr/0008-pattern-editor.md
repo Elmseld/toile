@@ -34,6 +34,19 @@ sleeve block, ticket 0007).
   `evaluate(input, { offsets })` and updates existing SVG elements in `requestAnimationFrame`.
   `placeLabel` (7 to 14 ms per piece) is not called during a drag: labels keep their place and are
   recomputed at drag end through a cache keyed by outline, text and grainline.
+- **Unit conversion lives in the engine only.** The server renders parameter values raw (mm,
+  degrees) in data attributes and leaves the inputs and "Default" hints empty; the hook fills
+  them with `engine/src/editor/units.ts`. The server's bounds on parameter overrides and user
+  offsets equal the engine's `MAX_PARAMETER` and `MAX_COORDINATE`, pinned by
+  `test/toile/patterns/engine_limits_test.exs`.
+- **A save fits one websocket frame.** The endpoint closes the socket on a frame over 256 000
+  bytes, so a save (definition plus parameter overrides, encoded) is capped at 240 000 bytes and
+  a stored definition at 200 000 (`Toile.Patterns.DefinitionSize`; ADR 0006 had 1 000 000). Every
+  stored project can be saved again; the hook reads the save cap from `data-max-save-bytes` and
+  does not send a larger save. Blocks are far below it (the bodice is about 19 000 bytes).
+- **Edit saves are not broadcast** on the user's project topic: the editor saves on every
+  commit, and the project list shows nothing an edit changes. A rejected save is logged at info
+  level with the failing fields and the JSON pointer of the first difference, never values.
 - The hook element no longer sits in a profile-keyed wrapper, so switching profile keeps it and the
   undo history. It reads `data-definition` on mount only and redraws when `data-key` or
   `data-input` change (amends the "Client" paragraph of ADR 0006).
@@ -50,3 +63,7 @@ sleeve block, ticket 0007).
   for it.
 - Named formulas (the `formulas` section), curves and pieces cannot be edited yet.
 - Undo history does not survive a reload; the saved state does.
+- Last write wins. A save is checked against the project as this page loaded it and replaces the
+  stored definition and parameters whole, with no version check: with the same project open in
+  two tabs, each save silently overwrites the other tab's work. An optimistic lock is left for
+  later.

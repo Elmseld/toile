@@ -14,6 +14,8 @@ defmodule Toile.Patterns do
   import Ecto.Query, warn: false
   alias Toile.Repo
 
+  require Logger
+
   alias Toile.Accounts.Scope
   alias Toile.Measurements
   alias Toile.Measurements.MeasurementProfile
@@ -32,6 +34,8 @@ defmodule Toile.Patterns do
     * {:created, %PatternProject{}}
     * {:updated, %PatternProject{}}
     * {:deleted, %PatternProject{}}
+
+  Saving the editor's work (`update_pattern_edits/3`) is not broadcast.
 
   """
   def subscribe_pattern_projects(%Scope{} = scope) do
@@ -230,8 +234,10 @@ defmodule Toile.Patterns do
   as stored, so whatever reads them by name keeps working. The formulas are not checked here: the
   engine in the browser only saves a definition it evaluated without errors.
 
-  Broadcasts `{:updated, pattern_project}`. The measurement profile association is kept as it
-  was.
+  Does not broadcast: the editor autosaves on every commit, and the project list, the only
+  subscriber, shows nothing an edit changes. A rejected save is logged at info level with the
+  failing fields and, for the definition, the JSON pointer of the first difference. The
+  measurement profile association is kept as it was.
 
   ## Examples
 
@@ -247,10 +253,28 @@ defmodule Toile.Patterns do
 
     changeset = PatternProject.edit_changeset(pattern_project, attrs, scope)
 
-    with {:ok, pattern_project = %PatternProject{}} <- Repo.update(changeset) do
-      broadcast_pattern_project(scope, {:updated, pattern_project})
-      {:ok, pattern_project}
+    case Repo.update(changeset) do
+      {:ok, %PatternProject{}} = ok ->
+        ok
+
+      {:error, changeset} ->
+        log_rejected_edit(pattern_project, changeset)
+        {:error, changeset}
     end
+  end
+
+  # The client only saves states the engine evaluated, so a rejection points at a bug or a
+  # tampered client. Logs field names and the JSON pointer of the first difference, never values.
+  defp log_rejected_edit(pattern_project, changeset) do
+    reasons =
+      Enum.map_join(changeset.errors, ", ", fn {field, {_message, opts}} ->
+        case Keyword.get(opts, :path) do
+          nil -> Atom.to_string(field)
+          path -> "#{field} at #{String.slice(path, 0, 200)}"
+        end
+      end)
+
+    Logger.info("Rejected pattern edit for project #{pattern_project.id}: #{reasons}")
   end
 
   # Changing the foreign key leaves the old profile in the association; reload it.

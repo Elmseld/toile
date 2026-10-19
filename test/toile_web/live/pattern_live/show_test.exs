@@ -273,6 +273,12 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       assert has_element?(view, ~s(#pattern-editor[phx-update="ignore"]))
       assert has_element?(view, ~s(#pattern-canvas[data-editor="pattern-editor"]))
+
+      assert has_element?(
+               view,
+               ~s(#pattern-canvas[data-max-save-bytes="#{PatternProject.max_save_bytes()}"])
+             )
+
       assert has_element?(view, "#undo-button[disabled]", "Undo")
       assert has_element?(view, "#redo-button[disabled]", "Redo")
       assert has_element?(view, ~s(#save-status[role="status"][aria-live="polite"]))
@@ -286,13 +292,14 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       assert has_element?(
                view,
-               ~s(#parameter-ease_hip[data-parameter="ease_hip"][data-unit="length"][data-default="40"]),
+               ~s(#parameter-ease_hip[data-parameter="ease_hip"][data-unit="length"][data-default="40"][data-value="40"]),
                "Ease at the hip (cm)"
              )
 
-      assert has_element?(view, ~s(#parameter-ease_hip-input[value="4"][inputmode="decimal"]))
-      assert has_element?(view, "#parameter-ease_hip-hint", "Default: 4 cm")
-      assert has_element?(view, "#parameter-side_rise-hint", "Default: 1.25 cm")
+      # Values stay raw; the hook formats them with the engine's units.ts.
+      assert has_element?(view, ~s(#parameter-ease_hip-input[value=""][inputmode="decimal"]))
+      assert has_element?(view, ~s(#parameter-side_rise[data-default="12.5"]))
+      assert view |> element("#parameter-ease_hip-hint") |> render() =~ ~r/>\s*<\/p>/
       assert has_element?(view, "#parameter-ease_hip-error")
 
       texts = canvas_data(view, "texts")
@@ -323,7 +330,7 @@ defmodule ToileWeb.PatternLive.ShowTest do
                "Bust dart growth (degrees per cm)"
              )
 
-      assert has_element?(view, "#parameter-bust_dart_rate-hint", "Default: 1.2 degrees per cm")
+      refute has_element?(view, "#parameter-bust_dart_rate-hint", "Default")
     end
 
     test "renders the editor for a definition without points or known parameters", %{
@@ -358,8 +365,18 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       assert has_element?(view, ~s(#parameter-pocket[data-unit="number"]), "pocket")
       refute has_element?(view, "#parameter-pocket", "pocket (")
-      assert has_element?(view, ~s(#parameter-pocket-input[value="2.5"]))
-      assert has_element?(view, "#parameter-pocket-hint", "Default: 3")
+      assert has_element?(view, ~s(#parameter-pocket[data-default="3"][data-value="2.5"]))
+
+      {1, _} =
+        Repo.update_all(
+          from(p in PatternProject, where: p.id == ^project.id),
+          set: [parameters: %{"pocket" => "not a number"}]
+        )
+
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      assert has_element?(view, ~s(#parameter-pocket[data-default="3"]))
+      refute has_element?(view, "#parameter-pocket[data-value]")
     end
 
     test "saves edits through save_pattern and shows them after a reload", %{
@@ -388,7 +405,7 @@ defmodule ToileWeb.PatternLive.ShowTest do
       saved = Enum.find(canvas_data(view2, "definition")["points"], &(&1["name"] == moved))
       assert saved["user_offset"] == %{"dx" => 12.5, "dy" => -3}
       assert canvas_data(view2, "input")["parameters"] == %{"ease_hip" => 50}
-      assert has_element?(view2, ~s(#parameter-ease_hip-input[value="5"]))
+      assert has_element?(view2, ~s(#parameter-ease_hip[data-default="40"][data-value="50"]))
     end
 
     test "a save does not send the definition back to the hook", %{conn: conn, scope: scope} do

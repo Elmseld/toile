@@ -30,6 +30,8 @@ defmodule ToileWeb.EditorTexts do
       `"not_moved"` for a point without an offset and `"reset_offset"` for the button that
       removes it.
     * `"units"`: the unit text of each parameter unit (`ToileWeb.ParameterTexts.unit_label/1`).
+    * `"default"`: the hint under a parameter input, with `%{value}` for its default in the
+      display unit, followed by the unit text.
     * `"decimal_separator"`: the locale's decimal separator.
 
   It is a function rather than a module attribute because the texts depend on the locale of the
@@ -59,6 +61,7 @@ defmodule ToileWeb.EditorTexts do
           [:length, :angle, :angle_per_length, :number],
           &{Atom.to_string(&1), ParameterTexts.unit_label(&1)}
         ),
+      "default" => gettext("Default: %{value}", value: "%{value}"),
       "decimal_separator" => pgettext("decimal separator", ".")
     }
   end
