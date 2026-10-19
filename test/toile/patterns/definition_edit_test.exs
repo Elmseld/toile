@@ -64,6 +64,30 @@ defmodule Toile.Patterns.DefinitionEditTest do
     end
   end
 
+  describe "boundaries and numbers" do
+    test "an offset of exactly plus or minus 10 000 000 is accepted", %{stored: stored} do
+      for value <- [10_000_000, -10_000_000, 10_000_000.0] do
+        submitted =
+          update_point(
+            stored,
+            "b_neck",
+            &Map.put(&1, "user_offset", %{"dx" => value, "dy" => -value})
+          )
+
+        assert DefinitionEdit.validate(stored, submitted) == :ok, inspect(value)
+      end
+    end
+
+    test "an integer and a float of the same value are equal outside points", %{stored: stored} do
+      [{name, default} | _] = Enum.filter(stored["parameters"], fn {_, v} -> is_integer(v) end)
+      submitted = put_in(stored, ["parameters", name], default * 1.0)
+      assert DefinitionEdit.validate(stored, submitted) == :ok
+
+      submitted = put_in(stored, ["parameters", name], default + 0.5)
+      assert DefinitionEdit.validate(stored, submitted) == {:error, "/parameters/#{name}"}
+    end
+  end
+
   describe "rejected" do
     test "a renamed point", %{stored: stored} do
       submitted = update_point(stored, "b_neck", &Map.put(&1, "name", "b_neck2"))

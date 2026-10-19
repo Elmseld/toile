@@ -416,6 +416,71 @@ defmodule ToileWeb.PatternLive.ShowTest do
       assert Patterns.get_pattern_project!(scope, project.id).definition == project.definition
     end
 
+    test "rejects saves that touch the protected parts and stores nothing", %{
+      conn: conn,
+      scope: scope
+    } do
+      project = pattern_project_fixture(scope, block: "bodice")
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+      definition = project.definition
+
+      tampered = [
+        {put_in(definition, ["formulas", "armhole_length"], "0"), %{}},
+        {put_in(definition, ["parameters", "ease_bust"], 99), %{}},
+        {put_in(definition, ["curves", Access.at(0), "name"], "x"), %{}},
+        {put_in(definition, ["pieces", Access.at(0), "name"], "x"), %{}},
+        {Map.update!(definition, "points", &Enum.drop(&1, 1)), %{}},
+        {put_in(definition, ["points", Access.at(0), "user_offset"], %{"dx" => "1", "dy" => 0}),
+         %{}},
+        {definition, %{"not_a_parameter" => 1}},
+        {definition, %{"ease_bust" => "40"}}
+      ]
+
+      for {payload_definition, parameters} <- tampered do
+        render_hook(view, "save_pattern", %{
+          "definition" => payload_definition,
+          "parameters" => parameters
+        })
+
+        assert_reply(view, %{ok: false})
+      end
+
+      assert Patterns.get_pattern_project!(scope, project.id) == project
+    end
+
+    test "a second save can remove the offset and the overrides again", %{
+      conn: conn,
+      scope: scope
+    } do
+      project = pattern_project_fixture(scope)
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      moved =
+        put_in(project.definition, ["points", Access.at(1), "user_offset"], %{
+          "dx" => 1,
+          "dy" => 2
+        })
+
+      render_hook(view, "save_pattern", %{
+        "definition" => moved,
+        "parameters" => %{"ease_hip" => 50}
+      })
+
+      assert_reply(view, %{ok: true})
+
+      render_hook(view, "save_pattern", %{"definition" => project.definition, "parameters" => %{}})
+
+      assert_reply(view, %{ok: true})
+
+      stored = Patterns.get_pattern_project!(scope, project.id)
+      assert stored.definition == project.definition
+      assert stored.parameters == %{}
+
+      {:ok, view2, _html} = live(conn, ~p"/patterns/#{project}")
+      assert canvas_data(view2, "definition") == project.definition
+      assert canvas_data(view2, "input")["parameters"] == %{}
+    end
+
     test "rejects a malformed save", %{conn: conn, scope: scope} do
       project = pattern_project_fixture(scope)
       {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")

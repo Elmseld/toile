@@ -455,6 +455,36 @@ defmodule Toile.PatternsTest do
       assert Patterns.get_pattern_project!(scope, pattern_project.id).parameters == %{}
     end
 
+    test "accepts overrides at exactly the limits, negative and fractional values too" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+
+      parameters = %{"ease_hip" => 1_000_000, "side_rise" => -999_999.5}
+
+      assert {:ok, updated} =
+               Patterns.update_pattern_edits(scope, pattern_project, %{
+                 "definition" => pattern_project.definition,
+                 "parameters" => parameters
+               })
+
+      assert updated.parameters == parameters
+    end
+
+    test "rejects a parameter payload that is smuggled into the definition" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      definition = put_in(pattern_project.definition, ["parameters", "ease_hip"], 99)
+
+      assert {:error, changeset} =
+               Patterns.update_pattern_edits(scope, pattern_project, %{
+                 "definition" => definition,
+                 "parameters" => %{}
+               })
+
+      assert %{definition: ["contains changes that cannot be saved"]} = errors_on(changeset)
+      assert Patterns.get_pattern_project!(scope, pattern_project.id) == pattern_project
+    end
+
     test "requires a definition and parameters that are maps" do
       scope = user_scope_fixture()
       pattern_project = pattern_project_fixture(scope)
