@@ -225,8 +225,9 @@ cuttingLine(piece, { default: 10, edges: { b_hem: 40, b_cb: 0 } })
 - **Errors** are values, never thrown: `invalid_seam_allowance` and `degenerate_geometry` (empty or
   zero-area outline, non-finite coordinates, a self-intersecting outline). Work is bounded by
   `MAX_CUTTING_LINE_SEGMENTS` (20 000) per piece.
-- **Cost.** A view should compute it once per drawn input, not on every pointer move. Measured
-  cost is added here when the implementation is done.
+- **Cost.** About 0.1 ms per skirt piece and 0.2 to 0.25 ms per bodice piece (Bun in Docker on a
+  laptop); a hostile outline at the segment budget takes about 0.3 s. A view should compute it once
+  per drawn input, not on every pointer move.
 
 ## Blocks
 
