@@ -10,6 +10,7 @@
 //   data-editor        the id of the editor aside (optional); with it the pattern is editable
 //   data-texts         the editor's UI texts (JSON, ToileWeb.EditorTexts)
 //   data-max-save-bytes  the most a save's definition and parameters may encode to (JSON bytes)
+//   data-max-definition-bytes  the most a save's definition alone may encode to (JSON bytes)
 // The element's aria-label also names the SVG.
 //
 // With an editor (assets/js/editor/pattern_editor.js, docs/adr/0008-pattern-editor.md) the

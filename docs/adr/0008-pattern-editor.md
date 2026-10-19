@@ -32,6 +32,8 @@ sleeve block, ticket 0007).
   stays. One save is in flight at a time: commits made meanwhile are sent as one save of the
   newest state when the reply comes, so a held-down undo key does not send a save per step. After
   a reconnect an unsaved commit is sent again, at most three times in a row with a growing delay.
+  A save without a reply within 10 seconds counts as failed, and a reconnect forgets the saves
+  sent before it; their late replies are ignored, so a lost reply cannot stall the autosave.
 - **Drag hot path.** One compiled pattern per definition; each pointer move does one
   `evaluate(input, { offsets })` and updates existing SVG elements in `requestAnimationFrame`.
   `placeLabel` (7 to 14 ms per piece) is not called during a drag: labels keep their place and are

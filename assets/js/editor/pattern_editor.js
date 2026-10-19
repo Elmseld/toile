@@ -21,9 +21,13 @@
 //     present state if it is newer, so holding down undo sends a few saves, not one per step.
 //     `revision`/`savedRevision` tell whether the last commit is stored. `resendIfUnsaved()`
 //     (called on reconnect) saves it again if not, at most MAX_RESENDS times in a row with a
-//     growing delay, so a save that keeps failing does not loop. A save larger than the hook's
-//     `data-max-save-bytes` is not sent (the server would drop the connection) and shows as
-//     failed. When the editor is destroyed with a commit not stored, it is sent once more.
+//     growing delay, so a save that keeps failing does not loop. A save without a reply within
+//     SAVE_TIMEOUT_MS counts as failed and its late reply is ignored; a reconnect forgets the
+//     saves sent before it the same way, so a lost reply never stalls the autosave. A save larger
+//     than the hook's `data-max-save-bytes`, or with a definition larger than
+//     `data-max-definition-bytes`, is not sent (the server would drop the connection or reject
+//     it) and shows as failed. When the editor is destroyed with a commit not stored, it is sent
+//     once more.
 
 import {
   canRedo,
@@ -54,6 +58,8 @@ const LABEL_DELAY_MS = 150
 const MAX_RESENDS = 3
 /** The delay before the first resend after a reconnect; it doubles with each further one. */
 const RESEND_DELAY_MS = 500
+/** How long a save may wait for its reply before it counts as failed. */
+const SAVE_TIMEOUT_MS = 10_000
 
 function isObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -87,6 +93,12 @@ function setParameter(parameters, name, value) {
   return parameters[name] === value ? parameters : {...parameters, [name]: value}
 }
 
+/** A positive byte cap from a data attribute, or Infinity when it is missing or not one. */
+function byteCap(text) {
+  const cap = Number(text)
+  return Number.isFinite(cap) && cap > 0 ? cap : Infinity
+}
+
 /** Whether keyboard shortcuts should leave `target` alone (it edits text or a choice). */
 function isFormTarget(target) {
   return target instanceof Element && target.closest("input, textarea, select, [contenteditable]")
@@ -105,17 +117,32 @@ export class PatternEditor {
     const parsed = parseJSON(hook.el.dataset.texts, {})
     const texts = isObject(parsed) ? parsed : {}
     const parameters = isObject(input?.parameters) ? input.parameters : {}
-    const cap = Number(hook.el.dataset.maxSaveBytes)
-    const maxSaveBytes = Number.isFinite(cap) && cap > 0 ? cap : Infinity
-    return new PatternEditor({hook, aside, texts, definition, parameters, maxSaveBytes})
+    return new PatternEditor({
+      hook,
+      aside,
+      texts,
+      definition,
+      parameters,
+      maxSaveBytes: byteCap(hook.el.dataset.maxSaveBytes),
+      maxDefinitionBytes: byteCap(hook.el.dataset.maxDefinitionBytes),
+    })
   }
 
-  constructor({hook, aside, texts, definition, parameters, maxSaveBytes = Infinity}) {
+  constructor({
+    hook,
+    aside,
+    texts,
+    definition,
+    parameters,
+    maxSaveBytes = Infinity,
+    maxDefinitionBytes = Infinity,
+  }) {
     this.hook = hook
     this.aside = aside
     this.texts = texts
     this.maxSaveBytes = maxSaveBytes
-    this.panels = new Panels(aside, texts)
+    this.maxDefinitionBytes = maxDefinitionBytes
+    this.panels = new Panels(aside, texts, parameters)
     this.handles = new Handles(definition, controlPoints(definition))
 
     this.state = {definition, parameters: {...parameters}}
@@ -129,8 +156,10 @@ export class PatternEditor {
     this.drag = null
     this.revision = 0
     this.savedRevision = 0
-    // Saves sent and not answered yet, resends since the last stored save, a scheduled resend.
-    this.inFlight = 0
+    // Saves sent and not answered yet (token => timeout), resends since the last stored save, a
+    // scheduled resend. Only a save still in `pending` is answered by its reply or timeout.
+    this.pending = new Map()
+    this.nextToken = 0
     this.resends = 0
     this.resendTimer = null
     // The field typed in since the last evaluation, and the frame that will evaluate it.
@@ -164,7 +193,7 @@ export class PatternEditor {
     if (this.resendTimer !== null) clearTimeout(this.resendTimer)
     this.resendTimer = null
     this.cancelLabels()
-    if (this.savedRevision < this.revision && this.inFlight === 0) this.send()
+    if (this.savedRevision < this.revision && this.pending.size === 0) this.send()
     this.aside.removeEventListener("click", this.onClick)
     this.aside.removeEventListener("input", this.onInput)
     this.aside.removeEventListener("change", this.onChange)
@@ -310,33 +339,55 @@ export class PatternEditor {
     this.revision++
     this.resends = 0
     this.panels.setStatus("saving")
-    if (this.inFlight === 0) this.send()
+    if (this.pending.size === 0) this.send()
   }
 
-  // Sends the history's present state as the current revision. A save over the size cap is not
-  // sent: it shows as failed and stays unsaved.
+  // Sends the history's present state as the current revision. A save over a size cap is not
+  // sent: it shows as failed and stays unsaved. The save is answered once: by its reply, or as
+  // failed after SAVE_TIMEOUT_MS, whichever comes first.
   send() {
     const revision = this.revision
     const {definition, parameters} = this.history.present
-    if (encodedBytes(definition) + encodedBytes(parameters) > this.maxSaveBytes) {
+    const definitionBytes = encodedBytes(definition)
+    if (
+      definitionBytes > this.maxDefinitionBytes ||
+      definitionBytes + encodedBytes(parameters) > this.maxSaveBytes
+    ) {
       if (!this.destroyed) this.panels.setStatus("failed")
       return
     }
-    this.inFlight++
+    const token = ++this.nextToken
+    this.pending.set(
+      token,
+      setTimeout(() => this.settle(token, revision, false), SAVE_TIMEOUT_MS),
+    )
     this.hook.pushEvent("save_pattern", {definition, parameters}).then(
-      reply => this.saved(revision, reply?.ok === true),
-      () => this.saved(revision, false),
+      reply => this.settle(token, revision, reply?.ok === true),
+      () => this.settle(token, revision, false),
     )
   }
 
+  // Answers the save `token` unless its reply or timeout already did, or a reconnect forgot it.
+  settle(token, revision, ok) {
+    if (!this.pending.has(token)) return
+    clearTimeout(this.pending.get(token))
+    this.pending.delete(token)
+    this.saved(revision, ok)
+  }
+
+  // Forgets the saves in flight: after a reconnect their replies will not come.
+  forgetPending() {
+    for (const timer of this.pending.values()) clearTimeout(timer)
+    this.pending.clear()
+  }
+
   saved(revision, ok) {
-    this.inFlight--
     if (ok) {
       this.savedRevision = Math.max(this.savedRevision, revision)
       this.resends = 0
     }
     // Commits made while this save was in flight: send the newest state, once.
-    if (this.inFlight === 0 && revision < this.revision && this.savedRevision < this.revision) {
+    if (this.pending.size === 0 && revision < this.revision && this.savedRevision < this.revision) {
       this.send()
       return
     }
@@ -348,11 +399,19 @@ export class PatternEditor {
   /**
    * Saves the present state again if the last commit is not stored (after a reconnect), after a
    * delay that doubles with each resend. Gives up after MAX_RESENDS in a row without a stored
-   * save, until the next commit.
+   * save, until the next commit. The saves sent before the reconnect are forgotten: a late reply
+   * to one of them is ignored.
    */
   resendIfUnsaved() {
-    if (this.destroyed || this.resendTimer !== null) return
-    if (this.savedRevision >= this.revision || this.resends >= MAX_RESENDS) return
+    if (this.destroyed) return
+    this.forgetPending()
+    if (this.resendTimer !== null) return
+    if (this.savedRevision >= this.revision) return
+    if (this.resends >= MAX_RESENDS) {
+      // A forgotten save would otherwise leave "saving" showing.
+      this.panels.setStatus("failed")
+      return
+    }
     const delay = RESEND_DELAY_MS * 2 ** this.resends
     this.resends++
     this.resendTimer = setTimeout(() => {

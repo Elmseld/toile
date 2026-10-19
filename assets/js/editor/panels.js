@@ -5,9 +5,10 @@
 // fills and updates it; PatternEditor decides what to show. All text comes from the hook's
 // `data-texts` (ToileWeb.EditorTexts), never from here.
 //
-// A parameter row carries stored values only (`data-unit`, `data-default`, `data-value`); its
+// A parameter row carries its stored default and unit only (`data-default`, `data-unit`); its
 // input and "Default" hint render empty and are filled here in the display unit with the engine's
-// units, so the conversion has one source.
+// units, so the conversion has one source. The editor passes the stored overrides (from the hook's
+// `data-input`) to the constructor, which writes them with renderParameters.
 
 import {formatDisplay, pointFields, toDisplay} from "../../../engine/src/index"
 
@@ -46,13 +47,6 @@ function centimetres(mm, texts) {
   return displayText(mm, "length", texts)
 }
 
-/** A number from a data attribute, or null when it is missing or not a finite number. */
-function numberAttribute(text) {
-  if (text === undefined || text.trim() === "") return null
-  const value = Number(text)
-  return Number.isFinite(value) ? value : null
-}
-
 function referenceText(value, kind, texts) {
   if (kind === "line" && Array.isArray(value)) return value.map(String).join(" – ")
   if (kind === "which") return texts.which?.[value] ?? String(value ?? "")
@@ -60,7 +54,8 @@ function referenceText(value, kind, texts) {
 }
 
 export class Panels {
-  constructor(aside, texts) {
+  /** The panels of `aside`, with the inputs showing `parameters` (the stored overrides). */
+  constructor(aside, texts, parameters = {}) {
     this.aside = aside
     this.texts = texts
     this.undoButton = aside.querySelector("#undo-button")
@@ -74,21 +69,17 @@ export class Panels {
       name: row.dataset.parameter,
       unit: row.dataset.unit,
       default: Number(row.dataset.default),
-      value: numberAttribute(row.dataset.value),
       input: row.querySelector("input"),
       hint: row.querySelector(`#parameter-${CSS.escape(row.dataset.parameter ?? "")}-hint`),
     }))
-    this.fillParameters()
+    this.fillHints()
+    this.renderParameters(parameters)
   }
 
-  // Writes each row's stored value into its input (empty when the stored override is not a
-  // number) and its default with the unit text into its hint.
-  fillParameters() {
+  // Writes each row's default with the unit text into its "Default" hint.
+  fillHints() {
     const texts = this.texts
     for (const row of this.rows) {
-      if (row.input) {
-        row.input.value = row.value === null ? "" : displayText(row.value, row.unit, texts)
-      }
       if (row.hint && Number.isFinite(row.default)) {
         const unit = texts.units?.[row.unit] ?? ""
         const value = `${displayText(row.default, row.unit, texts)} ${unit}`.trim()
@@ -202,7 +193,7 @@ export class Panels {
     this.setError(this.details?.querySelector(`#point-field-${CSS.escape(field)}`), text)
   }
 
-  /** The parameter rows: [{name, unit, default, value, input, hint}], read once on creation. */
+  /** The parameter rows: [{name, unit, default, input, hint}], read once on creation. */
   parameterRows() {
     return this.rows
   }
