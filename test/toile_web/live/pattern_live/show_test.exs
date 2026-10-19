@@ -180,7 +180,7 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
 
-      assert has_element?(view, "#missing-measurement-armhole_depth", "Armhole depth")
+      assert has_element?(view, "#missing-measurement-armhole_depth", "Nape to underarm level")
       # The rest of the profile is complete, so armhole depth is the only entry.
       missing =
         view

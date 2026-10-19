@@ -60,8 +60,8 @@ Expected: (1) the profile page shows "72,5 cm" (stored as 725 mm); (2) "måste v
 Expected: (2) the project page with "Bakstycke" and "Framstycke" drawn over a cm grid; (3) the view zooms, pans and returns to the fitted view; (4) "Mått som saknas för det här mönstret" lists the missing measurements and nothing is drawn; (5) the flash "Mönstret har bytt namn"; (6) the confirm "Vill du ta bort mönstret?" and the flash "Mönstret har tagits bort".
 
 ### Bodice project
-1. Create a measurement profile with a value for every measurement except Ärmhålsdjup.
+1. Create a measurement profile with a value for every measurement except Nacke till armhålsnivå.
 2. On `/patterns/new`, open the block select ("Välj ett grundmönster"; "Liv" and "Rak kjol", sorted by label), choose "Liv" and that profile, and save.
-3. On the project page, click "Redigera måttprofil", enter a value for Ärmhålsdjup and save.
+3. On the project page, click "Redigera måttprofil", enter a value for Nacke till armhålsnivå and save.
 4. Check the project page again.
-Expected: (2) the project page lists "Ärmhålsdjup" under "Mått som saknas för det här mönstret" with nothing drawn; (3) saving returns to the project; (4) "Bakstycke" and "Framstycke" are drawn over the cm grid.
+Expected: (2) the project page lists "Nacke till armhålsnivå" under "Mått som saknas för det här mönstret" with nothing drawn; (3) saving returns to the project; (4) "Bakstycke" and "Framstycke" are drawn over the cm grid.

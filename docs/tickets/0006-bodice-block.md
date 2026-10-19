@@ -30,8 +30,8 @@ Builds on the engine (0002, 0003) and the project view (0005).
   fitting bodice block. Deviations are stated in the block's `source`: back and front are drafted
   in separate frames 50 mm apart, and the bust dart is derived (below) instead of taken from a
   size chart.
-- **New measurement `armhole_depth`** ("Ärmhålsdjup", nape straight down to a level ruler under
-  both armpits), added to the catalogue per ADR 0005. The profile has 18 measurements; existing
+- **New measurement `armhole_depth`** ("Nacke till armhålsnivå", nape straight down the spine to a band
+  tied level as high under the arms as it goes), added to the catalogue per ADR 0005. The profile has 18 measurements; existing
   profiles lack it (not measured) and existing skirt projects are unaffected.
 - **Bust dart from `front_length`:** the front neck point is placed so that neck point, bust point
   and waist add up to `front_length`. The dart is the rotation about the bust point that brings the

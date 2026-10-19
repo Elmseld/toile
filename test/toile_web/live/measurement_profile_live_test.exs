@@ -102,7 +102,7 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
 
       assert has_element?(view, "h1", "New measurement profile")
       assert has_element?(view, "#measurement-field-armhole_depth input")
-      assert has_element?(view, "#measurement-field-armhole_depth", "Armhole depth")
+      assert has_element?(view, "#measurement-field-armhole_depth", "Nape to underarm level")
 
       result =
         view

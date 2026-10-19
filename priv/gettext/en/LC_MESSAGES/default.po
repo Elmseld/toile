@@ -922,16 +922,6 @@ msgctxt "pattern piece"
 msgid "Front"
 msgstr ""
 
-#: lib/toile_web/measurement_texts.ex
-#, elixir-autogen, elixir-format
-msgid "Armhole depth"
-msgstr ""
-
-#: lib/toile_web/measurement_texts.ex
-#, elixir-autogen, elixir-format
-msgid "From the prominent neck bone straight down the spine to a ruler held level under both armpits."
-msgstr ""
-
 #: lib/toile_web/block_texts.ex
 #, elixir-autogen, elixir-format
 msgid "Bodice"
@@ -945,4 +935,14 @@ msgstr ""
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
 msgid "Across the back between the armhole creases, about 10 cm below the neck bone."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Nape to underarm level"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Tie a band around the upper body, level and as high up under the arms as it goes. Measure from the neck bone straight down the spine to the band."
 msgstr ""

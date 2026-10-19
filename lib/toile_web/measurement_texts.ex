@@ -25,7 +25,7 @@ defmodule ToileWeb.MeasurementTexts do
   def label(:back_width), do: gettext("Back width")
   def label(:chest_width), do: gettext("Chest width")
   def label(:back_length), do: gettext("Back length")
-  def label(:armhole_depth), do: gettext("Armhole depth")
+  def label(:armhole_depth), do: gettext("Nape to underarm level")
   def label(:front_length), do: gettext("Front length")
   def label(:bust_height), do: gettext("Bust height")
   def label(:bust_distance), do: gettext("Bust point distance")
@@ -70,7 +70,7 @@ defmodule ToileWeb.MeasurementTexts do
   def help(:armhole_depth),
     do:
       gettext(
-        "From the prominent neck bone straight down the spine to a ruler held level under both armpits."
+        "Tie a band around the upper body, level and as high up under the arms as it goes. Measure from the neck bone straight down the spine to the band."
       )
 
   def help(:front_length),
