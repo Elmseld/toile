@@ -347,6 +347,188 @@ defmodule Toile.PatternsTest do
     end
   end
 
+  describe "update_pattern_edits/3" do
+    defp skirt_point(definition, name) do
+      index = Enum.find_index(definition["points"], &(&1["name"] == name))
+      {index, Enum.at(definition["points"], index)}
+    end
+
+    defp put_point_field(definition, name, field, value) do
+      {index, _point} = skirt_point(definition, name)
+      put_in(definition, ["points", Access.at(index), field], value)
+    end
+
+    test "stores a user offset, a point formula and parameter overrides" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      [%{"name" => name} | _] = pattern_project.definition["points"]
+
+      definition =
+        pattern_project.definition
+        |> put_point_field(name, "user_offset", %{"dx" => 12.5, "dy" => -3})
+        |> put_point_field(name, "x", "10")
+
+      assert {:ok, %PatternProject{} = updated} =
+               Patterns.update_pattern_edits(scope, pattern_project, %{
+                 "definition" => definition,
+                 "parameters" => %{"ease_hip" => 50, "side_rise" => 7.5}
+               })
+
+      assert updated.definition == definition
+      assert updated.measurement_profile.id == pattern_project.measurement_profile_id
+
+      reloaded = Patterns.get_pattern_project!(scope, pattern_project.id)
+      assert reloaded.definition == definition
+
+      assert {_index, %{"user_offset" => %{"dx" => 12.5, "dy" => -3}, "x" => "10"}} =
+               skirt_point(reloaded.definition, name)
+
+      assert reloaded.parameters == %{"ease_hip" => 50, "side_rise" => 7.5}
+    end
+
+    test "can remove every override again" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      attrs = %{"definition" => pattern_project.definition, "parameters" => %{"ease_hip" => 50}}
+      {:ok, updated} = Patterns.update_pattern_edits(scope, pattern_project, attrs)
+
+      assert {:ok, _} =
+               Patterns.update_pattern_edits(scope, updated, %{attrs | "parameters" => %{}})
+
+      assert Patterns.get_pattern_project!(scope, pattern_project.id).parameters == %{}
+    end
+
+    test "keeps the bodice's named formulas out of reach" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope, block: "bodice")
+      definition = put_in(pattern_project.definition, ["formulas", "armhole_length"], "0")
+
+      assert {:error, changeset} =
+               Patterns.update_pattern_edits(scope, pattern_project, %{
+                 "definition" => definition,
+                 "parameters" => %{}
+               })
+
+      assert %{definition: ["contains changes that cannot be saved"]} = errors_on(changeset)
+
+      assert Patterns.get_pattern_project!(scope, pattern_project.id).definition ==
+               Blocks.definition("bodice")
+    end
+
+    test "rejects a renamed point and stores nothing" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      [%{"name" => name} | _] = pattern_project.definition["points"]
+      definition = put_point_field(pattern_project.definition, name, "name", "renamed")
+
+      assert {:error, changeset} =
+               Patterns.update_pattern_edits(scope, pattern_project, %{
+                 "definition" => definition,
+                 "parameters" => %{"ease_hip" => 50}
+               })
+
+      assert %{definition: ["contains changes that cannot be saved"]} = errors_on(changeset)
+      assert Patterns.get_pattern_project!(scope, pattern_project.id) == pattern_project
+    end
+
+    test "rejects unknown, non-numeric and too large parameters" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+
+      for parameters <- [
+            %{"ease_bust" => 10},
+            %{"waist" => 10},
+            %{"ease_hip" => "50"},
+            %{"ease_hip" => nil},
+            %{"ease_hip" => 1_000_001},
+            %{"ease_hip" => -1.0e7}
+          ] do
+        assert {:error, changeset} =
+                 Patterns.update_pattern_edits(scope, pattern_project, %{
+                   "definition" => pattern_project.definition,
+                   "parameters" => parameters
+                 })
+
+        assert %{parameters: ["is invalid"]} = errors_on(changeset), inspect(parameters)
+      end
+
+      assert Patterns.get_pattern_project!(scope, pattern_project.id).parameters == %{}
+    end
+
+    test "requires a definition and parameters that are maps" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+
+      assert {:error, changeset} =
+               Patterns.update_pattern_edits(scope, pattern_project, %{
+                 "definition" => "x",
+                 "parameters" => []
+               })
+
+      assert %{definition: ["is invalid"], parameters: ["is invalid"]} = errors_on(changeset)
+
+      assert {:error, changeset} =
+               Patterns.update_pattern_edits(scope, pattern_project, %{
+                 "definition" => nil,
+                 "parameters" => nil
+               })
+
+      assert %{definition: ["can't be blank"], parameters: ["can't be blank"]} =
+               errors_on(changeset)
+
+      assert Patterns.get_pattern_project!(scope, pattern_project.id) == pattern_project
+    end
+
+    test "rejects a definition over the size cap" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope, block: "bodice")
+      formula = String.duplicate("1", 10_000)
+
+      points =
+        Enum.map(pattern_project.definition["points"], fn point ->
+          fields = Toile.Patterns.PointOps.formula_fields(point["op"])
+          Map.merge(point, Map.new(fields, &{&1, formula}))
+        end)
+
+      definition = %{pattern_project.definition | "points" => points}
+      assert byte_size(JSON.encode!(definition)) > PatternProject.max_definition_bytes()
+
+      assert {:error, changeset} =
+               Patterns.update_pattern_edits(scope, pattern_project, %{
+                 "definition" => definition,
+                 "parameters" => %{}
+               })
+
+      assert %{definition: ["is too large"]} = errors_on(changeset)
+      assert Patterns.get_pattern_project!(scope, pattern_project.id) == pattern_project
+    end
+
+    test "broadcasts the update" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      Patterns.subscribe_pattern_projects(scope)
+
+      {:ok, updated} =
+        Patterns.update_pattern_edits(scope, pattern_project, %{
+          "definition" => pattern_project.definition,
+          "parameters" => %{"ease_hip" => 50}
+        })
+
+      assert_receive {:updated, ^updated}
+    end
+
+    test "with another scope raises" do
+      pattern_project = pattern_project_fixture(user_scope_fixture())
+
+      assert_raise MatchError, fn ->
+        Patterns.update_pattern_edits(user_scope_fixture(), pattern_project, %{
+          "definition" => pattern_project.definition,
+          "parameters" => %{}
+        })
+      end
+    end
+  end
+
   describe "delete_pattern_project/2" do
     test "deletes the project" do
       scope = user_scope_fixture()

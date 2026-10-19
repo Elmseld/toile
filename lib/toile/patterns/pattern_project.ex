@@ -8,6 +8,11 @@ defmodule Toile.Patterns.PatternProject do
   `parameters` holds overrides of the definition's parameter defaults (`%{}` at creation). The
   profile is optional in storage: deleting it sets `measurement_profile_id` to `nil`.
 
+  The editor on the project page saves through `edit_changeset/3`, which accepts a new
+  `definition` only where it differs from the stored one in user offsets and point formulas
+  (`Toile.Patterns.DefinitionEdit`, `docs/adr/0008-pattern-editor.md`), and parameter overrides
+  only for declared parameters.
+
   Elixir never interprets the geometry in `definition`; the engine evaluates it in the browser.
   """
 
@@ -17,7 +22,10 @@ defmodule Toile.Patterns.PatternProject do
 
   alias Toile.Measurements.MeasurementProfile
   alias Toile.Patterns.Blocks
+  alias Toile.Patterns.DefinitionEdit
   alias Toile.Patterns.DefinitionSize
+
+  @max_parameter 1_000_000
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -65,6 +73,48 @@ defmodule Toile.Patterns.PatternProject do
     |> validate_definition_size()
     |> foreign_key_constraint(:measurement_profile_id)
   end
+
+  @doc """
+  Changeset for saving the editor's work on a project owned by `user_scope`.
+
+  Casts `definition` and `parameters`, both required. The definition may differ from the stored
+  one only in user offsets and point formula fields (`Toile.Patterns.DefinitionEdit.validate/2`);
+  any other change gets the error "contains changes that cannot be saved". Every key of
+  `parameters` must be a parameter the definition declares, with a number of at most
+  #{@max_parameter} in absolute value as its value. The definition size cap applies as usual.
+  `user_scope` is unused for now, as in `changeset/3`.
+  """
+  def edit_changeset(pattern_project, attrs, _user_scope) do
+    stored = pattern_project.definition
+
+    pattern_project
+    |> cast(attrs, [:definition, :parameters])
+    |> validate_required([:definition, :parameters])
+    |> validate_change(:definition, fn :definition, definition ->
+      case DefinitionEdit.validate(stored, definition) do
+        :ok ->
+          []
+
+        {:error, _path} ->
+          [definition: dgettext_noop("errors", "contains changes that cannot be saved")]
+      end
+    end)
+    |> validate_change(:parameters, fn :parameters, parameters ->
+      if valid_parameters?(parameters, stored),
+        do: [],
+        else: [parameters: dgettext_noop("errors", "is invalid")]
+    end)
+    |> validate_definition_size()
+  end
+
+  # The declared parameters are the stored definition's: the edit cannot change them.
+  defp valid_parameters?(parameters, %{"parameters" => declared}) when is_map(declared) do
+    Enum.all?(parameters, fn {name, value} ->
+      Map.has_key?(declared, name) and is_number(value) and abs(value) <= @max_parameter
+    end)
+  end
+
+  defp valid_parameters?(parameters, _definition), do: parameters == %{}
 
   @doc """
   Returns the maximum size of a stored definition, in bytes of encoded JSON

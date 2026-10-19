@@ -220,6 +220,39 @@ defmodule Toile.Patterns do
     end
   end
 
+  @doc """
+  Saves the editor's work on a pattern_project: its `definition` and `parameters`.
+
+  Only user offsets and point formula fields of the stored definition can change, and
+  `parameters` may only override the definition's declared parameters with numbers
+  (`Toile.Patterns.PatternProject.edit_changeset/3`, `docs/adr/0008-pattern-editor.md`). Names,
+  ops, references, the named formulas, curves, pieces, measurements and parameter defaults stay
+  as stored, so whatever reads them by name keeps working. The formulas are not checked here: the
+  engine in the browser only saves a definition it evaluated without errors.
+
+  Broadcasts `{:updated, pattern_project}`. The measurement profile association is kept as it
+  was.
+
+  ## Examples
+
+      iex> update_pattern_edits(scope, pattern_project, %{"definition" => edited, "parameters" => %{"ease_hip" => 50}})
+      {:ok, %PatternProject{}}
+
+      iex> update_pattern_edits(scope, pattern_project, %{"definition" => renamed_point, "parameters" => %{}})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def update_pattern_edits(%Scope{} = scope, %PatternProject{} = pattern_project, attrs) do
+    true = pattern_project.user_id == scope.user.id
+
+    changeset = PatternProject.edit_changeset(pattern_project, attrs, scope)
+
+    with {:ok, pattern_project = %PatternProject{}} <- Repo.update(changeset) do
+      broadcast_pattern_project(scope, {:updated, pattern_project})
+      {:ok, pattern_project}
+    end
+  end
+
   # Changing the foreign key leaves the old profile in the association; reload it.
   defp maybe_reload_profile(pattern_project, changeset, scope) do
     if Ecto.Changeset.changed?(changeset, :measurement_profile_id) do
