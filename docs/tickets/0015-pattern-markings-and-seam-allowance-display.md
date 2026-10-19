@@ -30,3 +30,7 @@ Split from the original 0009 ("Seam allowance and markings").
 - Depends on 0008: setting the seam allowance per edge uses the editor's selection and side panel.
 - Consumes the engine API from 0009 (seam allowance per outline edge, with a default passed by the
   caller); the cutting line itself is computed in the engine, not here.
+- Engine consumer notes (`docs/adr/0007-seam-allowance.md`): fit the `viewBox` to the cutting-line
+  points (the line lies up to about 4.12 times the largest allowance from the outline); render
+  error messages as text, never HTML (curve names are user-controlled); show `approximations`
+  (`safe_construction`, `dart_without_peak`) to the user when present.
