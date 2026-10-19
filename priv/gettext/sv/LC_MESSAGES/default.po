@@ -374,6 +374,7 @@ msgstr "Spara lösenord"
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
 #: lib/toile_web/live/pattern_live/form.ex
+#: lib/toile_web/live/pattern_live/show.ex
 #: lib/toile_web/live/user_live/settings.ex
 #, elixir-autogen, elixir-format
 msgid "Saving..."
@@ -957,3 +958,18 @@ msgstr "Rak ärm"
 msgctxt "pattern piece"
 msgid "Sleeve"
 msgstr "Ärm"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "%{block} added"
+msgstr "%{block} har lagts till"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Add to the pattern"
+msgstr "Lägg till i mönstret"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Could not add to the pattern"
+msgstr "Det gick inte att lägga till i mönstret"

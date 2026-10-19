@@ -2,11 +2,18 @@
 //
 // Data attributes (set by ToileWeb.PatternLive.Show):
 //   data-key           the measurement profile id; a change means new input
-//   data-definition    the project's pattern definition (JSON, untrusted: the engine validates it)
-//   data-input         {"measurements": {...}, "parameters": {...}} in millimetres (JSON)
-//   data-piece-labels  {pieceName: label} (JSON)
+//   data-parts         the project's parts, [{"name", "definition"}], main part first (JSON,
+//                      untrusted: the engine validates it)
+//   data-input         {"measurements": {...}, "parameters": {partName: {...}}} in millimetres (JSON)
+//   data-piece-labels  {pieceName: label} for the pieces of every part (JSON)
 //   data-error-text    shown instead of a drawing when the pattern cannot be computed
 // The element's aria-label also names the SVG.
+//
+// All parts are evaluated together (the engine's compileProject), so a part that imports values
+// from another, like a sleeve from the bodice armhole, is always computed from the same input. If
+// any part fails, nothing is drawn. The parts are placed side by side by the engine's layoutParts;
+// each is drawn in a <g data-part> translated by its offset, and its pieces' notches as short
+// marks into the piece.
 //
 // Each piece's label is centred inside it where its text box is farthest from the outline, darts
 // and grainline (the engine's placeLabel), and shrunk when the piece is too narrow for it. The
@@ -21,7 +28,8 @@
 
 import {
   GRAINLINE_ARROW_SIZE,
-  compilePattern,
+  compileProject,
+  layoutParts,
   patternBounds,
   piecePathData,
   placeLabel,
@@ -91,8 +99,8 @@ const PatternView = {
   },
 
   source() {
-    const {key, definition, input} = this.el.dataset
-    return `${key}\n${definition}\n${input}`
+    const {key, parts, input} = this.el.dataset
+    return `${key}\n${parts}\n${input}`
   },
 
   draw() {
@@ -101,22 +109,32 @@ const PatternView = {
     this.svg = null
     this.el.replaceChildren()
 
-    const definition = parseJSON(this.el.dataset.definition, null)
+    const parts = parseJSON(this.el.dataset.parts, null)
     const input = parseJSON(this.el.dataset.input, null)
     const labels = parseJSON(this.el.dataset.pieceLabels, {})
-    const result = input ? compilePattern(definition).evaluate(input) : null
-    const bounds = result?.ok ? patternBounds(result) : null
+    const result = input ? compileProject(parts).evaluate(input) : null
+    const results = result?.ok ? Object.entries(result.parts) : []
+    const layout = layoutParts(results.map(([, part]) => patternBounds(part)))
 
-    if (!result?.ok || !bounds) {
-      if (result && !result.ok) console.warn("Pattern errors", result.errors)
+    if (!result?.ok || !layout.bounds) {
+      if (result && !result.ok) console.warn("Pattern errors", this.errorsOf(result))
       this.showError()
       return
     }
 
-    this.fitted = fit(bounds, FIT_MARGIN)
-    this.svg = this.buildSvg(result, labels)
+    const placed = results.map(([name, part], i) => ({name, part, offset: layout.offsets[i]}))
+    this.fitted = fit(layout.bounds, FIT_MARGIN)
+    this.svg = this.buildSvg(placed, labels)
     this.el.appendChild(this.svg)
     this.setView(this.fitted)
+  },
+
+  // The project's own errors and every part's, each tagged with its part name.
+  errorsOf(result) {
+    const partErrors = Object.entries(result.parts).flatMap(([part, partResult]) =>
+      (partResult.errors ?? []).map(error => ({part, ...error})),
+    )
+    return [...result.errors, ...partErrors]
   },
 
   showError() {
@@ -127,7 +145,7 @@ const PatternView = {
     this.el.appendChild(message)
   },
 
-  buildSvg(result, labels) {
+  buildSvg(placed, labels) {
     const id = this.el.id
     const svg = svgElement("svg", {
       class: "block size-full text-base-content",
@@ -157,62 +175,92 @@ const PatternView = {
     svg.appendChild(this.minorGrid)
     svg.appendChild(this.majorGrid)
 
-    for (const piece of Object.values(result.pieces)) {
-      const group = svgElement("g", {"data-piece": piece.name})
-      group.appendChild(
-        svgElement("path", {
-          d: piecePathData(piece),
-          fill: "none",
-          stroke: "currentColor",
-          "stroke-width": 2,
-          "stroke-linejoin": "round",
-          "vector-effect": "non-scaling-stroke",
-        }),
-      )
-
-      const {from, to} = piece.grainline
-      group.appendChild(
-        svgElement("line", {
-          x1: from.x,
-          y1: from.y,
-          x2: to.x,
-          y2: to.y,
-          stroke: "currentColor",
-          "stroke-width": 1,
-          "vector-effect": "non-scaling-stroke",
-          "marker-start": `url(#${id}-arrow)`,
-          "marker-end": `url(#${id}-arrow)`,
-        }),
-      )
-
-      const text = labels[piece.name] ?? piece.name
-      // Inside the piece, clear of the outline, darts and grainline (the engine's placeLabel),
-      // centred on the returned point. A piece without area falls back to the grainline's
-      // midpoint, start-anchored half a label height to its right so the text sits beside the
-      // line instead of straddling it.
-      const placed = placeLabel(piece, text, LABEL_SIZE)
-      const place = placed
-        ? {...placed, anchor: "middle"}
-        : {
-            x: (from.x + to.x) / 2 + LABEL_SIZE / 2,
-            y: (from.y + to.y) / 2,
-            size: LABEL_SIZE,
-            anchor: "start",
-          }
-      const label = svgElement("text", {
-        x: place.x,
-        y: place.y,
-        "font-size": place.size,
-        fill: "currentColor",
-        "text-anchor": place.anchor,
-        "dominant-baseline": "middle",
+    for (const {name, part, offset} of placed) {
+      const partGroup = svgElement("g", {
+        "data-part": name,
+        transform: `translate(${offset.dx} ${offset.dy})`,
       })
-      label.textContent = text
-      group.appendChild(label)
-      svg.appendChild(group)
+      for (const piece of Object.values(part.pieces)) {
+        partGroup.appendChild(this.pieceGroup(piece, labels))
+      }
+      svg.appendChild(partGroup)
     }
 
     return svg
+  },
+
+  pieceGroup(piece, labels) {
+    const id = this.el.id
+    const group = svgElement("g", {"data-piece": piece.name})
+    group.appendChild(
+      svgElement("path", {
+        d: piecePathData(piece),
+        fill: "none",
+        stroke: "currentColor",
+        "stroke-width": 2,
+        "stroke-linejoin": "round",
+        "vector-effect": "non-scaling-stroke",
+      }),
+    )
+
+    const {from, to} = piece.grainline
+    group.appendChild(
+      svgElement("line", {
+        x1: from.x,
+        y1: from.y,
+        x2: to.x,
+        y2: to.y,
+        stroke: "currentColor",
+        "stroke-width": 1,
+        "vector-effect": "non-scaling-stroke",
+        "marker-start": `url(#${id}-arrow)`,
+        "marker-end": `url(#${id}-arrow)`,
+      }),
+    )
+
+    const text = labels[piece.name] ?? piece.name
+    // Inside the piece, clear of the outline, darts and grainline (the engine's placeLabel),
+    // centred on the returned point. A piece without area falls back to the grainline's
+    // midpoint, start-anchored half a label height to its right so the text sits beside the
+    // line instead of straddling it.
+    const placed = placeLabel(piece, text, LABEL_SIZE)
+    const place = placed
+      ? {...placed, anchor: "middle"}
+      : {
+          x: (from.x + to.x) / 2 + LABEL_SIZE / 2,
+          y: (from.y + to.y) / 2,
+          size: LABEL_SIZE,
+          anchor: "start",
+        }
+    const label = svgElement("text", {
+      x: place.x,
+      y: place.y,
+      "font-size": place.size,
+      fill: "currentColor",
+      "text-anchor": place.anchor,
+      "dominant-baseline": "middle",
+    })
+    label.textContent = text
+    group.appendChild(label)
+
+    for (const notch of piece.notches) {
+      for (const mark of notch.marks) {
+        group.appendChild(
+          svgElement("line", {
+            x1: mark.from.x,
+            y1: mark.from.y,
+            x2: mark.to.x,
+            y2: mark.to.y,
+            stroke: "currentColor",
+            "stroke-width": 1.5,
+            "stroke-linecap": "round",
+            "vector-effect": "non-scaling-stroke",
+          }),
+        )
+      }
+    }
+
+    return group
   },
 
   setView(viewBox) {
