@@ -4,8 +4,23 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { compilePattern, distance, evaluatePattern, validateDefinition } from "./geometry";
-import type { ComputedPattern, ComputedPiece, PatternResult, Point, UserOffset } from "./geometry";
+import {
+  compilePattern,
+  compileProject,
+  distance,
+  evaluatePattern,
+  evaluateProject,
+  placeLabel,
+  validateDefinition,
+} from "./geometry";
+import type {
+  ComputedCurve,
+  ComputedPattern,
+  ComputedPiece,
+  PatternResult,
+  Point,
+  UserOffset,
+} from "./geometry";
 import { cubicAt } from "./geometry/bezier";
 import { insidePolygon, outlinePolygon } from "./geometry/label";
 import { isMeasurementKey, MEASUREMENT_KEYS } from "./measurements";
@@ -13,6 +28,7 @@ import { isMeasurementKey, MEASUREMENT_KEYS } from "./measurements";
 const BLOCKS_DIR = join(import.meta.dir, "..", "blocks");
 const SKIRT_PATH = join(BLOCKS_DIR, "straight_skirt.json");
 const BODICE_PATH = join(BLOCKS_DIR, "bodice.json");
+const SLEEVE_PATH = join(BLOCKS_DIR, "straight_sleeve.json");
 
 type Measurements = Record<string, number>;
 
@@ -52,6 +68,12 @@ function blockFiles(): string[] {
 
 function readJson(path: string): unknown {
   return JSON.parse(readFileSync(path, "utf8"));
+}
+
+/** The part names (block keys) a definition's imports refer to, each once. */
+function importedParts(definition: unknown): string[] {
+  const { imports = {} } = definition as { imports?: Record<string, string> };
+  return [...new Set(Object.values(imports).map((reference) => reference.split(".")[0]!))];
 }
 
 function skirtText(): string {
@@ -138,7 +160,34 @@ describe("every block file", () => {
       expect(file).toMatch(/^[a-z][a-z0-9_]*\.json$/);
       const definition = readJson(join(BLOCKS_DIR, file));
       expect(validateDefinition(definition).ok).toBe(true);
-      expectOk(evaluatePattern(definition, { measurements: FULL_PROFILE }));
+      const sources = importedParts(definition);
+      if (sources.length === 0) {
+        expectOk(evaluatePattern(definition, { measurements: FULL_PROFILE }));
+        return;
+      }
+      // A block with imports evaluates in a project with the blocks it imports from, each part
+      // named by its block key.
+      const parts = [
+        ...sources.map((name) => ({ name, definition: readJson(join(BLOCKS_DIR, `${name}.json`)) })),
+        { name: file.replace(/\.json$/, ""), definition },
+      ];
+      const result = evaluateProject(parts, { measurements: FULL_PROFILE });
+      for (const part of Object.values(result.parts)) expectOk(part);
+      expect(result.ok).toBe(true);
+    });
+
+    test(`${file} imports only formulas of existing block files`, () => {
+      const { imports = {} } = readJson(join(BLOCKS_DIR, file)) as {
+        imports?: Record<string, string>;
+      };
+      for (const reference of Object.values(imports)) {
+        const [part, value] = reference.split(".");
+        expect(blockFiles()).toContain(`${part}.json`);
+        const { formulas } = readJson(join(BLOCKS_DIR, `${part}.json`)) as {
+          formulas: Record<string, string>;
+        };
+        expect(Object.keys(formulas)).toContain(value!);
+      }
     });
 
     test(`${file} declares only catalogue measurement keys`, () => {
@@ -1178,5 +1227,524 @@ describe("bodice: armhole shape over a range of widths", () => {
         expectArmholesTurnOneWay(expectOk(compiled.evaluate({ measurements }, { offsets })));
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Straight sleeve (ticket 0007), evaluated in a project with the bodice it imports from.
+
+function sleeveText(): string {
+  return readFileSync(SLEEVE_PATH, "utf8");
+}
+
+function sleeve(): Record<string, unknown> {
+  return JSON.parse(sleeveText());
+}
+
+/** Arm measurements per bodice test set (the full profile keeps 280, 580 and 160). */
+const SLEEVE_ARMS: Record<(typeof BODICE_SETS)[number][0], Measurements> = {
+  A: { upper_arm: 280, arm_length: 580, wrist: 160 },
+  B: { upper_arm: 300, arm_length: 600, wrist: 170 },
+  large: { upper_arm: 340, arm_length: 610, wrist: 185 },
+  "low bust": { upper_arm: 320, arm_length: 590, wrist: 175 },
+};
+
+const SLEEVE_SETS = BODICE_SETS.map(
+  ([label, measurements]) => [label, { ...measurements, ...SLEEVE_ARMS[label] }] as const,
+);
+
+const SLEEVE_DEFAULTS = {
+  ease_upper_arm: 50,
+  ease_wrist: 80,
+  length_adjustment: 0,
+  cap_ease: 30,
+  cap_convex_share: 0.6,
+};
+
+const SLEEVE_IMPORTS = [
+  "back_armhole_length",
+  "front_armhole_length",
+  "back_armhole_to_notch",
+  "front_armhole_to_notch",
+];
+
+/** The cap curves in outline order: back half from the underarm up to the crown, then the front. */
+const CAP = {
+  back: ["s_cap_back_lower", "s_cap_back_mid", "s_cap_back_upper"],
+  front: ["s_cap_front_upper", "s_cap_front_mid", "s_cap_front_lower"],
+} as const;
+const CAP_CURVES = [...CAP.back, ...CAP.front];
+
+type SleeveProject = { bodice: ComputedPattern; sleeve: ComputedPattern };
+
+type SleeveOptions = {
+  bodice?: Record<string, number>;
+  sleeve?: Record<string, number>;
+  bodiceDefinition?: unknown;
+};
+
+const SLEEVE_PROJECT = compileProject([
+  { name: "bodice", definition: bodice() },
+  { name: "straight_sleeve", definition: sleeve() },
+]);
+
+/** The bodice and sleeve of one project evaluation; both must evaluate without errors. */
+function sleeveProject(measurements: Measurements, options: SleeveOptions = {}): SleeveProject {
+  const project =
+    options.bodiceDefinition === undefined
+      ? SLEEVE_PROJECT
+      : compileProject([
+          { name: "bodice", definition: options.bodiceDefinition },
+          { name: "straight_sleeve", definition: sleeve() },
+        ]);
+  const result = project.evaluate({
+    measurements,
+    parameters: { bodice: options.bodice ?? {}, straight_sleeve: options.sleeve ?? {} },
+  });
+  return {
+    bodice: expectOk(result.parts.bodice!),
+    sleeve: expectOk(result.parts.straight_sleeve!),
+  };
+}
+
+/** The bodice's armhole values, as the sleeve imports them. */
+function armholeImports(bodiceResult: ComputedPattern): Record<string, number> {
+  return Object.fromEntries(SLEEVE_IMPORTS.map((name) => [name, bodiceResult.values[name]!]));
+}
+
+function capSum(result: ComputedPattern, names: readonly string[]): number {
+  return names.reduce((total, name) => total + curveLength(result, name), 0);
+}
+
+const POLYLINE_STEPS = 4000;
+
+/** Points along one computed curve, `POLYLINE_STEPS` segments for a cubic, the ends of a line. */
+function curvePoints(curve: ComputedCurve): Point[] {
+  if (curve.type === "line") return [curve.from, curve.to];
+  return Array.from({ length: POLYLINE_STEPS + 1 }, (_, i) =>
+    cubicAt(curve.from, curve.c1, curve.c2, curve.to, i / POLYLINE_STEPS),
+  );
+}
+
+/** A fine polyline through the named curves in order, each junction once. */
+function polyline(result: ComputedPattern, names: readonly string[]): Point[] {
+  const points: Point[] = [];
+  for (const name of names) {
+    const curve = result.curves[name];
+    if (curve === undefined) throw new Error(`curve ${name} did not compute`);
+    points.push(...curvePoints(curve).slice(points.length === 0 ? 0 : 1));
+  }
+  return points;
+}
+
+function polylineLength(points: readonly Point[]): number {
+  let total = 0;
+  for (let i = 1; i < points.length; i++) total += distance(points[i - 1]!, points[i]!);
+  return total;
+}
+
+/**
+ * The arc length (mm) along the polyline from its start to the point on it nearest `target`,
+ * measured independently of the engine's arc-length inversion.
+ */
+function arcLengthTo(points: readonly Point[], target: Point): number {
+  let best = { gap: Infinity, along: 0 };
+  let along = 0;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]!;
+    const b = points[i]!;
+    const length = distance(a, b);
+    const t =
+      length === 0
+        ? 0
+        : Math.min(
+            1,
+            Math.max(0, ((target.x - a.x) * (b.x - a.x) + (target.y - a.y) * (b.y - a.y)) / length ** 2),
+          );
+    const foot = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+    const gap = distance(foot, target);
+    if (gap < best.gap) best = { gap, along: along + length * t };
+    along += length;
+  }
+  expect(best.gap).toBeLessThan(0.01);
+  return best.along;
+}
+
+/** Samples of the named curves in order, without zero-length curves or repeated points. */
+function capSamples(result: ComputedPattern, names: readonly string[]): Point[] {
+  const points: Point[] = [];
+  for (const name of names) {
+    const curve = result.curves[name]!;
+    if (curve.length === 0) continue;
+    const step = curve.type === "line" ? [curve.from, curve.to] : sampleCubic(curve);
+    for (const p of step) {
+      const last = points[points.length - 1];
+      if (last === undefined || distance(last, p) > 1e-9) points.push(p);
+    }
+  }
+  return points;
+}
+
+function sampleCubic(curve: Extract<ComputedCurve, { type: "cubic" }>): Point[] {
+  return Array.from({ length: ARMHOLE_SAMPLES + 1 }, (_, i) =>
+    cubicAt(curve.from, curve.c1, curve.c2, curve.to, i / ARMHOLE_SAMPLES),
+  );
+}
+
+/** The direction of travel at the start or end of a computed curve. */
+function endDirection(curve: ComputedCurve, end: "start" | "end"): Point {
+  if (curve.type === "line") return { x: curve.to.x - curve.from.x, y: curve.to.y - curve.from.y };
+  const [a, b] = end === "start" ? [curve.from, curve.c1] : [curve.c2, curve.to];
+  return { x: b.x - a.x, y: b.y - a.y };
+}
+
+const COS_HALF_DEGREE = Math.cos((0.5 * Math.PI) / 180);
+const SIN_HALF_DEGREE = Math.sin((0.5 * Math.PI) / 180);
+
+/** The curve names of the cap halves with non-zero length, in outline order. */
+function drawnCap(result: ComputedPattern, names: readonly string[]): string[] {
+  return names.filter((name) => curveLength(result, name) > 0);
+}
+
+/** The shape checks every cap must pass (see the test plan of ticket 0007). */
+function expectSmoothCap(result: ComputedPattern): void {
+  const upper = turns(capSamples(result, ["s_cap_back_upper", "s_cap_front_upper"]));
+  expect(Math.min(...upper)).toBeGreaterThan(-ARMHOLE_NOISE);
+  expect(Math.max(...upper)).toBeGreaterThan(0);
+  for (const name of ["s_cap_back_lower", "s_cap_front_lower"]) {
+    const lower = turns(capSamples(result, [name]));
+    expect(Math.max(...lower)).toBeLessThan(ARMHOLE_NOISE);
+    expect(Math.min(...lower)).toBeLessThan(0);
+  }
+  // One tangent at every junction of the drawn cap curves, the crown included.
+  const drawn = drawnCap(result, CAP_CURVES);
+  for (let i = 1; i < drawn.length; i++) {
+    const incoming = endDirection(result.curves[drawn[i - 1]!]!, "end");
+    const outgoing = endDirection(result.curves[drawn[i]!]!, "start");
+    const origin = { x: 0, y: 0 };
+    expect(cosineBetween(origin, incoming, origin, outgoing)).toBeGreaterThan(COS_HALF_DEGREE);
+  }
+  // Horizontal at the crown and at both underarm points.
+  const height = result.values.cap_height!;
+  for (const [name, end] of [
+    ["s_cap_back_lower", "start"],
+    ["s_cap_back_upper", "end"],
+    ["s_cap_front_upper", "start"],
+    ["s_cap_front_lower", "end"],
+  ] as const) {
+    const direction = endDirection(result.curves[name]!, end);
+    expect(direction.x).toBeGreaterThan(0);
+    expect(Math.abs(direction.y) / Math.hypot(direction.x, direction.y)).toBeLessThan(SIN_HALF_DEGREE);
+  }
+  // Each half only runs one way across (never overhangs) and stays between crown and underarm.
+  for (const names of [CAP.back, CAP.front]) {
+    const points = capSamples(result, names);
+    for (let i = 1; i < points.length; i++) {
+      expect(points[i]!.x - points[i - 1]!.x).toBeGreaterThan(-ARMHOLE_NOISE);
+    }
+    for (const p of points) {
+      expect(p.y).toBeGreaterThan(-ARMHOLE_NOISE);
+      expect(p.y).toBeLessThan(height + ARMHOLE_NOISE);
+    }
+  }
+}
+
+/** The cap halves and their total equal the bodice armholes plus cap ease (AC3). */
+function expectCapFits(project: SleeveProject, capEase = SLEEVE_DEFAULTS.cap_ease): void {
+  const { bodice: b, sleeve: s } = project;
+  expectWithin(capSum(s, CAP_CURVES), b.values.armhole_length! + capEase, 2);
+  expectWithin(capSum(s, CAP.back), b.values.back_armhole_length! + capEase / 2, 1);
+  expectWithin(capSum(s, CAP.front), b.values.front_armhole_length! + capEase / 2, 1);
+}
+
+describe("straight sleeve: definition", () => {
+  test("names the block and its drafting source", () => {
+    const definition = sleeve();
+    expect(definition.version).toBe(1);
+    expect(definition.name).toBe("Straight sleeve");
+    expect(String(definition.source)).toContain("Aldrich");
+    expect(String(definition.source)).not.toContain("not checked");
+  });
+
+  test("declares exactly the three arm measurements", () => {
+    const measurements = sleeve().measurements as string[];
+    expect(measurements).toEqual(["upper_arm", "arm_length", "wrist"]);
+    for (const key of measurements) expect(isMeasurementKey(key)).toBe(true);
+  });
+
+  test("imports the four armhole values of the bodice under the same names", () => {
+    expect(sleeve().imports).toEqual(
+      Object.fromEntries(SLEEVE_IMPORTS.map((name) => [name, `bodice.${name}`])),
+    );
+    // Every value the sleeve imports is part of the bodice's pinned interface.
+    for (const name of SLEEVE_IMPORTS) expect(BODICE_INTERFACE).toContain(name);
+  });
+
+  test("declares the parameters with their defaults", () => {
+    expect(sleeve().parameters).toEqual(SLEEVE_DEFAULTS);
+  });
+
+  test("has one piece, the cap halves, the underarm seams and the hem in outline order", () => {
+    const definition = sleeve();
+    expect((definition.pieces as { name: string }[]).map((p) => p.name)).toEqual(["sleeve"]);
+    expect(outlineCurves(definition, "sleeve")).toEqual([
+      ...CAP_CURVES,
+      "s_seam_front",
+      "s_hem",
+      "s_seam_back",
+    ]);
+    const types = curveTypes(definition);
+    for (const name of ["s_cap_back_lower", "s_cap_back_upper", "s_cap_front_upper", "s_cap_front_lower"]) {
+      expect(types[name]).toBe("cubic");
+    }
+  });
+
+  test("has a double back notch, a crown notch and a single front notch", () => {
+    const [only] = sleeve().pieces as { notches: unknown }[];
+    expect(only?.notches).toEqual([
+      { curve: "s_cap_back_lower", distance: "back_armhole_to_notch", marks: 2 },
+      { curve: "s_cap_front_upper", distance: "0" },
+      { curve: "s_cap_front_upper", distance: "front_cap_length - front_armhole_to_notch" },
+    ]);
+  });
+});
+
+for (const [label, measurements] of SLEEVE_SETS) {
+  describe(`straight sleeve: measurement set ${label}`, () => {
+    const project = sleeveProject(measurements);
+    const { bodice: b, sleeve: s } = project;
+
+    test("the cap equals the armhole plus cap ease, each half its own armhole half (AC3)", () => {
+      expectCapFits(project);
+      expect(s.values.cap_length).toBeCloseTo(capSum(s, CAP_CURVES), 6);
+      expect(s.values.back_cap_length).toBeCloseTo(capSum(s, CAP.back), 6);
+      expect(s.values.front_cap_length).toBeCloseTo(capSum(s, CAP.front), 6);
+      // Back and front armholes differ, and so do the halves.
+      expect(Math.abs(b.values.back_armhole_length! - b.values.front_armhole_length!)).toBeGreaterThan(5);
+    });
+
+    test("the bicep line is upper arm plus ease wide, at the cap height", () => {
+      const back = point(s, "s_underarm_back");
+      const front = point(s, "s_underarm_front");
+      expectWithin(front.x - back.x, measurements.upper_arm! + SLEEVE_DEFAULTS.ease_upper_arm, 0.01);
+      expect(back.y).toBeCloseTo(s.values.cap_height!, 9);
+      expect(front.y).toBeCloseTo(s.values.cap_height!, 9);
+      expect(point(s, "s_crown")).toEqual({ x: 0, y: 0 });
+    });
+
+    test("the hem is wrist plus ease wide, level at the sleeve length, between equal underarm seams", () => {
+      const back = point(s, "s_hem_back");
+      const front = point(s, "s_hem_front");
+      expectWithin(front.x - back.x, measurements.wrist! + SLEEVE_DEFAULTS.ease_wrist, 0.01);
+      expect(back.y).toBeCloseTo(measurements.arm_length!, 9);
+      expect(front.y).toBeCloseTo(measurements.arm_length!, 9);
+      expectWithin(curveLength(s, "s_seam_front"), curveLength(s, "s_seam_back"), 0.01);
+    });
+
+    test("the grainline runs straight down through the crown", () => {
+      const { grainline } = piece(s, "sleeve");
+      expect(grainline.from.x).toBe(0);
+      expect(grainline.to.x).toBe(0);
+      expect(grainline.to.y).toBeGreaterThan(grainline.from.y);
+    });
+
+    test("bodice notches lie on the back width and chest points (AC5)", () => {
+      const back = piece(b, "back").notches;
+      const front = piece(b, "front").notches;
+      expectWithin(distance(back[0]!.point, point(b, "b_width_pt")), 0, 0.01);
+      expectWithin(distance(front[0]!.point, point(b, "f_chest")), 0, 0.01);
+      expect(back[0]!.marks).toHaveLength(2);
+      expect(front[0]!.marks).toHaveLength(1);
+    });
+
+    test("sleeve notches lie at the bodice's arc distances from the underarm points (AC5)", () => {
+      const [backNotch, crownNotch, frontNotch] = piece(s, "sleeve").notches;
+      expect(backNotch!.marks).toHaveLength(2);
+      expect(crownNotch!.marks).toHaveLength(1);
+      expect(frontNotch!.marks).toHaveLength(1);
+      expectWithin(distance(crownNotch!.point, point(s, "s_crown")), 0, 1e-9);
+
+      const backCap = polyline(s, CAP.back);
+      const frontCap = polyline(s, CAP.front);
+      const backToNotch = arcLengthTo(backCap, backNotch!.point);
+      const frontToNotch = polylineLength(frontCap) - arcLengthTo(frontCap, frontNotch!.point);
+      expectWithin(backToNotch, b.values.back_armhole_to_notch!, 0.5);
+      expectWithin(frontToNotch, b.values.front_armhole_to_notch!, 0.5);
+
+      // All the cap ease lies between the notches.
+      const capBetween = polylineLength(backCap) + polylineLength(frontCap) - backToNotch - frontToNotch;
+      const armholeBetween =
+        b.values.armhole_length! - b.values.back_armhole_to_notch! - b.values.front_armhole_to_notch!;
+      expectWithin(capBetween - armholeBetween, SLEEVE_DEFAULTS.cap_ease, 1);
+    });
+
+    test("every notch mark ends inside the sleeve", () => {
+      const computed = piece(s, "sleeve");
+      const polygon = outlinePolygon(computed);
+      for (const notch of computed.notches) {
+        for (const mark of notch.marks) expect(insidePolygon(polygon, mark.to.x, mark.to.y)).toBe(true);
+      }
+    });
+
+    test("each cap half is one smooth S: convex above, concave below, horizontal at the ends", () => {
+      expectSmoothCap(s);
+    });
+
+    test("the label fits in the sleeve", () => {
+      expect(placeLabel(piece(s, "sleeve"), "Sleeve", 14)).not.toBeNull();
+    });
+  });
+}
+
+describe("straight sleeve: width variants", () => {
+  test("a slim sleeve gets a straight middle on at least one half and still fits and is smooth", () => {
+    const project = sleeveProject({ ...SLEEVE_SETS[0]![1], upper_arm: 240 });
+    const middles = curveLength(project.sleeve, "s_cap_back_mid") + curveLength(project.sleeve, "s_cap_front_mid");
+    expect(middles).toBeGreaterThan(1);
+    expectCapFits(project);
+    expectSmoothCap(project.sleeve);
+  });
+
+  test("a wide sleeve has no straight middle and still fits and is smooth", () => {
+    const project = sleeveProject({ ...SLEEVE_SETS[0]![1], upper_arm: 360 });
+    expect(curveLength(project.sleeve, "s_cap_back_mid")).toBe(0);
+    expect(curveLength(project.sleeve, "s_cap_front_mid")).toBe(0);
+    expectCapFits(project);
+    expectSmoothCap(project.sleeve);
+  });
+
+  test("an implausibly wide sleeve (wider than its armhole) gives errors, not a drawing", () => {
+    const result = SLEEVE_PROJECT.evaluate({ measurements: { ...SLEEVE_SETS[0]![1], upper_arm: 600 } });
+    expect(result.ok).toBe(false);
+    const part = result.parts.straight_sleeve!;
+    expect(part.ok).toBe(false);
+    expect(part.pieces.sleeve).toBeUndefined();
+  });
+});
+
+describe("straight sleeve: follows the bodice (AC4)", () => {
+  const measurements = SLEEVE_SETS[0]![1];
+  const base = sleeveProject(measurements);
+
+  test("a deeper armhole makes the cap longer by the same amount", () => {
+    const deeper = sleeveProject(measurements, { bodice: { ease_armhole_depth: 30 } });
+    expect(deeper.bodice.values.armhole_length).toBeGreaterThan(base.bodice.values.armhole_length! + 5);
+    expectCapFits(deeper);
+    expectWithin(
+      deeper.sleeve.values.cap_length! - base.sleeve.values.cap_length!,
+      deeper.bodice.values.armhole_length! - base.bodice.values.armhole_length!,
+      2,
+    );
+  });
+
+  test("a user offset stored on the back width point moves the cap with the armhole", () => {
+    const definition = bodice();
+    const points = definition.points as { name: string; user_offset?: UserOffset }[];
+    points.find((candidate) => candidate.name === "b_width_pt")!.user_offset = { dx: 15, dy: 0 };
+    const moved = sleeveProject(measurements, { bodiceDefinition: definition });
+    expect(Math.abs(moved.bodice.values.back_armhole_length! - base.bodice.values.back_armhole_length!)).toBeGreaterThan(1);
+    expectCapFits(moved);
+    expectWithin(
+      moved.sleeve.values.cap_length! - base.sleeve.values.cap_length!,
+      moved.bodice.values.armhole_length! - base.bodice.values.armhole_length!,
+      2,
+    );
+  });
+
+  test("a bodice copy without an imported value gives the sleeve missing_import", () => {
+    const definition = bodice();
+    const formulas = definition.formulas as Record<string, string>;
+    formulas.back_armhole_len = formulas.back_armhole_length!;
+    delete formulas.back_armhole_length;
+    formulas.armhole_length = "back_armhole_len + front_armhole_length";
+    const result = evaluateProject(
+      [
+        { name: "bodice", definition },
+        { name: "straight_sleeve", definition: sleeve() },
+      ],
+      { measurements },
+    );
+    expect(result.parts.bodice?.ok).toBe(true);
+    const part = result.parts.straight_sleeve!;
+    expect(part.ok).toBe(false);
+    expect(part.ok ? [] : part.errors).toContainEqual(
+      expect.objectContaining({
+        kind: "missing_import",
+        name: "back_armhole_length",
+        reference: "bodice.back_armhole_length",
+      }),
+    );
+    expect(part.pieces.sleeve).toBeUndefined();
+  });
+
+  test("without a bodice part the sleeve reports every import missing", () => {
+    const result = evaluateProject([{ name: "straight_sleeve", definition: sleeve() }], { measurements });
+    const part = result.parts.straight_sleeve!;
+    const missing = (part.ok ? [] : part.errors).filter((error) => error.kind === "missing_import");
+    expect(missing.map((error) => ("name" in error ? error.name : ""))).toEqual(SLEEVE_IMPORTS);
+  });
+});
+
+describe("straight sleeve: cap solve and sensitivity", () => {
+  test("the cap height changes by under 1 mm per mm of armhole and under 0.75 mm per mm of upper arm", () => {
+    for (const [, measurements] of SLEEVE_SETS) {
+      const at = (ease: number, upperArm: number) =>
+        sleeveProject(
+          { ...measurements, upper_arm: upperArm },
+          { bodice: { ease_armhole_depth: ease } },
+        );
+      const low = at(0, measurements.upper_arm!);
+      const high = at(20, measurements.upper_arm!);
+      const perArmhole =
+        Math.abs(high.sleeve.values.cap_height! - low.sleeve.values.cap_height!) /
+        Math.abs(high.bodice.values.armhole_length! - low.bodice.values.armhole_length!);
+      expect(perArmhole).toBeLessThan(1);
+      const narrow = at(10, measurements.upper_arm! - 10);
+      const wide = at(10, measurements.upper_arm! + 10);
+      const perUpperArm =
+        Math.abs(wide.sleeve.values.cap_height! - narrow.sleeve.values.cap_height!) / 20;
+      expect(perUpperArm).toBeLessThan(0.75);
+    }
+  });
+
+  test("cap_convex_share 0.5 and 0.7 change the cap length by under 0.2 mm", () => {
+    for (const [, measurements] of SLEEVE_SETS) {
+      const base = sleeveProject(measurements).sleeve.values.cap_length!;
+      for (const share of [0.5, 0.7]) {
+        const other = sleeveProject(measurements, { sleeve: { cap_convex_share: share } });
+        expectWithin(other.sleeve.values.cap_length!, base, 0.2);
+        expectSmoothCap(other.sleeve);
+      }
+    }
+  });
+
+  test("cap_ease adds its change to the cap length", () => {
+    for (const [, measurements] of SLEEVE_SETS) {
+      const base = sleeveProject(measurements).sleeve.values.cap_length!;
+      const more = sleeveProject(measurements, { sleeve: { cap_ease: 40 } });
+      expectWithin(more.sleeve.values.cap_length! - base, 10, 0.2);
+      expectCapFits(more, 40);
+    }
+  });
+
+  test("each half is within 0.05 mm of its target over upper arms 240 to 380 mm", () => {
+    const compiled = compilePattern(sleeve());
+    let evaluated = 0;
+    for (const [label, measurements] of SLEEVE_SETS) {
+      const imports = armholeImports(sleeveProject(measurements).bodice);
+      for (let upperArm = 240; upperArm <= 380; upperArm += 10) {
+        const result = compiled.evaluate({
+          measurements: { ...SLEEVE_ARMS[label], upper_arm: upperArm },
+          imports,
+        });
+        if (!result.ok) continue;
+        evaluated++;
+        const { values } = result;
+        expectWithin(capSum(result, CAP.back), values.back_cap_target!, 0.05);
+        expectWithin(capSum(result, CAP.front), values.front_cap_target!, 0.05);
+      }
+    }
+    // The whole sweep is plausible, so every combination evaluates.
+    expect(evaluated).toBe(SLEEVE_SETS.length * 15);
   });
 });
