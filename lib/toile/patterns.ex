@@ -265,12 +265,14 @@ defmodule Toile.Patterns do
 
   # The client only saves states the engine evaluated, so a rejection points at a bug or a
   # tampered client. Logs field names and the JSON pointer of the first difference, never values.
+  # The pointer can hold a key the client chose, so it is logged through `inspect/2`: control
+  # characters come out escaped and cannot forge a log line, and it is cut at 200 characters.
   defp log_rejected_edit(pattern_project, changeset) do
     reasons =
       Enum.map_join(changeset.errors, ", ", fn {field, {_message, opts}} ->
         case Keyword.get(opts, :path) do
           nil -> Atom.to_string(field)
-          path -> "#{field} at #{String.slice(path, 0, 200)}"
+          path -> "#{field} at #{inspect(path, printable_limit: 200)}"
         end
       end)
 

@@ -25,11 +25,10 @@ defmodule ToileWeb.PatternLive.Show do
   HEEx renders once (`phx-update="ignore"`) and the hook then owns: the undo/redo buttons and the
   save status, the point panel (`#point-select`, with `#point-details` filled by the hook) and
   one row per parameter of the definition (`#parameter-<name>`, in `ToileWeb.ParameterTexts`
-  order). A row carries stored values only: `data-unit` (the `ParameterUnit` name),
-  `data-default` (the definition's default) and `data-value` (the override, else the default;
-  absent when the stored override is not a number). Its input and its `-hint` paragraph render
-  empty; the hook fills them in the display unit with the engine's `units.ts`, so the
-  conversion has one source.
+  order). A row carries `data-unit` (the `ParameterUnit` name) and `data-default` (the
+  definition's default, in stored units); the stored override comes from `data-input` alone.
+  Its input and its `-hint` paragraph render empty; the hook fills them in the display unit with
+  the engine's `units.ts`, so the conversion has one source.
 
   Every committed edit is saved by the hook with the `save_pattern` event,
   `%{"definition" => map, "parameters" => map}`, which `Toile.Patterns.update_pattern_edits/3`
@@ -37,8 +36,10 @@ defmodule ToileWeb.PatternLive.Show do
   formulas. The reply is `%{ok: true}` or `%{ok: false}`. A save does not send the definition
   back to the hook. The whole event must fit one websocket frame: `data-max-save-bytes`
   (`Toile.Patterns.PatternProject.max_save_bytes/0`) is the most the definition and parameters
-  may add up to, in bytes of encoded JSON, and the server rejects a larger save. Saves from two
-  tabs replace each other: the last one wins.
+  may add up to, in bytes of encoded JSON, and `data-max-definition-bytes`
+  (`Toile.Patterns.PatternProject.max_definition_bytes/0`) the most the definition alone may
+  take; the server rejects a save over either. Saves from two tabs replace each other: the last
+  one wins.
 
   Choosing another profile in `#profile-form` saves it on the project. Between profiles that have
   every measurement the pattern needs, the hook element stays (there is no wrapper keyed by the
@@ -160,6 +161,7 @@ defmodule ToileWeb.PatternLive.Show do
               data-texts={@editor_texts_json}
               data-editor="pattern-editor"
               data-max-save-bytes={PatternProject.max_save_bytes()}
+              data-max-definition-bytes={PatternProject.max_definition_bytes()}
               data-error-text={gettext("The pattern could not be computed with these measurements.")}
               role="group"
               aria-label={gettext("Drawing of the pattern %{name}", name: @project.name)}
@@ -231,7 +233,6 @@ defmodule ToileWeb.PatternLive.Show do
                 data-parameter={row.name}
                 data-unit={row.unit}
                 data-default={row.default}
-                data-value={row.value}
               >
                 <.input
                   type="text"
@@ -356,28 +357,26 @@ defmodule ToileWeb.PatternLive.Show do
 
   # One row per declared parameter with a number default, in display order. Like the piece
   # labels, anything malformed is left to the engine.
-  defp parameter_rows(%{definition: %{"parameters" => defaults}, parameters: overrides})
+  defp parameter_rows(%{definition: %{"parameters" => defaults}})
        when is_map(defaults) do
     defaults
     |> Map.keys()
     |> Enum.filter(&(is_binary(&1) and is_number(defaults[&1])))
     |> ParameterTexts.sort()
-    |> Enum.map(&parameter_row(&1, defaults[&1], overrides))
+    |> Enum.map(&parameter_row(&1, defaults[&1]))
   end
 
   defp parameter_rows(_project), do: []
 
-  # Values stay in stored units (mm, degrees): the hook formats them with the engine's units.
-  defp parameter_row(name, default, overrides) do
+  # The default stays in stored units (mm, degrees): the hook formats it with the engine's units.
+  defp parameter_row(name, default) do
     unit = ParameterTexts.unit(name)
-    current = Map.get(overrides, name, default)
 
     %{
       name: name,
       label: parameter_label(ParameterTexts.label(name), ParameterTexts.unit_label(unit)),
       unit: unit,
-      default: default,
-      value: if(is_number(current), do: current)
+      default: default
     }
   end
 

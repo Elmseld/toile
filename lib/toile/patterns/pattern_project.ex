@@ -101,7 +101,7 @@ defmodule Toile.Patterns.PatternProject do
           []
 
         {:error, path} ->
-          # The path is for the log line of a rejected save (`ToileWeb.PatternLive.Show`).
+          # The path is for the log line of a rejected save (`Toile.Patterns.update_pattern_edits/3`).
           [
             definition:
               {dgettext_noop("errors", "contains changes that cannot be saved"), path: path}

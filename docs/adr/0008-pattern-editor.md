@@ -47,8 +47,12 @@ sleeve block, ticket 0007).
 - **A save fits one websocket frame.** The endpoint closes the socket on a frame over 256 000
   bytes, so a save (definition plus parameter overrides, encoded) is capped at 240 000 bytes and
   a stored definition at 200 000 (`Toile.Patterns.DefinitionSize`; ADR 0006 had 1 000 000). Every
-  stored project can be saved again; the hook reads the save cap from `data-max-save-bytes` and
-  does not send a larger save. Blocks are far below it (the bodice is about 19 000 bytes).
+  stored project can be saved again; the hook reads both caps from `data-max-save-bytes` and
+  `data-max-definition-bytes` and does not send a save over either. Blocks are far below it (the
+  bodice is about 19 000 bytes). Lowering the cap needs no data migration: before this ADR a
+  definition only entered the database as a copy of a block (`put_block_definition`), and
+  `Toile.Patterns.Blocks.Loader` refuses at compile time any block over the cap, so no stored row
+  exceeds 200 000 bytes.
 - **Edit saves are not broadcast** on the user's project topic: the editor saves on every
   commit, and the project list shows nothing an edit changes. A rejected save is logged at info
   level with the failing fields and the JSON pointer of the first difference, never values.

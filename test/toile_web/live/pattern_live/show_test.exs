@@ -279,6 +279,11 @@ defmodule ToileWeb.PatternLive.ShowTest do
                ~s(#pattern-canvas[data-max-save-bytes="#{PatternProject.max_save_bytes()}"])
              )
 
+      assert has_element?(
+               view,
+               ~s(#pattern-canvas[data-max-definition-bytes="#{PatternProject.max_definition_bytes()}"])
+             )
+
       assert has_element?(view, "#undo-button[disabled]", "Undo")
       assert has_element?(view, "#redo-button[disabled]", "Redo")
       assert has_element?(view, ~s(#save-status[role="status"][aria-live="polite"]))
@@ -292,7 +297,7 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       assert has_element?(
                view,
-               ~s(#parameter-ease_hip[data-parameter="ease_hip"][data-unit="length"][data-default="40"][data-value="40"]),
+               ~s(#parameter-ease_hip[data-parameter="ease_hip"][data-unit="length"][data-default="40"]),
                "Ease at the hip (cm)"
              )
 
@@ -365,7 +370,9 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       assert has_element?(view, ~s(#parameter-pocket[data-unit="number"]), "pocket")
       refute has_element?(view, "#parameter-pocket", "pocket (")
-      assert has_element?(view, ~s(#parameter-pocket[data-default="3"][data-value="2.5"]))
+      assert has_element?(view, ~s(#parameter-pocket[data-default="3"]))
+      refute has_element?(view, "#parameter-pocket[data-value]")
+      assert canvas_data(view, "input")["parameters"] == %{"pocket" => 2.5}
 
       {1, _} =
         Repo.update_all(
@@ -405,7 +412,7 @@ defmodule ToileWeb.PatternLive.ShowTest do
       saved = Enum.find(canvas_data(view2, "definition")["points"], &(&1["name"] == moved))
       assert saved["user_offset"] == %{"dx" => 12.5, "dy" => -3}
       assert canvas_data(view2, "input")["parameters"] == %{"ease_hip" => 50}
-      assert has_element?(view2, ~s(#parameter-ease_hip[data-default="40"][data-value="50"]))
+      assert has_element?(view2, ~s(#parameter-ease_hip[data-default="40"]))
     end
 
     test "a save does not send the definition back to the hook", %{conn: conn, scope: scope} do

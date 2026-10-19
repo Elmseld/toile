@@ -30,9 +30,28 @@ defmodule Toile.PatternsLogTest do
       end)
 
     assert log =~ "Rejected pattern edit for project #{pattern_project.id}"
-    assert log =~ "definition at /points/0/name"
+    assert log =~ ~s(definition at "/points/0/name")
     assert log =~ "parameters"
     refute log =~ "secret"
     refute log =~ "not_declared"
+  end
+
+  test "update_pattern_edits/3 escapes control characters of a client-chosen key in the path" do
+    scope = user_scope_fixture()
+    pattern_project = pattern_project_fixture(scope)
+    forged = "x\n[info] Rejected pattern edit for project forged"
+    definition = Map.put(pattern_project.definition, forged, 1)
+
+    log =
+      capture_log([level: :info], fn ->
+        assert {:error, _changeset} =
+                 Patterns.update_pattern_edits(scope, pattern_project, %{
+                   "definition" => definition,
+                   "parameters" => %{}
+                 })
+      end)
+
+    assert log =~ ~S(definition at "/x\n[info] Rejected pattern edit for project forged")
+    refute log =~ "\n[info] Rejected pattern edit for project forged"
   end
 end
