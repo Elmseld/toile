@@ -291,7 +291,8 @@ raw definition JSON as stored, so a save differs from the stored definition only
 edited.
 
 - `setUserOffset(definition, point, offset | null)`: replaces one point's `user_offset` (rounded to
-  0.1 mm; `null` removes it). Other points keep their identity.
+  0.1 mm with `roundOffset`; `null` removes it). Other points keep their identity.
+- `getPoint(definition, name)`: the raw point called `name`, or `undefined`.
 - `setPointFormula(definition, point, field, formula)`: replaces one formula field; anything else is
   returned unchanged.
 - `pointFields(point)`, `controlPoints(definition)`: the op's fields for a panel, and the `c1`/`c2`
@@ -299,7 +300,8 @@ edited.
 - `tryPattern(definition, input)`: compile and evaluate; `ok` only if the result is `ok`, else the
   errors. `errorsFor(errors, point, field?)` picks the ones for a point.
 - `pickPoint(points, at, radius, prefer?)`: nearest point within a radius, ties to `prefer`.
-- `createHistory`, `push`, `undo`, `redo`, `canUndo`, `canRedo`: bounded (default 100) immutable
-  undo/redo over `{ definition, parameters }`.
-- `toDisplay`, `fromDisplay`, `formatDisplay`: parameter values between stored units and the units
-  shown (mm to cm, degrees per mm to per cm).
+- History: `createHistory`, `push`, `undo`, `redo`, `canUndo`, `canRedo`: immutable undo/redo over
+  `{ definition, parameters }`, bounded to `HISTORY_LIMIT` (100) steps by default.
+- Units: `toDisplay`, `fromDisplay`, `formatDisplay` convert parameter values between stored units
+  and the units shown (mm to cm, degrees per mm to per cm). `MAX_PARAMETER` (1 000 000) is the
+  largest absolute parameter value; the app's bound is pinned to it by a test.

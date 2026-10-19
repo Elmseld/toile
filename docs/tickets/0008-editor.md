@@ -1,7 +1,7 @@
 ---
 id: 0008
 title: Editor – move points and edit formulas and parameters
-status: in-progress
+status: in-review
 type: feature
 ---
 

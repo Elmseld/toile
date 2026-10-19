@@ -47,9 +47,9 @@ Both groups use the same engine but get different amounts of it exposed.
    millimetres), and an invalid formula shows an error under the field while the drawing stays as
    it was. The panel shows the point's offset in cm with the button "Återställ läget". A panel
    "Justeringar" lists the pattern's parameters (e.g. ease, "Rörelsevidd, stuss") in cm or degrees;
-   an empty field returns to the default. "Ångra" and "Gör om" (also Ctrl/Cmd+Z and
-   Ctrl/Cmd+Shift+Z) step through at least 50 edits per page visit; the history is lost on reload.
-   Changes save automatically ("Sparar…", "Sparat", or "Ändringarna kunde inte sparas"), and a
+   an empty field returns to the default. "Ångra" and "Gör om" (also Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z and Ctrl+Y)
+   step through the last 100 edits per page visit; the history is lost on reload.
+   Changes save automatically ("Sparar...", "Sparat", or "Ändringarna kunde inte sparas"), and a
    reload shows the same pattern. Only point offsets, point formulas and parameter overrides can be
    edited; point names, operations, curves and pieces cannot (ADR 0008). Switching measurement
    profile recalculates the whole pattern and keeps the edits.
