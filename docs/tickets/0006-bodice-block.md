@@ -33,21 +33,24 @@ Builds on the engine (0002, 0003) and the project view (0005).
 - **New measurement `armhole_depth`** ("Nacke till armhålsnivå", nape straight down the spine to a band
   tied level as high under the arms as it goes), added to the catalogue per ADR 0005. The profile has 18 measurements; existing
   profiles lack it (not measured) and existing skirt projects are unaffected.
-- **Bust dart from `front_length`:** the front neck point is placed so that neck point, bust point
-  and waist add up to `front_length`. The dart is the rotation about the bust point that brings the
-  front shoulder point level with the back shoulder point. Needs `bust_height` and `bust_distance`.
-- **Bust dart cap and sensitivity:** the dart width at the shoulder grows by about 2 mm per mm of
-  `front_length`, so a large figure (bust 1200 mm, `front_length` 80 mm over `back_length`) would
-  get a 23 degree dart, 120 mm wide on a 135 mm shoulder. The angle is therefore capped by the
-  parameter `max_bust_dart_angle` (15 degrees, a draft constant, not from the book); the uncapped
-  value stays visible as `bust_dart_balance_angle`. Above the cap the front shoulder point lies
-  higher than the back one; seam lengths, bust and waist are unaffected, so the AC tests hold
-  (a large measurement set is in the tests, with a plausibility bound on the dart width). The rest
-  of the balance makes the front armhole deeper and longer than the back one, so it gapes once
-  sewn and `front_armhole_length` and `armhole_length` grow (large set: front 327 mm against back
-  288 mm); moving the rest into a second dart is dart manipulation, out of scope. The dart
-  is zero, without an error, when the front neck point lies no higher than the back neck point,
-  e.g. for the size 12 test set when `front_length` is at most about 21 mm over `back_length`.
+- **Bust dart from the bust excess:** the dart angle is `bust_dart_rate` (0.12 degrees per mm)
+  times the amount by which `bust / 2 - chest_width` exceeds `bust_dart_offset` (50 mm),
+  between 0 and `max_bust_dart_angle` (20 degrees). These are draft constants, not from the
+  book. They are calibrated so that the size 12 test set and a larger set draft their measured
+  front length within 1 mm. The bust point lies `bust_height` from the front neck point. The
+  front neck point is placed so that the front shoulder point, dart open, is level with the
+  back shoulder point. Needs `bust_height` and `bust_distance`. `front_length` is no longer a
+  bodice measurement; the catalogue key stays.
+- **Why not `front_length`:** the first version placed the front neck point from
+  `front_length` and took the dart as the rotation that levels the shoulders. The dart then
+  grew by about 2 mm per mm of `front_length` (a small difference of two long measurements). A
+  real profile got a capped 15 degree dart, a front shoulder 27 mm above the back one and a
+  front armhole 42 mm longer than the back. The new dart moves under 0.8 mm per mm of
+  `chest_width` and under 0.4 mm per mm of `bust` (tested). The front always meets the back at
+  the shoulder.
+- **Wide back width is not corrected:** a `back_width` that puts the back width point outside
+  the shoulder point (e.g. 450 mm with a 125 mm shoulder and 355 mm neck) gives an S-shaped back
+  armhole. That is treated as a measuring error. The block has no guard.
 - **Ease defaults:** bust 80 mm, waist 40 mm, armhole depth 10 mm. These and the draft constants are
   parameters, not yet checked against the book.
 - **Armhole length:** the bodice exposes three `values` keys, `armhole_length`,

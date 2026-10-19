@@ -201,34 +201,36 @@ The engine has no block registry.
   angle-dependent op, so it does not depend on the angle convention.
 - **`bodice.json`** ("Liv"): `back` (shoulder dart, waist dart) and `front` (bust dart in the
   shoulder, waist dart). Measurements `bust`, `waist`, `neck`, `shoulder_width`, `back_width`,
-  `chest_width`, `back_length`, `armhole_depth`, `front_length`, `bust_height`, `bust_distance`.
+  `chest_width`, `back_length`, `armhole_depth`, `bust_height`, `bust_distance`.
   Parameters: `ease_bust` (80 mm), `ease_waist` (40 mm), `ease_armhole_depth` (10 mm) and the draft
   constants `ease_back_width`, `side_shift`, `back_neck_rise`, `front_neck_extra`,
   `back_shoulder_drop`, `front_shoulder_drop`, `back_shoulder_dart`, `back_shoulder_dart_length`,
-  `back_waist_dart_gap`, `front_waist_dart_gap`, `max_bust_dart_angle` (15 degrees). The `source`
-  names Aldrich, the close fitting bodice block, and its deviations: the bust dart follows from
-  `front_length`, `bust_height` and `bust_distance` (rotation about the bust point) instead of a
-  size-chart value. The constants and ease are not yet checked against the book.
-  The bust dart is sensitive to `front_length`: its width at the shoulder grows by about 2 mm per
-  mm of `front_length` (tested). The value `bust_dart_balance_angle` is the rotation that would
-  bring the front shoulder point level with the back one; `bust_dart_angle` is that, capped at
-  `max_bust_dart_angle`. Above the cap the rest of the difference stays in the front, whose
-  shoulder point then lies higher than the back one; the seam lengths and the bust and waist
-  widths are unaffected, but the front armhole gets deeper and longer than the back one and will
-  gape once sewn, which also raises `front_armhole_length` and `armhole_length` (for the large
-  set: front shoulder 25 mm higher, shoulder to underarm 265 against 240 mm, front armhole 327
-  against back 288 mm). Moving that rest into a second dart is dart manipulation, out of scope
-  here. A large test figure (bust 1200 mm, `front_length` 80 mm over
-  `back_length`) would otherwise get a dart of about 23 degrees, 120 mm wide on a 135 mm shoulder.
-  The dart is zero, without an error, whenever the front neck point lies no higher than the back
-  neck point (with the default shoulder drops), e.g. for the size 12 test set when `front_length`
-  is at most about 21 mm over `back_length`. By construction (tested within 2 mm) the bust line
-  through the underarm points, net of darts, equals `bust` + `ease_bust`, the waist seam
-  segments equal `waist` + `ease_waist`, and the front and back shoulder seams (dart closed) are
-  equal. The bodice exposes three `values` keys (mm): `armhole_length`, `back_armhole_length` and
-  `front_armhole_length`. How the sleeve (0007) consumes them is 0007's decision. The three names
-  are a stable interface: renaming one requires migrating the block copies stored in pattern
-  projects (ADR 0006); a test pins them. It uses angle-dependent ops
-  (`along_angle`, `perpendicular`, `angle()`), so it relies on the confirmed angle convention
-  (ADR 0004 decision 6). Implausible profiles (e.g. `front_length <= bust_height`) make the engine
-  return errors, shown as the hook's generic error.
+  `back_waist_dart_gap`, `front_waist_dart_gap`, `bust_dart_rate` (0.12 degrees per mm),
+  `bust_dart_offset` (50 mm) and `max_bust_dart_angle` (20 degrees). The `source` names Aldrich,
+  the close fitting bodice block, and its deviations. Instead of the book's size-chart value, the
+  bust dart angle follows from the bust excess `bust / 2 - chest_width` (value `bust_excess`):
+  `bust_dart_rate` degrees per mm above `bust_dart_offset`, at least 0 and at most
+  `max_bust_dart_angle` (value `bust_dart_angle`). The bust point lies `bust_height` from the
+  front neck point. The dart is a rotation about it, and the front neck point is placed so that
+  the front shoulder point (dart open) lies level with the back one. So the front neck point is
+  level with the back one when there is no dart, and higher by the extra length the dart gives
+  the front. The defaults are calibrated so that the size 12 test set and a larger set draft a
+  front length (neck point, bust point, waist) within 1 mm of their measured `front_length`. The
+  block itself does not use `front_length`. The dart width at the shoulder changes by under
+  0.8 mm per mm of `chest_width` and under 0.4 mm per mm of `bust` (tested). Test figures: about
+  34 mm (size 12), 61 mm (bust 1040 mm) and 100 mm (bust 1200 mm, chest width 390 mm). The cap
+  only guards against implausible input such as a chest width measured far too narrow. The
+  constants and ease are not yet checked against the book. A `back_width` much wider than the
+  shoulders (back width point outside the shoulder point) gives an S-shaped back armhole. The
+  block does not correct it: it points to a measuring error. The front armhole is 10 to 25 mm
+  longer than the back one in the test figures (shape of the front armhole curve). By
+  construction (tested within 2 mm) the bust line through the underarm points, net of darts,
+  equals `bust` + `ease_bust`, the waist seam segments equal `waist` + `ease_waist`, and the
+  front and back shoulder seams (dart closed) are equal. The bodice exposes three `values` keys
+  (mm): `armhole_length`, `back_armhole_length` and `front_armhole_length`. How the sleeve (0007)
+  consumes them is 0007's decision. The three names are a stable interface: renaming one requires
+  migrating the block copies stored in pattern projects (ADR 0006); a test pins them. It uses
+  angle-dependent ops (`along_angle`, `perpendicular`, `angle()`), so it relies on the confirmed
+  angle convention (ADR 0004 decision 6). Implausible profiles (e.g. a `bust_height` shorter than
+  the sideways distance from the neck point to the bust point) make the engine return errors,
+  shown as the hook's generic error.
