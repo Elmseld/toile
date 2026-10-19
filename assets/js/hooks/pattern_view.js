@@ -5,7 +5,7 @@
 //   data-parts         the project's parts, [{"name", "definition"}], main part first (JSON,
 //                      untrusted: the engine validates it)
 //   data-input         {"measurements": {...}, "parameters": {partName: {...}}} in millimetres (JSON)
-//   data-piece-labels  {pieceName: label} for the pieces of every part (JSON)
+//   data-piece-labels  {partName: {pieceName: label}} for the pieces of every part (JSON)
 //   data-error-text    shown instead of a drawing when the pattern cannot be computed
 // The element's aria-label also names the SVG.
 //
@@ -181,7 +181,7 @@ const PatternView = {
         transform: `translate(${offset.dx} ${offset.dy})`,
       })
       for (const piece of Object.values(part.pieces)) {
-        partGroup.appendChild(this.pieceGroup(piece, labels))
+        partGroup.appendChild(this.pieceGroup(piece, labels[name] ?? {}))
       }
       svg.appendChild(partGroup)
     }
@@ -189,6 +189,7 @@ const PatternView = {
     return svg
   },
 
+  // labels: {pieceName: label} for this piece's part.
   pieceGroup(piece, labels) {
     const id = this.el.id
     const group = svgElement("g", {"data-piece": piece.name})

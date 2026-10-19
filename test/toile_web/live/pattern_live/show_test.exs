@@ -70,7 +70,9 @@ defmodule ToileWeb.PatternLive.ShowTest do
                "parameters" => %{"straight_skirt" => %{}}
              }
 
-      assert canvas_data(view, "piece-labels") == %{"back" => "Back", "front" => "Front"}
+      assert canvas_data(view, "piece-labels") == %{
+               "straight_skirt" => %{"back" => "Back", "front" => "Front"}
+             }
 
       refute has_element?(view, "#missing-measurements")
       refute has_element?(view, "#no-profile")
@@ -297,10 +299,10 @@ defmodule ToileWeb.PatternLive.ShowTest do
                "straight_sleeve" => %{}
              }
 
+      # Keyed by part, then piece, so equal piece names in two parts cannot clash.
       assert canvas_data(view, "piece-labels") == %{
-               "back" => "Back",
-               "front" => "Front",
-               "sleeve" => "Sleeve"
+               "bodice" => %{"back" => "Back", "front" => "Front"},
+               "straight_sleeve" => %{"sleeve" => "Sleeve"}
              }
 
       # The sleeve cannot be added twice.
@@ -328,6 +330,68 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       view |> element("#add-part-straight_sleeve") |> render_click()
 
+      assert has_element?(view, "#missing-measurement-upper_arm", "Upper arm circumference")
+      refute has_element?(view, "#pattern-canvas")
+    end
+
+    test "a profile switch draws a sleeve that was added in another tab", %{
+      conn: conn,
+      scope: scope
+    } do
+      first =
+        measurement_profile_fixture(scope, %{name: "First", measurements: complete_measurements()})
+
+      second =
+        measurement_profile_fixture(scope, %{
+          name: "Second",
+          measurements: complete_measurements()
+        })
+
+      project =
+        pattern_project_fixture(scope, block: "bodice", measurement_profile_id: first.id)
+
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+      assert [%{"name" => "bodice"}] = canvas_data(view, "parts")
+
+      # Added in another tab: this page still holds the project without the sleeve.
+      pattern_part_fixture(scope, project)
+
+      view
+      |> form("#profile-form", %{"measurement_profile_id" => second.id})
+      |> render_change()
+
+      assert has_element?(view, ~s(#pattern-canvas[data-key="#{second.id}"]))
+      assert [%{"name" => "bodice"}, %{"name" => "straight_sleeve"}] = canvas_data(view, "parts")
+      assert Map.keys(canvas_data(view, "input")["parameters"]) == ["bodice", "straight_sleeve"]
+      assert Map.keys(canvas_data(view, "piece-labels")) == ["bodice", "straight_sleeve"]
+      refute has_element?(view, "#add-parts")
+    end
+
+    test "a profile switch lists the measurements of a sleeve added in another tab", %{
+      conn: conn,
+      scope: scope
+    } do
+      first =
+        measurement_profile_fixture(scope, %{name: "First", measurements: complete_measurements()})
+
+      second =
+        measurement_profile_fixture(scope, %{
+          name: "No upper arm",
+          measurements: Map.delete(complete_measurements(), :upper_arm)
+        })
+
+      project =
+        pattern_project_fixture(scope, block: "bodice", measurement_profile_id: first.id)
+
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      pattern_part_fixture(scope, project)
+
+      view
+      |> form("#profile-form", %{"measurement_profile_id" => second.id})
+      |> render_change()
+
+      # The bodice alone does not need the upper arm; the sleeve does.
       assert has_element?(view, "#missing-measurement-upper_arm", "Upper arm circumference")
       refute has_element?(view, "#pattern-canvas")
     end

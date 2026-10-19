@@ -23,7 +23,8 @@ defmodule ToileWeb.PatternLive.Show do
       element). The wrapper keyed by the profile id is only an extra measure; LiveView may keep
       and move the hook element by its id rather than mount it again.
 
-  Choosing another profile in `#profile-form` saves it on the project. A rejected profile (not
+  Choosing another profile in `#profile-form` saves it on the project and reads the project
+  again, so parts added in another tab meanwhile are drawn and counted. A rejected profile (not
   the user's own) reloads the page with an error, so the select shows the stored profile again.
 
   `#add-parts` ("Add to the pattern") offers a button per block that can be added to the project
@@ -205,8 +206,10 @@ defmodule ToileWeb.PatternLive.Show do
     project = socket.assigns.project
 
     case Patterns.update_pattern_project(scope, project, %{"measurement_profile_id" => id}) do
-      {:ok, project} ->
-        {:noreply, assign_project(socket, project)}
+      {:ok, updated} ->
+        # The assigned project may be stale (e.g. a part was added in another tab); read it
+        # again so the drawing and the missing measurements cover every stored part.
+        {:noreply, assign_project(socket, Patterns.get_pattern_project!(scope, updated.id))}
 
       {:error, %Ecto.Changeset{}} ->
         # Reload so the select shows the stored profile again, not the rejected choice.
@@ -276,13 +279,13 @@ defmodule ToileWeb.PatternLive.Show do
     end
   end
 
-  # The labels of the pieces of every part, by piece name. Definitions are untrusted data: only
-  # well-formed piece names get a label; the engine reports anything else.
+  # The labels of the pieces of every part, by part name and then piece name, so pieces of the
+  # same name in different parts cannot overwrite each other's label. Definitions are untrusted
+  # data: only well-formed piece names get a label; the engine reports anything else.
   defp piece_labels(parts) do
-    for %{"definition" => definition} <- parts,
-        name <- piece_names(definition),
-        into: %{},
-        do: {name, BlockTexts.piece_label(name)}
+    for %{"name" => part, "definition" => definition} <- parts, into: %{} do
+      {part, Map.new(piece_names(definition), &{&1, BlockTexts.piece_label(&1)})}
+    end
   end
 
   defp piece_names(%{"pieces" => pieces}) when is_list(pieces) do
