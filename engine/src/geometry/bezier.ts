@@ -1,6 +1,6 @@
 // Cubic Bézier evaluation and arc length.
 
-import type { Point } from "./vector";
+import { type Point, sub, unit } from "./vector";
 
 /** The point at parameter `t` (0 to 1) of the cubic Bézier `p0, p1, p2, p3`. */
 export function cubicAt(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point {
@@ -61,4 +61,31 @@ export function cubicLength(p0: Point, p1: Point, p2: Point, p3: Point): number 
     total += sum * half;
   }
   return 3 * total;
+}
+
+/** The derivative `B'(t)` of the cubic Bézier `p0, p1, p2, p3` at parameter `t`. */
+export function cubicDerivative(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point {
+  // B'(t) = 3 [(1-t)^2 (p1 - p0) + 2 (1-t) t (p2 - p1) + t^2 (p3 - p2)]
+  const u = 1 - t;
+  const a = 3 * u * u;
+  const b = 6 * u * t;
+  const c = 3 * t * t;
+  return {
+    x: a * (p1.x - p0.x) + b * (p2.x - p1.x) + c * (p3.x - p2.x),
+    y: a * (p1.y - p0.y) + b * (p2.y - p1.y) + c * (p3.y - p2.y),
+  };
+}
+
+/**
+ * The unit tangent (direction of travel) of the cubic Bézier `p0, p1, p2, p3` at `t`. Where the
+ * derivative vanishes because control points coincide with an end point, the limit direction is
+ * used: `p2 - p0`, then `p3 - p0` at `t = 0`; `p3 - p1`, then `p3 - p0` at `t = 1`; `p3 - p0` at an
+ * interior cusp. `null` only when all those vanish (every point coincides).
+ */
+export function cubicTangent(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point | null {
+  const derivative = unit(cubicDerivative(p0, p1, p2, p3, t));
+  if (derivative !== null) return derivative;
+  if (t <= 0) return unit(sub(p2, p0)) ?? unit(sub(p3, p0));
+  if (t >= 1) return unit(sub(p3, p1)) ?? unit(sub(p3, p0));
+  return unit(sub(p3, p0));
 }

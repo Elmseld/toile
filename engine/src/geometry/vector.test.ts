@@ -2,15 +2,20 @@ import { describe, expect, test } from "bun:test";
 import {
   add,
   angleOf,
+  cross,
   direction,
+  dot,
   distance,
   intersectLineCircle,
   intersectLines,
   norm,
   perpendicularOffset,
   type Point,
+  reflectAcross,
+  rotateAbout,
   scale,
   sub,
+  unit,
 } from "./vector";
 
 const p = (x: number, y: number): Point => ({ x, y });
@@ -152,5 +157,47 @@ describe("intersectLineCircle", () => {
     const hits = intersectLineCircle(p(0, 0), p(10, 10), p(3, 3), 0);
     expectPoint(hits?.[0], 3, 3);
     expectPoint(hits?.[1], 3, 3);
+  });
+});
+
+describe("cross, dot and unit", () => {
+  test("cross is positive for a clockwise turn on screen (y down)", () => {
+    expect(cross(p(1, 0), p(0, 1))).toBe(1);
+    expect(cross(p(0, 1), p(1, 0))).toBe(-1);
+    expect(cross(p(2, 4), p(1, 2))).toBe(0);
+    expect(dot(p(1, 2), p(3, -4))).toBe(-5);
+  });
+
+  test("unit scales to length 1 and gives null for short or non-finite vectors", () => {
+    expect(unit(p(3, -4))).toEqual(p(0.6, -0.8));
+    expect(unit(p(0, 0))).toBeNull();
+    expect(unit(p(1e-10, 0))).toBeNull();
+    expect(unit(p(Number.NaN, 1))).toBeNull();
+    expect(unit(p(Infinity, 0))).toBeNull();
+  });
+});
+
+describe("rotateAbout and reflectAcross", () => {
+  test("a quarter turn with positive sine turns right into down", () => {
+    expectPoint(rotateAbout(p(11, 2), p(1, 2), 0, 1), 1, 12);
+    expectPoint(rotateAbout(p(11, 2), p(1, 2), 0, -1), 1, -8);
+    const c = Math.cos(Math.PI / 6);
+    const s = Math.sin(Math.PI / 6);
+    expectPoint(rotateAbout(p(10, 0), p(0, 0), c, s), 10 * c, 5);
+    expect(rotateAbout(p(4, 5), p(4, 5), c, s)).toEqual(p(4, 5));
+  });
+
+  test("reflection across a line, its own points fixed", () => {
+    expectPoint(reflectAcross(p(3, 4), p(0, 0), p(10, 0)), 3, -4);
+    expectPoint(reflectAcross(p(3, 0), p(0, 0), p(0, 10)), -3, 0);
+    expectPoint(reflectAcross(p(1, 0), p(0, 0), p(5, 5)), 0, 1);
+    expectPoint(reflectAcross(p(7, 7), p(0, 0), p(5, 5)), 7, 7);
+  });
+
+  test("coincident line points return the point unchanged", () => {
+    const point = p(3, 4);
+    const reflected = reflectAcross(point, p(1, 1), p(1, 1));
+    expect(reflected).toEqual(point);
+    expect(reflected).not.toBe(point);
   });
 });
