@@ -52,9 +52,16 @@ Expected: (1) the profile page shows "72,5 cm" (stored as 725 mm); (2) "måste v
 
 ### Pattern projects
 1. Create a complete measurement profile (Midjevidd, Stussvidd, Midja till stuss, Kjollängd).
-2. On `/patterns` click "Nytt mönster", enter a name, choose "Rak kjol" and that profile, and save.
+2. On `/patterns` click "Nytt mönster", enter a name, choose "Rak kjol" from the block select (prompt "Välj ett grundmönster", nothing preselected) and that profile, and save.
 3. On the project page, zoom with the wheel, drag to pan, then click "Anpassa till skärmen".
 4. Switch the profile select to a profile missing measurements.
 5. Rename the project.
 6. Delete the project from the list and confirm.
 Expected: (2) the project page with "Bakstycke" and "Framstycke" drawn over a cm grid; (3) the view zooms, pans and returns to the fitted view; (4) "Mått som saknas för det här mönstret" lists the missing measurements and nothing is drawn; (5) the flash "Mönstret har bytt namn"; (6) the confirm "Vill du ta bort mönstret?" and the flash "Mönstret har tagits bort".
+
+### Bodice project
+1. Create a measurement profile with a value for every measurement except Ärmhålsdjup.
+2. On `/patterns/new`, open the block select ("Välj ett grundmönster"; "Livstycke" and "Rak kjol", sorted by label), choose "Livstycke" and that profile, and save.
+3. On the project page, click "Redigera måttprofil", enter a value for Ärmhålsdjup and save.
+4. Check the project page again.
+Expected: (2) the project page lists "Ärmhålsdjup" under "Mått som saknas för det här mönstret" with nothing drawn; (3) saving returns to the project; (4) "Bakstycke" and "Framstycke" are drawn over the cm grid.
