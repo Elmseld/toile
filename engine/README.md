@@ -232,16 +232,32 @@ The engine has no block registry.
   angle and reaches the side point horizontally. At the width or chest point both cubics share
   the direction that makes their curvature about equal there (Hobby's mock curvature for three
   points with given end directions; values `b_arm_width_angle` and `f_arm_chest_angle`), so the
-  curve need not be vertical at that point. It passes at most about 2 mm inside the back width
-  or chest line in sets A, B and large, and up to about 4 mm (front) and 6 mm (back, whose
-  shoulder point already lies inside the back width line) in the low-bust set. Each cubic gets
-  the handles of a circular arc with the same turn, shortened where needed to the intersection
-  of its two end tangents, so the control polygon is convex and the curve turns one way only. All directions keep at least
-  `armhole_turn_margin` (5 degrees) from the chords between the three points; the right angle at
-  the shoulder gives way only where the chord to the width or chest point comes closer to it
-  than that. So a width point straight below the shoulder point or outside it still gives one
-  smooth armhole (tested without a turn the other way for the test figures, back widths 300 to
-  400 mm and chest widths 280 to 400 mm). A back width point outside the line from the shoulder
+  curve need not be vertical at that point. In travel order (back: shoulder, width point, side
+  point; front: side point, chest point, shoulder) with start direction `a`, end direction `b`,
+  chord directions `c1` and `c2` and chord lengths `d1` and `d2`, that direction is
+  `w = (d2 * (3 * c1 - a) + d1 * (3 * c2 - b)) / (2 * (d1 + d2))`: the linearised curvature at
+  the end of the first cubic equals the one at the start of the second. For the back
+  (`b_arm_width_balance`) `a` is the shoulder direction and `b` is 0 degrees, so the second term
+  reads `3 * d1 * c2`; for the front (`f_arm_chest_balance`) `a` is 360 degrees and `b` is the
+  shoulder direction. Both side directions point right. The formula is linear in the angles, so
+  all of them must lie in one window without a wrap: `angle()` returns `[0, 360)`, the back
+  chords point down (between 0 and 180 degrees) and the front chords up (between 180 and 360),
+  so the side direction is written as 0 for the back and as 360 for the front. For the same
+  reason the shoulder direction is the upper chord plus the turn from it to the right angle on
+  the shoulder seam, taken between -180 and 180 degrees (`atan2(sin(t), cos(t))`, values
+  `b_arm_shoulder_turn` and `f_arm_shoulder_turn`): a shoulder point above the neck point, whose
+  seam direction wraps past 360 degrees, still gives a direction next to the chord. Above the
+  width or chest point the armhole passes less than 1 mm inside the vertical back width or
+  chest line in sets A, B and large (tested: under 3 mm), and up to about 4 mm (front) and 6 mm
+  (back, whose shoulder point already lies inside the back width line) in the low-bust set
+  (tested: under 7 mm). Each cubic gets the handles of a circular arc with the same turn,
+  shortened where needed to the intersection of its two end tangents, so the control polygon is
+  convex and the curve turns one way only. All directions keep at least `armhole_turn_margin`
+  (5 degrees) from the chords between the three points; the right angle at the shoulder gives
+  way only where the chord to the width or chest point comes closer to it than that. So a width
+  point straight below the shoulder point or outside it still gives one smooth armhole (tested
+  without a turn the other way for the test figures, back widths 300 to 400 mm and chest widths
+  280 to 400 mm, and with either shoulder point raised by 60 mm). A back width point outside the line from the shoulder
   point to the side point (size 12: a `back_width` above about 415 mm) leaves no such curve and
   the armhole turns the other way near it. The block does not correct that: it points to a
   measuring error. The front armhole is about 10 to 17 mm longer than the back one in the test

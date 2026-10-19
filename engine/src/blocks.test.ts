@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { compilePattern, distance, evaluatePattern, validateDefinition } from "./geometry";
-import type { ComputedPattern, ComputedPiece, PatternResult, Point } from "./geometry";
+import type { ComputedPattern, ComputedPiece, PatternResult, Point, UserOffset } from "./geometry";
 import { cubicAt } from "./geometry/bezier";
 import { isMeasurementKey, MEASUREMENT_KEYS } from "./measurements";
 
@@ -1053,6 +1053,40 @@ for (const [label, measurements] of [...BODICE_SETS, ["reported", BODICE_REPORTE
   });
 }
 
+/**
+ * How far (mm) each armhole may pass inside the vertical line through the back width point or
+ * the chest point, above that point. In the low-bust set the back shoulder point already lies
+ * inside the back width line, so the curve cannot stay outside it.
+ */
+const ARMHOLE_MAX_INSIDE: Record<(typeof BODICE_SETS)[number][0], number> = {
+  A: 3,
+  B: 3,
+  large: 3,
+  "low bust": 7,
+};
+
+/** The largest distance (mm) the cubic passes on the inner side of the vertical line at `x`. */
+function maxInside(curve: Cubic, x: number, side: "left" | "right"): number {
+  let inside = 0;
+  for (let i = 0; i <= ARMHOLE_SAMPLES; i++) {
+    const p = cubicAt(curve.from, curve.c1, curve.c2, curve.to, i / ARMHOLE_SAMPLES);
+    inside = Math.max(inside, side === "left" ? x - p.x : p.x - x);
+  }
+  return inside;
+}
+
+for (const [label, measurements] of BODICE_SETS) {
+  test(`bodice: set ${label}, each armhole passes at most ${ARMHOLE_MAX_INSIDE[label]} mm inside the back width or chest line`, () => {
+    const result = expectOk(compilePattern(bodice()).evaluate({ measurements }));
+    const limit = ARMHOLE_MAX_INSIDE[label];
+    // Back: centre back is on the left, so inside is left of the line; front: the other way.
+    const backUpper = cubic(result, "b_armhole_upper");
+    const frontUpper = cubic(result, "f_armhole_upper");
+    expect(maxInside(backUpper, point(result, "b_width_pt").x, "left")).toBeLessThan(limit);
+    expect(maxInside(frontUpper, point(result, "f_chest").x, "right")).toBeLessThan(limit);
+  });
+}
+
 describe("bodice: armhole shape over a range of widths", () => {
   const compiled = compilePattern(bodice());
 
@@ -1082,6 +1116,21 @@ describe("bodice: armhole shape over a range of widths", () => {
       expectArmholesTurnOneWay(
         expectOk(compiled.evaluate({ measurements: BODICE_A }, { offsets })),
       );
+    }
+  });
+
+  // Raised far enough, the back shoulder point lies above the neck point, so the shoulder seam
+  // direction wraps past 360 degrees; the right angle to it must still be taken the short way.
+  test("each armhole turns one way after a user offset raising a shoulder point", () => {
+    const raised = { dx: 0, dy: -60 };
+    for (const offsets of [
+      { b_shoulder: raised },
+      { f_shoulder: raised },
+      { b_shoulder: raised, f_shoulder: raised },
+    ] as Record<string, UserOffset>[]) {
+      for (const [, measurements] of BODICE_SETS) {
+        expectArmholesTurnOneWay(expectOk(compiled.evaluate({ measurements }, { offsets })));
+      }
     }
   });
 });

@@ -66,7 +66,9 @@ Builds on the engine (0002, 0003) and the project view (0005).
   125, neck 355) whose back width point lay almost straight below the shoulder point got an
   S-shaped back and front armhole with a jump in curvature at the join. The right angle at the
   shoulder seam is kept unless the width or chest point lies nearly on the perpendicular to the
-  seam.
+  seam. That right angle is taken relative to the chord in a -180 to 180 degree window: added to
+  the `[0, 360)` seam direction it wrapped past 360 degrees for a back shoulder point raised
+  above the neck point, and the back armhole became S-shaped again.
 - **Very wide back width is not corrected:** a `back_width` that puts the back width point
   outside the line from the shoulder point to the side point (size 12: above about 415 mm)
   leaves no armhole that turns one way. That is treated as a measuring error. The block has no
