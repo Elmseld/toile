@@ -604,7 +604,7 @@ msgstr "Bysthöjd"
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
 msgid "Bust point distance"
-msgstr "Bystpunktsavstånd"
+msgstr "Bröstavstånd"
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
 #: lib/toile_web/live/pattern_live/form.ex
@@ -653,12 +653,12 @@ msgstr "Från den utstående nackkotan rakt ned längs ryggraden till midjan."
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
 msgid "From the side of the neck at the shoulder down to the bust point."
-msgstr "Från halsens sida vid axeln ned till bystpunkten."
+msgstr "Från halsens sida vid axeln ned till bröstvårtan."
 
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
 msgid "From the side of the neck at the shoulder, over the bust point, down to the waist."
-msgstr "Från halsens sida vid axeln, över bystpunkten, ned till midjan."
+msgstr "Från halsens sida vid axeln, över bröstvårtan, ned till midjan."
 
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
@@ -756,7 +756,7 @@ msgstr "Stående rak utan skor, från hjässan till golvet."
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
 msgid "Straight across between the two bust points."
-msgstr "Rakt över mellan de två bystpunkterna."
+msgstr "Rakt över mellan bröstvårtorna."
 
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
