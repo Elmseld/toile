@@ -1,7 +1,7 @@
 ---
 id: 0007
 title: Sleeve block, fitted to the bodice
-status: todo
+status: in-progress
 type: feature
 ---
 
@@ -32,3 +32,25 @@ sleeve consumes them is for this ticket to decide. The bodice's front and back s
 always level, but its front armhole is about 10 to 17 mm longer than the back one in the test
 figures (shape of the front armhole curve), so the sleeve should not assume front and back
 armholes of equal length.
+
+## Decisions
+- **Drafting method:** based on Aldrich, *Metric Pattern Cutting for Women's Wear*, 6th ed., the
+  one-piece sleeve. Deviations are stated in the block's `source`: the cap is constructed (two
+  circular arcs per half with an optional straight middle) rather than drawn, its height is solved
+  so the cap equals the imported bodice armhole plus `cap_ease`, the crown is shifted so each half
+  matches its own armhole half, all cap ease lies between the notches, and the hem tapers to
+  wrist plus ease.
+- **Starting values are ours:** `ease_upper_arm` 50, `ease_wrist` 80, `cap_ease` 30,
+  `cap_convex_share` 0.6, `length_adjustment` 0 (mm). They are pinned by engine tests and to be
+  adjusted after test fitting (a toile).
+- **Cap height is computed**, not a parameter, so the cap always fits; sleeve width and cap ease
+  are the parameters. A sleeve wider than its armhole gives an error instead of a drawing.
+- **Imports and parts:** the sleeve takes the bodice's armhole values through `imports`, and a
+  project holds the bodice as its main part and the sleeve as an added part: ADR 0007.
+- **Notches:** a piece field (ADR 0004 decision 17). Bodice: double at the back width point,
+  single at the chest point. Sleeve: double at the back, single at the front and a single at the
+  crown.
+- **UI:** the sleeve is added from the project page ("Lägg till i mönstret" > "Rak ärm"), not in
+  "Nytt mönster", so existing bodice projects can get one. Bodice projects created before this
+  ticket lack the values the sleeve imports and are not offered it. Removing a sleeve is not part
+  of this ticket.

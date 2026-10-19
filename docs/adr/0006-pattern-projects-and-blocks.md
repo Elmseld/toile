@@ -13,11 +13,16 @@ engine in the browser.
   key is the file name and matches `^[a-z][a-z0-9_]*$`.
 - **Copy on create.** Creating a project copies the block's definition into `pattern_projects.definition`
   (jsonb). The block file is never re-read for an existing project, so later block changes do not
-  affect it. `block` stores the key for display only. Parameter overrides are stored in
+  affect it. `block` stores the key for display and also names the project's main part (ADR 0007). Parameter overrides are stored in
   `parameters` (jsonb, `{}` at creation).
+- **Parts (ticket 0007).** Further blocks can be added to a project (a sleeve to a bodice). Each
+  is copied on add into the jsonb column `pattern_projects.parts` (`name`, `block`, `definition`,
+  `parameters`), like the main part; see ADR 0007. Only blocks without `imports` ("base blocks")
+  can be chosen when creating a project. The definition size cap applies to each stored
+  definition, and a part can only be a catalogue block for now.
 - **Elixir reads blocks at compile time** in `Toile.Patterns.Blocks` (`@external_resource` per
   file, recompiling when files are added), modelled on `Toile.Measurements.Catalog` (ADR 0005). It
-  validates only shape (JSON object, integer `version`, `measurements` list) and never geometry.
+  validates only shape (JSON object, integer `version`, `measurements` list, `imports` as `part.value` strings) and never geometry.
   The engine validates the definition on the client. Any release image build must include
   `engine/blocks` and `engine/src`.
 - **Limits.** At most 100 projects per user (advisory lock, as for measurement profiles) and a
@@ -36,7 +41,7 @@ engine in the browser.
   esbuild and computes the pattern once per input. Zoom and pan change only the SVG `viewBox`. The
   hook element is `phx-update="ignore"`, but LiveView still patches its data attributes: switching
   profile changes `data-key` and `data-input`, and the hook's `updated()` callback redraws when
-  `data-key`, `data-definition` or `data-input` differ from what it last drew. No `push_event`. A
+  `data-key`, `data-parts` (the definitions of all parts) or `data-input` differ from what it last drew. No `push_event`. A
   wrapper keyed by the profile id is only an extra measure; LiveView may move the hook element by
   its id instead of mounting it again. CI builds the JS bundle so a broken engine import fails.
 - **Piece labels.** Each piece's name is written inside the piece, centred at the point whose
