@@ -1259,6 +1259,7 @@ const SLEEVE_DEFAULTS = {
   length_adjustment: 0,
   cap_ease: 30,
   cap_convex_share: 0.6,
+  cap_inflection_tilt: 15,
 };
 
 const SLEEVE_IMPORTS = [
@@ -1449,6 +1450,46 @@ function expectSmoothCap(result: ComputedPattern): void {
   }
 }
 
+/**
+ * The tangent angle (degrees from horizontal) where a cap half turns from convex to concave: the
+ * direction of its straight middle, or of the end of its first curve when the middle has no length.
+ * `names` is the half in outline order, so the middle is always the second curve.
+ */
+function inflectionAngle(result: ComputedPattern, names: readonly string[]): number {
+  const middle = result.curves[names[1]!]!;
+  const direction =
+    middle.length > 1e-6
+      ? endDirection(middle, "start")
+      : endDirection(result.curves[names[0]!]!, "end");
+  return (Math.atan2(Math.abs(direction.y), Math.abs(direction.x)) * 180) / Math.PI;
+}
+
+/**
+ * How far a cap half rises outside the straight guide line from the crown to its underarm point
+ * and how deep it hollows inside it (mm), from samples of the drawn curves.
+ */
+function guideDeviation(
+  result: ComputedPattern,
+  names: readonly string[],
+  underarm: string,
+): { rise: number; hollow: number } {
+  const crown = point(result, "s_crown");
+  const end = point(result, underarm);
+  const length = distance(crown, end);
+  const side = (p: Point) =>
+    ((end.x - crown.x) * (p.y - crown.y) - (end.y - crown.y) * (p.x - crown.x)) / length;
+  // The grainline point under the crown lies inside the sleeve.
+  const inside = Math.sign(side({ x: crown.x, y: end.y }));
+  let rise = 0;
+  let hollow = 0;
+  for (const p of capSamples(result, names)) {
+    const signed = side(p) * inside;
+    hollow = Math.max(hollow, signed);
+    rise = Math.max(rise, -signed);
+  }
+  return { rise, hollow };
+}
+
 /** The cap halves and their total equal the bodice armholes plus cap ease (AC3). */
 function expectCapFits(project: SleeveProject, capEase = SLEEVE_DEFAULTS.cap_ease): void {
   const { bodice: b, sleeve: s } = project;
@@ -1596,21 +1637,121 @@ for (const [label, measurements] of SLEEVE_SETS) {
   });
 }
 
-describe("straight sleeve: width variants", () => {
-  test("a slim sleeve gets a straight middle on at least one half and still fits and is smooth", () => {
-    const project = sleeveProject({ ...SLEEVE_SETS[0]![1], upper_arm: 240 });
-    const middles = curveLength(project.sleeve, "s_cap_back_mid") + curveLength(project.sleeve, "s_cap_front_mid");
-    expect(middles).toBeGreaterThan(1);
-    expectCapFits(project);
-    expectSmoothCap(project.sleeve);
+describe("straight sleeve: cap shape", () => {
+  // Each half runs diagonally: a convex crown rising above the guide line from the crown to the
+  // underarm point, a sloped straight middle crossing it, and a shallower hollow below it.
+  for (const [label, measurements] of SLEEVE_SETS) {
+    test(`set ${label}: the inflection is sloped and the cap crosses its guide line, upper arm ±20 mm`, () => {
+      for (let change = -20; change <= 20; change += 10) {
+        const { sleeve: s } = sleeveProject({
+          ...measurements,
+          upper_arm: measurements.upper_arm! + change,
+        });
+        for (const [names, underarm] of [
+          [CAP.back, "s_underarm_back"],
+          [CAP.front, "s_underarm_front"],
+        ] as const) {
+          const angle = inflectionAngle(s, names);
+          const end = point(s, underarm);
+          const guide = (Math.atan2(end.y, Math.abs(end.x)) * 180) / Math.PI;
+          expect(angle).toBeGreaterThan(35);
+          expect(angle).toBeLessThan(70);
+          expectWithin(angle - guide, SLEEVE_DEFAULTS.cap_inflection_tilt, 1e-6);
+          const { rise, hollow } = guideDeviation(s, names, underarm);
+          expect(rise).toBeGreaterThan(10);
+          expect(rise).toBeLessThan(35);
+          expect(hollow).toBeGreaterThan(5);
+          expect(hollow).toBeLessThan(rise);
+        }
+      }
+    });
+  }
+
+  test("a larger cap_inflection_tilt makes the inflection steeper and the cap lower, and it still fits", () => {
+    const measurements = SLEEVE_SETS[0]![1];
+    const base = sleeveProject(measurements);
+    const steeper = sleeveProject(measurements, { sleeve: { cap_inflection_tilt: 25 } });
+    for (const names of [CAP.back, CAP.front]) {
+      expect(inflectionAngle(steeper.sleeve, names)).toBeGreaterThan(
+        inflectionAngle(base.sleeve, names) + 5,
+      );
+    }
+    expect(steeper.sleeve.values.cap_height).toBeLessThan(base.sleeve.values.cap_height!);
+    expectCapFits(steeper);
+    expectSmoothCap(steeper.sleeve);
   });
 
-  test("a wide sleeve has no straight middle and still fits and is smooth", () => {
-    const project = sleeveProject({ ...SLEEVE_SETS[0]![1], upper_arm: 360 });
-    expect(curveLength(project.sleeve, "s_cap_back_mid")).toBe(0);
-    expect(curveLength(project.sleeve, "s_cap_front_mid")).toBe(0);
+  test("shape constants out of range give errors, not a looped cap of the wrong length", () => {
+    const measurements = SLEEVE_SETS[0]![1];
+    const outOfRange: Record<string, number>[] = [
+      { cap_convex_share: -0.2 },
+      { cap_convex_share: 0 },
+      { cap_convex_share: 1 },
+      { cap_convex_share: 1.3 },
+      { cap_inflection_tilt: 0 },
+      { cap_inflection_tilt: -10 },
+    ];
+    for (const sleeveParameters of outOfRange) {
+      const result = SLEEVE_PROJECT.evaluate({
+        measurements,
+        parameters: { straight_sleeve: sleeveParameters },
+      });
+      const part = result.parts.straight_sleeve!;
+      expect(part.ok).toBe(false);
+      // The guard fails (a negative square root, or 0 / 0 at the ends of the range) and every cap
+      // point depending on it is left out.
+      const guard = (part.ok ? [] : part.errors).find(
+        (error) => "name" in error && String(error.name).startsWith("cap_constants"),
+      );
+      expect(guard).toBeDefined();
+      expect(["invalid_result", "division_by_zero"]).toContain(guard!.kind);
+      expect(part.pieces.sleeve).toBeUndefined();
+    }
+  });
+});
+
+describe("straight sleeve: width variants", () => {
+  test("a slim and a wide sleeve each get a sloped straight middle and still fit and are smooth", () => {
+    for (const upperArm of [240, 380]) {
+      const project = sleeveProject({ ...SLEEVE_SETS[0]![1], upper_arm: upperArm });
+      for (const name of ["s_cap_back_mid", "s_cap_front_mid"]) {
+        expect(curveLength(project.sleeve, name)).toBeGreaterThan(50);
+        const half = name === "s_cap_back_mid" ? CAP.back : CAP.front;
+        expect(inflectionAngle(project.sleeve, half)).toBeLessThan(80);
+      }
+      expectCapFits(project);
+      expectSmoothCap(project.sleeve);
+    }
+  });
+
+  test("a tilt of at least the chord angle falls back to two arcs with no straight middle", () => {
+    const project = sleeveProject(
+      { ...SLEEVE_SETS[0]![1], upper_arm: 380 },
+      { sleeve: { cap_inflection_tilt: 90 } },
+    );
+    const s = project.sleeve;
+    for (const side of ["back", "front"] as const) {
+      expect(s.values[`${side}_chord_angle`]).toBeLessThan(45);
+      expect(s.values[`${side}_cap_turn`]).toBeCloseTo(2 * s.values[`${side}_chord_angle`]!, 9);
+      expectWithin(curveLength(s, `s_cap_${side}_mid`), 0, 1e-6);
+    }
     expectCapFits(project);
-    expectSmoothCap(project.sleeve);
+    expectSmoothCap(s);
+  });
+
+  test("the turn is capped at 90 degrees: a tall cap with a large tilt gets a vertical middle, no overhang", () => {
+    const project = sleeveProject(
+      { ...SLEEVE_SETS[0]![1], upper_arm: 240 },
+      { sleeve: { cap_inflection_tilt: 90 } },
+    );
+    const s = project.sleeve;
+    for (const side of ["back", "front"] as const) {
+      expect(s.values[`${side}_chord_angle`]).toBeGreaterThan(45);
+      expect(s.values[`${side}_cap_turn`]).toBe(90);
+      expect(curveLength(s, `s_cap_${side}_mid`)).toBeGreaterThan(1);
+    }
+    expectCapFits(project);
+    expectSmoothCap(s);
   });
 
   test("an implausibly wide sleeve (wider than its armhole) gives errors, not a drawing", () => {

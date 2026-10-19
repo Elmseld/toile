@@ -35,14 +35,22 @@ armholes of equal length.
 
 ## Decisions
 - **Drafting method:** based on Aldrich, *Metric Pattern Cutting for Women's Wear*, 6th ed., the
-  one-piece sleeve. Deviations are stated in the block's `source`: the cap is constructed (two
-  circular arcs per half with an optional straight middle) rather than drawn, its height is solved
-  so the cap equals the imported bodice armhole plus `cap_ease`, the crown is shifted so each half
-  matches its own armhole half, all cap ease lies between the notches, and the hem tapers to
-  wrist plus ease.
+  one-piece sleeve. Deviations are stated in the block's `source`: the cap is constructed rather
+  than drawn, its height is solved so the cap equals the imported bodice armhole plus `cap_ease`,
+  the crown is shifted so each half matches its own armhole half, all cap ease lies between the
+  notches, and the hem tapers to wrist plus ease.
+- **Cap shape:** each half runs diagonally, as a drafted cap does: a convex circular arc from the
+  crown, a straight piece sloping `cap_inflection_tilt` (15 degrees) steeper than the guide line
+  from the crown to the underarm point, and a concave arc of the same turn into the underarm, so
+  the crown rises above the guide line and a shallower hollow lies below it. The inflection is
+  sloped (about 52 to 66 degrees for the test figures), not vertical: two arcs alone would meet
+  vertically when the cap is about as high as the half is wide, a dome on vertical sides
+  (smoke finding V1). Where the tilt reaches the guide angle the half falls back to two arcs; the
+  turn never exceeds 90 degrees, so the cap never overhangs. Shape constants out of range give an
+  error, not a looped cap. Details in `engine/README.md`.
 - **Starting values are ours:** `ease_upper_arm` 50, `ease_wrist` 80, `cap_ease` 30,
-  `cap_convex_share` 0.6, `length_adjustment` 0 (mm). They are pinned by engine tests and to be
-  adjusted after test fitting (a toile).
+  `length_adjustment` 0 (mm), `cap_convex_share` 0.6 and `cap_inflection_tilt` 15 degrees. They
+  are pinned by engine tests and to be adjusted after test fitting (a toile).
 - **Cap height is computed**, not a parameter, so the cap always fits; sleeve width and cap ease
   are the parameters. A sleeve wider than its armhole gives an error instead of a drawing.
 - **Imports and parts:** the sleeve takes the bodice's armhole values through `imports`, and a

@@ -342,32 +342,47 @@ The engine has no block registry.
   `arm_length`, `wrist`; imports `back_armhole_length`, `front_armhole_length`,
   `back_armhole_to_notch` and `front_armhole_to_notch` from part `bodice`. Parameters:
   `ease_upper_arm` (50 mm), `ease_wrist` (80 mm), `length_adjustment` (0 mm), `cap_ease` (30 mm)
-  and the shape constant `cap_convex_share` (0.6). The `source` names Aldrich, the one-piece
-  sleeve block, and the deviations; the ease and constants are our own starting values, set and
-  pinned by the engine tests, to be adjusted after test fitting (a toile/provsömnad).
+  and the shape constants `cap_convex_share` (0.6) and `cap_inflection_tilt` (15 degrees). The
+  `source` names Aldrich, the one-piece sleeve block, and the deviations; the ease and constants
+  are our own starting values, set and pinned by the engine tests, to be adjusted after test
+  fitting (a toile/provsömnad).
   The crown is at the origin; the bicep line `upper_arm + ease_upper_arm` wide lies `cap_height`
   below it, and the underarm seams taper straight to a hem `wrist + ease_wrist` wide, centred under
   the bicep line, `arm_length + length_adjustment` below the crown; the grainline runs down through
-  the crown. Each cap half runs from the crown (horizontal) to its underarm point (horizontal): a
-  convex circular arc, a vertical straight piece where the cap is higher than the half is wide,
-  and a concave circular arc of the same turn. For a half of width `w` and height `h`, with
-  `a = min(h, w)`, the turn is `2 * atan(a / w)` (at most 90 degrees, so the cap never overhangs)
-  and the length is `(w² + a²) * atan(a / w) / a + max(0, h - w)` (radians), whatever share of the
-  half is convex (`cap_convex_share`, from the crown). The cap height and the crown shift
-  `cap_split` (front half `bicep / 2 + cap_split` wide, back `bicep / 2 - cap_split`) are solved
-  so that each half equals its armhole half plus `cap_ease / 2`: a chord estimate, then Newton
-  steps on the height, the shift and the height again, unrolled as formulas (values `cap_h_0` to
-  `cap_h_4`, `cap_split_0`, `cap_split_1`; ADR 0007 decision 7). The arcs are cubics with the
-  circular-arc handles. Tested: the cap halves are within 0.05 mm of their targets for the four
-  test figures with upper arms 240 to 380 mm (about 0.01 to 0.04 mm with the default width), so
-  the cap equals the bodice armhole plus `cap_ease` (tested within 2 mm, about 0.02 to 0.08 mm),
-  also after a deeper armhole or a user offset on the back width point. The cap height changes by
-  about 0.5 to 0.6 mm per mm of armhole length (tested under 1) and -0.3 to -0.45 mm per mm of
-  `upper_arm` (tested under 0.75 in size); `cap_convex_share` 0.5 or 0.7 leaves the cap length
-  unchanged (tested within 0.2 mm). Size 12 test figure: cap height about 160 mm, crown shifted
-  14 mm toward the back. Values `back_cap_length`, `front_cap_length` and `cap_length` are the
-  drawn cap. Notches: a double one on the back half and a single one on the front half, at the
-  same arc distance from the underarm points as the bodice notches from the side points (tested
-  within 0.5 mm), and one at the crown, matching the shoulder seam; so all the cap ease lies
-  between the notches. A sleeve wider than its armhole halves (an implausible `upper_arm`) gives
+  the crown. Each cap half runs diagonally from the crown (horizontal) to its underarm point
+  (horizontal): a convex circular arc turning `t`, a straight piece of length `s` sloping down at
+  `t`, and a concave circular arc turning back by `t`. The arcs' radii add up to `R`, split
+  `cap_convex_share` (from the crown) to the rest. For a half of width `w` and height `h`, with the
+  guide line from the crown to the underarm point at `a = atan(h / w)`, the inflection tangent is
+  `t = min(a + min(a, cap_inflection_tilt), 90)`: `cap_inflection_tilt` steeper than the guide line,
+  so the convex crown rises above the guide line and the concave part hollows below it, the straight
+  piece crossing it. Then `R * sin(t) + s * cos(t) = w` and `R * (1 - cos(t)) + s * sin(t) = h` give
+  `R = (w sin t - h cos t) / (1 - cos t)` and `s = h / tan(t / 2) - w`, and the half's length is
+  `R * t + s` (`t` in radians), whatever the convex share. `t` lies between `a` and `2a`, so `R` and
+  `s` are never negative; where the tilt reaches the guide angle (a very wide sleeve or a large
+  tilt) `t = 2a`, `s = 0` and the half is two arcs; `t` never exceeds 90 degrees, so the cap never
+  overhangs. The length's derivative with respect to `t` is zero when `s = 0`, so the length is
+  smooth across that switch and the Newton solve below needs no special case; it uses the analytic
+  derivative in `h` (the width derivative follows from the length being homogeneous of degree 1).
+  Out-of-range shape constants (a share outside 0 to 1, a tilt of 0 or less) make the guard value
+  `cap_constants_ok` fail, so the cap is not drawn instead of looping. The cap height and the crown
+  shift `cap_split` (front half `bicep / 2 + cap_split` wide, back `bicep / 2 - cap_split`) are
+  solved so that each half equals its armhole half plus `cap_ease / 2`: a chord estimate, then
+  Newton steps on the height, the shift and the height again, unrolled as formulas (values `cap_h_0`
+  to `cap_h_4`, `cap_split_0`, `cap_split_1`; ADR 0007 decision 7). The arcs are cubics with the
+  circular-arc handles. Tested: the cap halves are within 0.05 mm of their targets for the four test
+  figures with upper arms 240 to 380 mm (under 0.01 mm), so the cap equals the bodice armhole plus
+  `cap_ease` (tested within 2 mm, under 0.01 mm), also after a deeper armhole or a user offset on
+  the back width point. The cap height changes by about 0.6 to 0.7 mm per mm of armhole length
+  (tested under 1) and -0.36 to -0.53 mm per mm of `upper_arm` (tested under 0.75 in size);
+  `cap_convex_share` 0.5 or 0.7 leaves the cap length unchanged (tested within 0.2 mm). Shape,
+  tested for the four test figures with upper arms within 20 mm of theirs: the inflection tangent
+  lies between 35 and 70 degrees (about 52 to 66 with their own upper arms), the convex crown rises
+  10 to 35 mm above the guide line and the hollow below it is shallower. Size 12 test figure: cap
+  height about 174 mm, inflection about 64 (back) and 59 (front) degrees, crown shifted 13 mm toward
+  the back. Values `back_cap_length`, `front_cap_length` and `cap_length` are the drawn cap.
+  Notches: a double one on the back half and a single one on the front half, at the same arc
+  distance from the underarm points as the bodice notches from the side points (tested within 0.5
+  mm), and one at the crown, matching the shoulder seam; so all the cap ease lies between the
+  notches. A sleeve wider than its armhole halves (an implausible `upper_arm`) gives
   `invalid_result` on `cap_h_0`, shown as the hook's generic error.
