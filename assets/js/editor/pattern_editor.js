@@ -358,7 +358,7 @@ export class PatternEditor {
     if (!drag.moved) return
 
     const state = drag.offset
-      ? withDefinition(this.state, setUserOffset(this.state.definition, drag.name, drag.offset))
+      ? withDefinition(this.state, this.offsetDefinition(drag))
       : this.state
     const result = this.evaluate(state)
     if (result.ok) {
@@ -370,6 +370,15 @@ export class PatternEditor {
     }
     this.commit()
     this.panels.renderPoint(this.selectedPoint())
+  }
+
+  // The working definition with the dragged offset. Back at the start it is the same object (no
+  // history step); an offset of (0, 0) removes the key, as the reset button does.
+  offsetDefinition({name, start, offset}) {
+    const definition = this.state.definition
+    if (offset.dx === start.dx && offset.dy === start.dy) return definition
+    const zero = offset.dx === 0 && offset.dy === 0
+    return setUserOffset(definition, name, zero ? null : offset)
   }
 
   /** Ends a drag without a change: the point returns to where it was. */
@@ -412,16 +421,24 @@ export class PatternEditor {
       this.select(target.value || null)
     } else if (target instanceof HTMLInputElement && target.dataset.field) {
       this.commit()
+      this.markIfNotSaved(target)
     } else if (target instanceof HTMLInputElement) {
       const row = this.parameterRow(target)
       if (!row) return
       this.commit()
       // A value that was taken is shown the way the panel writes it ("4.50" as "4,5", an empty
-      // field as the default); a rejected one stays with its error.
-      if (target.getAttribute("aria-invalid") !== "true") {
-        this.panels.renderParameter(row, this.state.parameters)
-      }
+      // field as the default).
+      if (!this.markIfNotSaved(target)) this.panels.renderParameter(row, this.state.parameters)
     }
+  }
+
+  // A field left with text the pattern cannot use keeps that text, so the user can fix it, and
+  // its error says it was not saved: the commit saved the last value that worked. Resetting the
+  // field instead would throw the typing away. Returns whether the field had an error.
+  markIfNotSaved(input) {
+    if (input.getAttribute("aria-invalid") !== "true") return false
+    this.panels.setNotSaved(input)
+    return true
   }
 
   /** A keystroke in a formula field of the selected point: evaluate it, keep it if it draws. */
@@ -492,6 +509,8 @@ export class PatternEditor {
   keyDown(event) {
     if (event.key === "Escape" && this.drag) {
       this.cancelDrag()
+      // The pointer is still down: from here on it pans, like a press beside a point.
+      this.hook.dragCancelled()
       return
     }
     if (!(event.ctrlKey || event.metaKey) || event.altKey || isFormTarget(event.target)) return

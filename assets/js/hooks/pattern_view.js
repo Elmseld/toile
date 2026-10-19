@@ -380,6 +380,13 @@ const PatternView = {
     this.pointers.set(event.pointerId, at)
   },
 
+  // The editor cancelled the drag (Escape) while its pointer is still down: that pointer pans.
+  dragCancelled() {
+    if (this.dragPointer === null) return
+    this.pointers.set(this.dragPointer, this.dragAt)
+    this.dragPointer = null
+  },
+
   pointerMove(event) {
     if (event.pointerId === this.dragPointer) {
       this.dragAt = {x: event.clientX, y: event.clientY}

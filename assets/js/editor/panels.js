@@ -190,11 +190,27 @@ export class Panels {
     this.setError(row?.input, text)
   }
 
+  /**
+   * Adds the "not saved" sentence to the error of `input`, which keeps text the pattern could not
+   * use when its `change` event commits: the drawing and the save have the last value that
+   * worked. The next keystroke replaces the whole error.
+   */
+  setNotSaved(input) {
+    const error = this.errorElement(input)
+    const note = this.texts.not_saved ?? ""
+    if (!error || !note || error.textContent.endsWith(note)) return
+    error.textContent = error.textContent ? `${error.textContent} ${note}` : note
+  }
+
   // The error paragraph of an input is `<id>-error`, without the input's `-input` suffix
   // (`point-field-dx-error`, `parameter-ease_hip-error`).
+  errorElement(input) {
+    return input ? document.getElementById(`${input.id.replace(/-input$/, "")}-error`) : null
+  }
+
   setError(input, text) {
     if (!input) return
-    const error = document.getElementById(`${input.id.replace(/-input$/, "")}-error`)
+    const error = this.errorElement(input)
     if (error) error.textContent = text ?? ""
     input.classList.toggle("input-error", Boolean(text))
     if (text) input.setAttribute("aria-invalid", "true")

@@ -49,6 +49,7 @@ defmodule ToileWeb.EditorTextsTest do
 
     assert texts["which"] == %{"first" => "The first", "second" => "The second"}
     assert texts["reset_offset"] == "Reset position"
+    assert texts["not_saved"] == "Not saved: the pattern keeps the last value that worked."
     assert texts["decimal_separator"] == "."
   end
 

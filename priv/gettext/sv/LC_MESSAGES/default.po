@@ -1339,3 +1339,8 @@ msgstr "grader"
 #, elixir-autogen, elixir-format
 msgid "degrees per cm"
 msgstr "grader per cm"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Not saved: the pattern keeps the last value that worked."
+msgstr "Inte sparat: mönstret behåller det senaste värdet som fungerade."

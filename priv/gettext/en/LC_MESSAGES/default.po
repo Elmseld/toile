@@ -1339,3 +1339,8 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "degrees per cm"
 msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Not saved: the pattern keeps the last value that worked."
+msgstr ""

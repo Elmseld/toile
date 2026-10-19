@@ -24,6 +24,8 @@ defmodule ToileWeb.EditorTexts do
     * `"errors"`: a text for each engine error kind the editor shows, plus `"generic"` for any
       other and `"parameter_format"` for a parameter value that is not a number.
     * `"status"`: the save status, `"saving"`, `"saved"` and `"failed"`.
+    * `"not_saved"`: added to a field's error when the field is left with a value the pattern
+      cannot use, which therefore was not saved.
     * `"offset"`: the sentence for a moved point, with `%{x}` and `%{y}` in cm;
       `"not_moved"` for a point without an offset and `"reset_offset"` for the button that
       removes it.
@@ -48,6 +50,7 @@ defmodule ToileWeb.EditorTexts do
         "saved" => gettext("Saved"),
         "failed" => gettext("Your changes could not be saved")
       },
+      "not_saved" => gettext("Not saved: the pattern keeps the last value that worked."),
       "offset" => gettext("Moved %{x} cm sideways and %{y} cm up or down", x: "%{x}", y: "%{y}"),
       "not_moved" => gettext("Not moved"),
       "reset_offset" => gettext("Reset position"),
