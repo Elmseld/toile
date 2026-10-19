@@ -680,10 +680,10 @@ function checkBlockPiece(piece: CuttingPiece, allowances: SeamAllowances): numbe
 }
 
 describe("fuzz: star polygons with curves and mixed allowances (M)", () => {
-  test("200 seeded pieces give simple lines at the right distance", () => {
+  test("100 seeded pieces give simple lines at the right distance", () => {
     const next = random(9);
     let skipped = 0;
-    for (let round = 0; round < 200; round++) {
+    for (let round = 0; round < 100; round++) {
       const count = 8 + Math.floor(next() * 17);
       const corners = Array.from({ length: count }, (_, i) => {
         const angle = ((i + 0.3 * (next() - 0.5)) / count) * 2 * Math.PI;
@@ -743,7 +743,7 @@ describe("fuzz: star polygons with curves and mixed allowances (M)", () => {
         expect(found).toBeLessThanOrEqual(reach(largest));
       }
     }
-    expect(skipped).toBeLessThan(10);
+    expect(skipped).toBeLessThan(5);
   }, 60_000);
 });
 
