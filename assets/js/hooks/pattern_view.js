@@ -2,18 +2,26 @@
 //
 // Data attributes (set by ToileWeb.PatternLive.Show):
 //   data-key           the measurement profile id; a change means new input
-//   data-definition    the project's pattern definition (JSON, untrusted: the engine validates it)
+//   data-definition    the project's pattern definition (JSON, untrusted: the engine validates it),
+//                      read on mount only
 //   data-input         {"measurements": {...}, "parameters": {...}} in millimetres (JSON)
 //   data-piece-labels  {pieceName: label} (JSON)
 //   data-error-text    shown instead of a drawing when the pattern cannot be computed
 // The element's aria-label also names the SVG.
 //
-// Each piece's label is centred inside it where its text box is farthest from the outline, darts
-// and grainline (the engine's placeLabel), and shrunk when the piece is too narrow for it. The
-// grainline arrowheads are drawn at GRAINLINE_ARROW_SIZE, the size placeLabel keeps clear of.
+// Drawing has three parts: compute() evaluates the pattern for the current input, draw() builds
+// the SVG elements once per input (and fits the view to them), and update() moves the existing
+// elements to a new result without touching the view. updated() redraws only when data-key or
+// data-input changed.
 //
-// The SVG user unit is 1 mm. The pattern is computed once per input; zoom and pan only change
-// the viewBox (and the grid lines that cover what is visible). Events on the element:
+// Each piece's label is centred inside it where its text box is farthest from the outline, darts
+// and grainline (the engine's placeLabel), and shrunk when the piece is too narrow for it. A
+// placement costs several milliseconds, so placements are cached by label text, outline and
+// grainline, and update(result, {labels: "keep"}) leaves the labels where they are. The grainline
+// arrowheads are drawn at GRAINLINE_ARROW_SIZE, the size placeLabel keeps clear of.
+//
+// The SVG user unit is 1 mm. Zoom and pan only change the viewBox (and the grid lines that cover
+// what is visible). Events on the element:
 //   toile:fit                      resets the view to the whole pattern
 //   toile:zoom {detail: {factor}}  zooms around the centre (factor < 1 zooms in)
 // Wheel zooms around the pointer, two pointers pinch-zoom, one pointer pans, and with focus the
@@ -35,6 +43,8 @@ const LABEL_SIZE = 14
 const MIN_GRID_SPACING_PX = 4
 const KEY_PAN_FRACTION = 0.1
 const KEY_ZOOM_FACTOR = 0.8
+// Label placements kept before the cache starts over.
+const LABEL_CACHE_SIZE = 200
 
 function svgElement(name, attributes = {}) {
   const element = document.createElementNS(SVG_NS, name)
@@ -77,12 +87,22 @@ const PatternView = {
     this.resizeObserver = new ResizeObserver(() => this.scheduleRender())
     this.resizeObserver.observe(this.el)
 
-    this.draw()
+    this.labelCache = new Map()
+    this.pieceLabels = parseJSON(this.el.dataset.pieceLabels, {})
+    this.definition = parseJSON(this.el.dataset.definition, null)
+    this.drawnKey = this.el.dataset.key
+    this.drawnInput = this.el.dataset.input
+    this.draw(this.compute(parseJSON(this.drawnInput, null)))
   },
 
-  // phx-update="ignore" still patches data attributes; redraw when the input changed.
+  // phx-update="ignore" still patches data attributes. Only new input (another profile) redraws;
+  // the definition is read on mount only.
   updated() {
-    if (this.drawnFrom !== this.source()) this.draw()
+    const {key, input} = this.el.dataset
+    if (key === this.drawnKey && input === this.drawnInput) return
+    this.drawnKey = key
+    this.drawnInput = input
+    this.draw(this.compute(parseJSON(input, null)))
   },
 
   destroyed() {
@@ -90,23 +110,22 @@ const PatternView = {
     if (this.frame !== null) cancelAnimationFrame(this.frame)
   },
 
-  source() {
-    const {key, definition, input} = this.el.dataset
-    return `${key}\n${definition}\n${input}`
+  // The pattern evaluated for `input`, or null without input. Compiles once per definition.
+  compute(input) {
+    if (!input) return null
+    this.compiled ??= compilePattern(this.definition)
+    return this.compiled.evaluate(input)
   },
 
-  draw() {
-    this.drawnFrom = this.source()
+  // Builds the drawing of `result` and fits the view to it (with fit: false it keeps the view it
+  // has, if any), or shows the error text when the pattern cannot be drawn.
+  draw(result, {fit: refit = true} = {}) {
+    const view = refit ? null : this.viewBox
     this.pointers.clear()
     this.svg = null
     this.el.replaceChildren()
 
-    const definition = parseJSON(this.el.dataset.definition, null)
-    const input = parseJSON(this.el.dataset.input, null)
-    const labels = parseJSON(this.el.dataset.pieceLabels, {})
-    const result = input ? compilePattern(definition).evaluate(input) : null
     const bounds = result?.ok ? patternBounds(result) : null
-
     if (!result?.ok || !bounds) {
       if (result && !result.ok) console.warn("Pattern errors", result.errors)
       this.showError()
@@ -114,9 +133,69 @@ const PatternView = {
     }
 
     this.fitted = fit(bounds, FIT_MARGIN)
-    this.svg = this.buildSvg(result, labels)
+    this.svg = this.buildSvg(result)
     this.el.appendChild(this.svg)
-    this.setView(this.fitted)
+    this.update(result)
+    this.setView(view ?? this.fitted)
+  },
+
+  // Moves the drawn elements to `result` (a result of the same definition) without changing the
+  // view. With labels: "keep" the labels stay where they are, e.g. while a point is dragged;
+  // "place" places them again. A result with other pieces than the drawing is drawn anew in the
+  // same view, and a result when nothing is drawn yet is drawn and fitted.
+  update(result, {labels = "place"} = {}) {
+    if (!this.svg || !this.drawsPieces(result)) {
+      this.draw(result, {fit: !this.svg})
+      return
+    }
+    for (const piece of Object.values(result.pieces)) {
+      const elements = this.pieceElements.get(piece.name)
+      const pathData = piecePathData(piece)
+      elements.outline.setAttribute("d", pathData)
+      const {from, to} = piece.grainline
+      elements.grainline.setAttribute("x1", from.x)
+      elements.grainline.setAttribute("y1", from.y)
+      elements.grainline.setAttribute("x2", to.x)
+      elements.grainline.setAttribute("y2", to.y)
+      if (labels === "place") this.placeLabelOf(piece, pathData, elements.label)
+    }
+  },
+
+  drawsPieces(result) {
+    const names = Object.keys(result?.pieces ?? {})
+    return (
+      result?.ok === true &&
+      names.length === this.pieceElements.size &&
+      names.every(name => this.pieceElements.has(name))
+    )
+  },
+
+  // Inside the piece, clear of the outline, darts and grainline (the engine's placeLabel),
+  // centred on the returned point. A piece without area falls back to the grainline's midpoint,
+  // start-anchored half a label height to its right so the text sits beside the line instead of
+  // straddling it.
+  placeLabelOf(piece, pathData, label) {
+    const text = label.textContent
+    const {from, to} = piece.grainline
+    const key = `${text}\n${pathData}\n${from.x} ${from.y} ${to.x} ${to.y}`
+    let place = this.labelCache.get(key)
+    if (!place) {
+      const placed = placeLabel(piece, text, LABEL_SIZE)
+      place = placed
+        ? {...placed, anchor: "middle"}
+        : {
+            x: (from.x + to.x) / 2 + LABEL_SIZE / 2,
+            y: (from.y + to.y) / 2,
+            size: LABEL_SIZE,
+            anchor: "start",
+          }
+      if (this.labelCache.size >= LABEL_CACHE_SIZE) this.labelCache.clear()
+      this.labelCache.set(key, place)
+    }
+    label.setAttribute("x", place.x)
+    label.setAttribute("y", place.y)
+    label.setAttribute("font-size", place.size)
+    label.setAttribute("text-anchor", place.anchor)
   },
 
   showError() {
@@ -127,7 +206,9 @@ const PatternView = {
     this.el.appendChild(message)
   },
 
-  buildSvg(result, labels) {
+  // The SVG with one group per piece of `result` (outline, grainline, label), without geometry:
+  // update() sets that.
+  buildSvg(result) {
     const id = this.el.id
     const svg = svgElement("svg", {
       class: "block size-full text-base-content",
@@ -157,59 +238,31 @@ const PatternView = {
     svg.appendChild(this.minorGrid)
     svg.appendChild(this.majorGrid)
 
+    this.pieceElements = new Map()
     for (const piece of Object.values(result.pieces)) {
       const group = svgElement("g", {"data-piece": piece.name})
-      group.appendChild(
-        svgElement("path", {
-          d: piecePathData(piece),
-          fill: "none",
-          stroke: "currentColor",
-          "stroke-width": 2,
-          "stroke-linejoin": "round",
-          "vector-effect": "non-scaling-stroke",
-        }),
-      )
-
-      const {from, to} = piece.grainline
-      group.appendChild(
-        svgElement("line", {
-          x1: from.x,
-          y1: from.y,
-          x2: to.x,
-          y2: to.y,
-          stroke: "currentColor",
-          "stroke-width": 1,
-          "vector-effect": "non-scaling-stroke",
-          "marker-start": `url(#${id}-arrow)`,
-          "marker-end": `url(#${id}-arrow)`,
-        }),
-      )
-
-      const text = labels[piece.name] ?? piece.name
-      // Inside the piece, clear of the outline, darts and grainline (the engine's placeLabel),
-      // centred on the returned point. A piece without area falls back to the grainline's
-      // midpoint, start-anchored half a label height to its right so the text sits beside the
-      // line instead of straddling it.
-      const placed = placeLabel(piece, text, LABEL_SIZE)
-      const place = placed
-        ? {...placed, anchor: "middle"}
-        : {
-            x: (from.x + to.x) / 2 + LABEL_SIZE / 2,
-            y: (from.y + to.y) / 2,
-            size: LABEL_SIZE,
-            anchor: "start",
-          }
+      const outline = svgElement("path", {
+        fill: "none",
+        stroke: "currentColor",
+        "stroke-width": 2,
+        "stroke-linejoin": "round",
+        "vector-effect": "non-scaling-stroke",
+      })
+      const grainline = svgElement("line", {
+        stroke: "currentColor",
+        "stroke-width": 1,
+        "vector-effect": "non-scaling-stroke",
+        "marker-start": `url(#${id}-arrow)`,
+        "marker-end": `url(#${id}-arrow)`,
+      })
       const label = svgElement("text", {
-        x: place.x,
-        y: place.y,
-        "font-size": place.size,
         fill: "currentColor",
-        "text-anchor": place.anchor,
         "dominant-baseline": "middle",
       })
-      label.textContent = text
-      group.appendChild(label)
+      label.textContent = this.pieceLabels[piece.name] ?? piece.name
+      group.append(outline, grainline, label)
       svg.appendChild(group)
+      this.pieceElements.set(piece.name, {outline, grainline, label})
     }
 
     return svg
