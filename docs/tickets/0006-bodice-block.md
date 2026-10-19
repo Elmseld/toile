@@ -42,7 +42,10 @@ Builds on the engine (0002, 0003) and the project view (0005).
   parameter `max_bust_dart_angle` (15 degrees, a draft constant, not from the book); the uncapped
   value stays visible as `bust_dart_balance_angle`. Above the cap the front shoulder point lies
   higher than the back one; seam lengths, bust and waist are unaffected, so the AC tests hold
-  (a large measurement set is in the tests, with a plausibility bound on the dart width). The dart
+  (a large measurement set is in the tests, with a plausibility bound on the dart width). The rest
+  of the balance makes the front armhole deeper and longer than the back one, so it gapes once
+  sewn and `front_armhole_length` and `armhole_length` grow (large set: front 327 mm against back
+  288 mm); moving the rest into a second dart is dart manipulation, out of scope. The dart
   is zero, without an error, when the front neck point lies no higher than the back neck point,
   e.g. for the size 12 test set when `front_length` is at most about 21 mm over `back_length`.
 - **Ease defaults:** bust 80 mm, waist 40 mm, armhole depth 10 mm. These and the draft constants are

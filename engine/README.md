@@ -214,7 +214,11 @@ The engine has no block registry.
   bring the front shoulder point level with the back one; `bust_dart_angle` is that, capped at
   `max_bust_dart_angle`. Above the cap the rest of the difference stays in the front, whose
   shoulder point then lies higher than the back one; the seam lengths and the bust and waist
-  widths are unaffected. A large test figure (bust 1200 mm, `front_length` 80 mm over
+  widths are unaffected, but the front armhole gets deeper and longer than the back one and will
+  gape once sewn, which also raises `front_armhole_length` and `armhole_length` (for the large
+  set: front shoulder 25 mm higher, shoulder to underarm 265 against 240 mm, front armhole 327
+  against back 288 mm). Moving that rest into a second dart is dart manipulation, out of scope
+  here. A large test figure (bust 1200 mm, `front_length` 80 mm over
   `back_length`) would otherwise get a dart of about 23 degrees, 120 mm wide on a 135 mm shoulder.
   The dart is zero, without an error, whenever the front neck point lies no higher than the back
   neck point (with the default shoulder drops), e.g. for the size 12 test set when `front_length`

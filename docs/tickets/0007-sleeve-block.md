@@ -28,4 +28,7 @@ The planner decides how references between them are expressed in the pattern def
 The bodice (0006) exposes the armhole as three `values` keys: `armhole_length`,
 `back_armhole_length` and `front_armhole_length` (mm). Their names are a stable interface (pinned
 by an engine test; renaming one requires migrating stored project definitions, ADR 0006). How the
-sleeve consumes them is for this ticket to decide.
+sleeve consumes them is for this ticket to decide. When the bodice bust dart hits its cap
+(`max_bust_dart_angle`, see 0006 Decisions), the front armhole is deeper and longer than the back
+one, so `front_armhole_length` and `armhole_length` are larger than a balanced draft would give;
+the sleeve should not assume front and back armholes of similar length.
