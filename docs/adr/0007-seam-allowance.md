@@ -34,7 +34,12 @@ Block definitions have no allowances (ADR 0004) and are frozen for this ticket.
   drawn by SVG and PDF. Cost: larger path data and no exact tangents; refitting to cubics can be
   added later behind the same function.
 - **Corners.** A convex corner is a miter, clipped at `MITER_LIMIT` (4) times the larger allowance.
-  Where a miter would come closer to the outline than the smaller allowance (next to a curve that
+  One exception: a corner that turns by less than 90 degrees can only exceed the limit when its
+  allowances differ widely (a 40 mm hem and a 10 mm side seam below about 11 degrees). Its miter
+  then lies on the wider edge's offset line behind that edge's end, so clipping it on the bisector
+  would run far along the nearly parallel edges. Such a corner is a straight step between the two
+  offset ends instead (a bevel, as SVG does past its miter limit), which keeps at least the smaller
+  allowance from the outline. Where a miter would come closer to the outline than the smaller allowance (next to a curve that
   curls away sharply), the corner is round instead. A concave corner is the intersection of the two
   offset edges. A tangent-continuous join (within `SMOOTH_JOIN_ANGLE`) has no corner, or a straight
   step when the allowances differ.

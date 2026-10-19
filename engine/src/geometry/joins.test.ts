@@ -8,7 +8,7 @@ import {
   MITER_LIMIT,
   roundJoin,
 } from "./joins";
-import { distance, type Point } from "./vector";
+import { distance, type Point, pointSegmentDistance } from "./vector";
 
 const p = (x: number, y: number): Point => ({ x, y });
 
@@ -116,6 +116,68 @@ describe("joinCorner (C)", () => {
       p(100, -10),
       p(100 + 15 * deg(0.3).y, -15 * deg(0.3).x),
     ]);
+  });
+
+  describe("a 40 mm hem meeting a 10 mm side seam", () => {
+    // Every point of the corner's polyline, sampled every 0.1 mm, keeps the smaller allowance from
+    // the two edges at the vertex (straight, 1 m long).
+    function minimumClearance(points: readonly Point[], t1: Point, t2: Point): number {
+      const before = p(v.x - 1000 * t1.x, v.y - 1000 * t1.y);
+      const after = p(v.x + 1000 * t2.x, v.y + 1000 * t2.y);
+      let least = Infinity;
+      for (let i = 0; i + 1 < points.length; i++) {
+        const from = points[i]!;
+        const to = points[i + 1]!;
+        const steps = Math.max(1, Math.ceil(distance(from, to) / 0.1));
+        for (let k = 0; k <= steps; k++) {
+          const at = p(
+            from.x + ((to.x - from.x) * k) / steps,
+            from.y + ((to.y - from.y) * k) / steps,
+          );
+          least = Math.min(
+            least,
+            pointSegmentDistance(at, before, v),
+            pointSegmentDistance(at, v, after),
+          );
+        }
+      }
+      return least;
+    }
+
+    // The two offset tangent lines' intersection, its distance from the vertex: under the limit
+    // for a miter, over it for a step.
+    function miterReach(turn: number, a1: number, a2: number): number {
+      const s = Math.sin((turn * Math.PI) / 180);
+      const c = Math.cos((turn * Math.PI) / 180);
+      return Math.hypot(a1, (a2 - a1 * c) / s);
+    }
+
+    for (const [a1, a2] of [
+      [40, 10],
+      [10, 40],
+    ] as const) {
+      for (const turn of [30, 60, 85]) {
+        test(`${a1} then ${a2} at a ${turn} degree turn: a miter, at least 10 mm out`, () => {
+          expect(miterReach(turn, a1, a2)).toBeLessThanOrEqual(MITER_LIMIT * 40);
+          const points = cornerPoints(v, right, a1, deg(turn), a2, 1);
+          expect(points.length).toBe(3);
+          expect(minimumClearance(points, right, deg(turn))).toBeGreaterThanOrEqual(10 - 1e-9);
+        });
+      }
+
+      // Below about 11 degrees the miter lies beyond the limit, on the 40 mm line behind the
+      // end of the hem (or ahead of the start): squaring it off on the bisector would reach far
+      // along the edges, so the corner is the straight step between the two offset ends.
+      for (const turn of [2, 5, 10]) {
+        test(`${a1} then ${a2} at a ${turn} degree turn: a straight step, at least 10 mm out`, () => {
+          expect(miterReach(turn, a1, a2)).toBeGreaterThan(MITER_LIMIT * 40);
+          const t2 = deg(turn);
+          const points = cornerPoints(v, right, a1, t2, a2, 1);
+          expectPoints(points, [p(100, -a1), p(100 + a2 * t2.y, -a2 * t2.x)]);
+          expect(minimumClearance(points, right, t2)).toBeCloseTo(10, 9);
+        });
+      }
+    }
   });
 
   test("a concave corner goes through the vertex", () => {

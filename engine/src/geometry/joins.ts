@@ -72,8 +72,13 @@ export type JoinOptions = {
  * - a convex corner: `[Q1, miter, Q2]`, the miter being the intersection of the two offset tangent
  *   lines; farther than MITER_LIMIT times the larger allowance from the vertex, the miter is cut
  *   off square to the corner's bisector at that distance: `[Q1, C1, C2, Q2]`. Only a corner that
- *   turns by 90 degrees or more is cut off; one that turns less can only have such a far miter
- *   when its allowances differ widely, and gets the straight step `[Q1, Q2]` instead;
+ *   turns by 90 degrees or more is cut off. One that turns less can only have such a far miter
+ *   when its allowances differ widely (40 and 10 mm below about 11 degrees), and the miter then
+ *   lies on the wider edge's offset line behind `Q1` (or beyond `Q2`), not out along the bisector.
+ *   Such a corner gets the straight step `[Q1, Q2]` (a bevel, as SVG falls back to past its miter
+ *   limit), which keeps at least the smaller allowance from the outline: the step lies between
+ *   the two normals, where the vertex is the nearest outline point, and its nearest point to the
+ *   vertex is the end with the smaller allowance;
  * - a concave corner: `[Q1, vertex, Q2]`. The overshoot lies inside the cut region; the caller
  *   resolves it with `concaveJoin` or leaves it to `outerBoundary`.
  * A smooth join of equal allowances follows the convex or concave rule, which there gives a point
@@ -103,7 +108,8 @@ export function joinCorner(
     return { points: merged([q1, miter, q2]), concave: false };
   }
   // A far miter at a corner that turns by less than 90 degrees comes from very different
-  // allowances on nearly parallel edges; squaring it off would reach far along the edges.
+  // allowances on nearly parallel edges and lies behind the wider edge's end; squaring it off on
+  // the bisector would reach far along the edges. The bevel keeps the smaller allowance.
   if (dot(t1, t2) > 0) return { points: [q1, q2], concave: false };
   // Cut the miter off on the line square to the outward bisector at `limit` from the vertex. At a
   // convex corner, t1 - t2 points along that bisector, well defined even at a hairpin.

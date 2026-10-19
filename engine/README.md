@@ -215,7 +215,10 @@ cuttingLine(piece, { default: 10, edges: { b_hem: 40, b_cb: 0 } })
   `cuttingLinePathData(points)` gives its SVG path data. A caller that fits a `viewBox` must include
   the cutting line: `patternBounds` covers outlines only.
 - **Corners.** Convex corners are mitered, clipped at `MITER_LIMIT` (4) times the larger
-  allowance; concave corners are the intersection of the offset edges; smooth joins have no
+  allowance. A corner that turns by less than 90 degrees and would exceed the limit (very
+  different allowances on nearly parallel edges, such as 40 and 10 mm below about 11 degrees) is a
+  straight step between the two offset ends instead, keeping at least the smaller allowance;
+  concave corners are the intersection of the offset edges; smooth joins have no
   corner (a straight step when the allowances differ). Next to a curve that curls away sharply, a
   convex corner is round instead of mitered. Tight concave curves and allowances wider than a
   narrow part never make the line loop or cross itself. If that construction fails its checks, a

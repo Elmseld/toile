@@ -317,6 +317,53 @@ describe("a rectangle (I)", () => {
   });
 });
 
+describe("a 40 mm hem meeting a 10 mm side seam at a shallow convex turn", () => {
+  // The hem e0 runs right to V, the side seam e1 turns by `turn` degrees there; the far corners
+  // and the other edges (10 mm) only close the piece.
+  function piece(turn: number): { outline: Edge[]; vertex: Point; direction: Point } {
+    const vertex = p(300, 0);
+    const direction = p(Math.cos((turn * Math.PI) / 180), Math.sin((turn * Math.PI) / 180));
+    const far = p(vertex.x + 300 * direction.x, vertex.y + 300 * direction.y);
+    return { ...polygonPiece([p(0, 0), vertex, far, p(0, 150)]), vertex, direction };
+  }
+
+  for (const [hem, side] of [
+    [40, 10],
+    [10, 40],
+  ] as const) {
+    for (const turn of [2, 5, 10, 30, 60, 85]) {
+      test(`e0 ${hem} mm, e1 ${side} mm, turning ${turn} degrees`, () => {
+        const { outline, vertex, direction } = piece(turn);
+        const corners = outline.map((edge) => edge.from);
+        const allowances = { default: 10, edges: { e0: hem, e1: side } };
+        const line = points(cuttingLine({ outline }, allowances));
+        checkProperties({ outline }, allowances, line);
+        // Sampled every 0.1 mm, the whole line keeps the smaller allowance.
+        for (let i = 0; i < line.length; i++) {
+          const from = line[i]!;
+          const to = line[(i + 1) % line.length]!;
+          const steps = Math.max(1, Math.ceil(distance(from, to) / 0.1));
+          for (let k = 0; k <= steps; k++) {
+            const at = p(
+              from.x + ((to.x - from.x) * k) / steps,
+              from.y + ((to.y - from.y) * k) / steps,
+            );
+            expect(polygonDistance(corners, at)).toBeGreaterThanOrEqual(10 - 1e-6);
+          }
+        }
+        // Below about 11 degrees the corner is the straight step between the two offset ends.
+        if (turn <= 10) {
+          const end = p(vertex.x, vertex.y - hem);
+          const start = p(vertex.x + side * direction.y, vertex.y - side * direction.x);
+          const at = line.findIndex((point) => distance(point, end) < 1e-9);
+          expect(at).toBeGreaterThanOrEqual(0);
+          expect(distance(line[(at + 1) % line.length]!, start)).toBeLessThan(1e-9);
+        }
+      });
+    }
+  }
+});
+
 describe("pieces with a curved edge (J)", () => {
   // A 200 x 100 rectangle whose right side is a cubic.
   function curvedPiece(c1: Point, c2: Point): { outline: Edge[] } {
