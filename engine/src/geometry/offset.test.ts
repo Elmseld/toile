@@ -16,7 +16,7 @@ import {
   polygonArea,
   reverseEdge,
 } from "./offset";
-import { joinCorner } from "./offset";
+import { crossesAny, joinCorner, joinStrands, polygonsCross, roundJoin } from "./offset";
 import { distance, type Point } from "./vector";
 
 const p = (x: number, y: number): Point => ({ x, y });
@@ -107,7 +107,8 @@ describe("offsetEdge (A)", () => {
     test(`a quarter circle offset on its ${side} side keeps radius ${radius}`, () => {
       const points = offsetEdge(QUARTER, 10, sign);
       expect(points.length).toBe(cubicSegments(QUARTER, 10) + 1);
-      for (const point of points) expect(Math.abs(Math.hypot(point.x, point.y) - radius)).toBeLessThan(0.03);
+      for (const point of points)
+        expect(Math.abs(Math.hypot(point.x, point.y) - radius)).toBeLessThan(0.03);
       for (let i = 1; i < points.length; i++) {
         const mid = p((points[i - 1]!.x + points[i]!.x) / 2, (points[i - 1]!.y + points[i]!.y) / 2);
         expect(Math.abs(Math.hypot(mid.x, mid.y) - radius)).toBeLessThan(0.05);
@@ -169,7 +170,11 @@ describe("joinCorner (C)", () => {
     const points = joinCorner(v, right, 10, t2, 10, 1);
     expect(points.length).toBe(3);
     const reach = 10 / Math.cos((15 * Math.PI) / 180);
-    expectPoint(points[1], 100 + reach * Math.sin((15 * Math.PI) / 180), -reach * Math.cos((15 * Math.PI) / 180));
+    expectPoint(
+      points[1],
+      100 + reach * Math.sin((15 * Math.PI) / 180),
+      -reach * Math.cos((15 * Math.PI) / 180),
+    );
   });
 
   test("an acute corner (20 degrees inside) is cut off at MITER_LIMIT times the allowance", () => {
@@ -242,23 +247,44 @@ describe("concaveJoin", () => {
     const t2 = deg(-60);
     const b = [p(100, 0), p(100 + 100 * t2.x, 100 * t2.y)];
     const join = concaveJoin([p(0, -10), p(100, -10)], b, p(1, 0), t2, p(100, 0), 40);
+    expect(
+      concaveJoin([p(0, -10), p(100, -10)], b, p(1, 0), t2, p(100, 0), 40, { maxRank: 0 }),
+    ).toBeNull();
     expect(join?.keepA).toBe(2);
     expect(join?.keepB).toBe(1);
     expectPoint(join?.point, 100 + 10 / Math.tan(Math.PI / 3), -10);
   });
 
   test("extends the second strand back to the first one", () => {
-    const join = concaveJoin([p(0, 0), p(100, 0)], [p(110, -20), p(110, -100)], p(1, 0), p(0, -1), p(100, 0), 40);
+    const join = concaveJoin(
+      [p(0, 0), p(100, 0)],
+      [p(110, -20), p(110, -100)],
+      p(1, 0),
+      p(0, -1),
+      p(100, 0),
+      40,
+    );
     expect(join).toEqual({ point: p(110, 0), keepA: 2, keepB: 0 });
   });
 
   test("coinciding ends join where they are; no intersection within the limit gives null", () => {
-    expect(concaveJoin([p(0, 0), p(5, 5)], [p(5, 5), p(9, 0)], p(1, 1), p(1, -1), p(5, 6), 10)).toEqual({
+    expect(
+      concaveJoin([p(0, 0), p(5, 5)], [p(5, 5), p(9, 0)], p(1, 1), p(1, -1), p(5, 6), 10),
+    ).toEqual({
       point: p(5, 5),
       keepA: 2,
       keepB: 0,
     });
-    expect(concaveJoin([p(0, -10), p(100, -10)], [p(85, 0), p(85, -100)], p(1, 0), p(0, -1), p(100, 0), 5)).toBeNull();
+    expect(
+      concaveJoin(
+        [p(0, -10), p(100, -10)],
+        [p(85, 0), p(85, -100)],
+        p(1, 0),
+        p(0, -1),
+        p(100, 0),
+        5,
+      ),
+    ).toBeNull();
     expect(concaveJoin([], [p(0, 0)], p(1, 0), p(0, 1), p(0, 0), 5)).toBeNull();
   });
 });
@@ -272,7 +298,16 @@ describe("findCrossings and outerBoundary (D)", () => {
   });
 
   test("a reversed lobe of a figure eight is removed", () => {
-    const loop = [p(0, 0), p(100, 0), p(100, 100), p(70, 100), p(40, 130), p(60, 130), p(30, 100), p(0, 100)];
+    const loop = [
+      p(0, 0),
+      p(100, 0),
+      p(100, 100),
+      p(70, 100),
+      p(40, 130),
+      p(60, 130),
+      p(30, 100),
+      p(0, 100),
+    ];
     expect(findCrossings(loop).length).toBe(1);
     expectPoints(outerBoundary(loop) ?? [], [
       p(0, 0),
@@ -287,11 +322,26 @@ describe("findCrossings and outerBoundary (D)", () => {
 
   test("a swallowtail is cut off at its crossing", () => {
     const loop = [p(0, 0), p(60, 10), p(40, 10), p(100, 0), p(100, 100), p(0, 100)];
-    expectPoints(outerBoundary(loop) ?? [], [p(0, 0), p(50, 25 / 3), p(100, 0), p(100, 100), p(0, 100)]);
+    expectPoints(outerBoundary(loop) ?? [], [
+      p(0, 0),
+      p(50, 25 / 3),
+      p(100, 0),
+      p(100, 100),
+      p(0, 100),
+    ]);
   });
 
   test("two overlapping lobes give the outline of their union", () => {
-    const loop = [p(-15, -15), p(55, -15), p(55, 70), p(45, 70), p(45, -5), p(115, -5), p(115, 115), p(-15, 115)];
+    const loop = [
+      p(-15, -15),
+      p(55, -15),
+      p(55, 70),
+      p(45, 70),
+      p(45, -5),
+      p(115, -5),
+      p(115, 115),
+      p(-15, 115),
+    ];
     expectPoints(outerBoundary(loop) ?? [], [
       p(-15, -15),
       p(55, -15),
@@ -303,7 +353,16 @@ describe("findCrossings and outerBoundary (D)", () => {
   });
 
   test("starts at the leftmost vertex, also when the loop does not", () => {
-    const loop = [p(100, 0), p(100, 100), p(70, 100), p(40, 130), p(60, 130), p(30, 100), p(0, 100), p(0, 0)];
+    const loop = [
+      p(100, 0),
+      p(100, 100),
+      p(70, 100),
+      p(40, 130),
+      p(60, 130),
+      p(30, 100),
+      p(0, 100),
+      p(0, 0),
+    ];
     expect(outerBoundary(loop)?.[0]).toEqual(p(0, 0));
     expect(leftmostIndex([p(1, 5), p(0, 3), p(0, 2), p(4, 0)])).toBe(2);
     expect(leftmostIndex([])).toBe(0);
@@ -325,12 +384,9 @@ describe("cleanLoop", () => {
       p(0, 10),
     ]);
     // A needle out to (20, 5) and back.
-    expect(cleanLoop([p(0, 0), p(10, 0), p(10, 5), p(20, 5), p(10, 5), p(10, 10), p(0, 10)])).toEqual([
-      p(0, 0),
-      p(10, 0),
-      p(10, 10),
-      p(0, 10),
-    ]);
+    expect(
+      cleanLoop([p(0, 0), p(10, 0), p(10, 5), p(20, 5), p(10, 5), p(10, 10), p(0, 10)]),
+    ).toEqual([p(0, 0), p(10, 0), p(10, 10), p(0, 10)]);
     // Spikes at the seam: at the last point and at the first.
     expect(cleanLoop([p(0, 0), p(10, 0), p(10, 10), p(0, 10), p(0, 20)])).toEqual([
       p(0, 0),
@@ -339,5 +395,127 @@ describe("cleanLoop", () => {
       p(0, 10),
     ]);
     expect(cleanLoop([p(-10, 0), p(0, 0), p(10, 0), p(10, 10), p(0, 10), p(0, 0)]).length).toBe(4);
+  });
+});
+
+describe("joinStrands", () => {
+  const v = p(100, 0);
+
+  test("a convex corner of straight edges keeps its miter", () => {
+    const joined = joinStrands(
+      [p(0, -10), p(100, -10)],
+      [p(110, 0), p(110, 100)],
+      v,
+      p(1, 0),
+      10,
+      p(0, 1),
+      10,
+      1,
+      [
+        [p(0, 0), v],
+        [v, p(100, 100)],
+      ],
+    );
+    expect(joined.a).toEqual([p(0, -10), p(100, -10), p(100, -10), p(110, -10), p(110, 0)]);
+    expect(joined.b).toEqual([p(110, 0), p(110, 100)]);
+  });
+
+  test("a miter that would come too close to a curling edge becomes round", () => {
+    // The second edge leaves straight down but curls up at once, close under the miter's leg.
+    const curling = [v, p(100, 1), p(103, 1), p(106, -1), p(107, -4)];
+    const joined = joinStrands(
+      [p(0, -10), p(100, -10)],
+      [p(110, 0)],
+      v,
+      p(1, 0),
+      10,
+      p(0, 1),
+      10,
+      1,
+      [[p(0, 0), v], curling],
+    );
+    const corner = joined.a.slice(2);
+    expect(corner.length).toBeGreaterThan(3);
+    for (const point of corner) expect(distance(point, v)).toBeCloseTo(10, 9);
+  });
+
+  test("safe mode makes a convex corner round and takes no extension at a concave one", () => {
+    const round = joinStrands(
+      [p(0, -10), p(100, -10)],
+      [p(110, 0), p(110, 100)],
+      v,
+      p(1, 0),
+      10,
+      p(0, 1),
+      10,
+      1,
+      [],
+      true,
+    );
+    for (const point of round.a.slice(2)) expect(distance(point, v)).toBeCloseTo(10, 9);
+    // Zero allowance on the second edge at 60 degrees: only the first strand, extended, meets it.
+    const t2 = deg(-60);
+    const b = [v, p(100 + 100 * t2.x, 100 * t2.y)];
+    const exact = joinStrands([p(0, -10), p(100, -10)], b, v, p(1, 0), 10, t2, 0, 1);
+    expectPoint(exact.a[exact.a.length - 1], 100 + 10 / Math.tan(Math.PI / 3), -10);
+    const safe = joinStrands([p(0, -10), p(100, -10)], b, v, p(1, 0), 10, t2, 0, 1, [], true);
+    expect(safe.a.slice(-2)).toEqual([p(100, -10), v]);
+  });
+
+  test("near a hairpin the flattened edges decide: a spike gets a cut-off miter, or a round tip", () => {
+    // Both tangents point almost straight back, the tangents alone call it concave, but the
+    // edges spread apart: a spike pointing right.
+    const t1 = deg(-1);
+    const t2 = deg(182);
+    const guard = [
+      [p(0, 0), p(90, 0), v],
+      [v, p(90, 0.05), p(0, 2)],
+    ];
+    const q1 = p(100 + 10 * t1.y, -10 * t1.x);
+    const q2 = p(100 + 10 * t2.y, -10 * t2.x);
+    const joined = joinStrands([p(0, -10), q1], [q2, p(0, 12)], v, t1, 10, t2, 10, 1, guard);
+    const tip = Math.max(...joined.a.map((point) => point.x));
+    expect(tip).toBeGreaterThan(130);
+    // In safe mode the tip is round, around the outside of the spike.
+    const round = joinStrands([p(0, -10), q1], [q2, p(0, 12)], v, t1, 10, t2, 10, 1, guard, true);
+    expect(Math.max(...round.a.map((point) => point.x))).toBeCloseTo(110, 1);
+    // A slit: tangents that again call it convex, edges that close in. It is concave, so the
+    // line goes through the tip instead of past it.
+    const s1 = deg(1);
+    const s2 = deg(178);
+    const slit = [
+      [p(0, 2), p(90, 0.05), v],
+      [v, p(90, 0), p(0, 0)],
+    ];
+    const r1 = p(100 + 10 * s1.y, -10 * s1.x);
+    const r2 = p(100 + 10 * s2.y, -10 * s2.x);
+    const concave = joinStrands([p(0, -10), r1], [r2, p(0, 10)], v, s1, 10, s2, 10, 1, slit);
+    expect(Math.max(...concave.a.map((point) => point.x))).toBeLessThan(100.5);
+    expect(concave.a).toContainEqual(v);
+  });
+});
+
+describe("roundJoin, crossesAny and polygonsCross", () => {
+  test("a round join runs the short way, its radius blending the allowances", () => {
+    const points = roundJoin(p(0, 0), p(0, -1), 10, p(1, 0), 20);
+    expectPoint(points[0], 0, -10);
+    expectPoint(points[points.length - 1], 20, 0);
+    for (const point of points) expect(point.x).toBeGreaterThanOrEqual(-1e-9);
+    expect(roundJoin(p(0, 0), p(0, -1), 0, p(0, -1), 0)).toEqual([p(0, 0)]);
+    // Opposite normals: the arc passes through the given direction, either way round.
+    for (const through of [p(1, 0), p(-1, 0)]) {
+      const arc = roundJoin(p(0, 0), p(0, -1), 10, p(0, 1), 10, through);
+      expect(arc.some((point) => distance(point, p(10 * through.x, 0)) < 0.1)).toBe(true);
+    }
+  });
+
+  test("crossings count only when clear of rounding", () => {
+    expect(crossesAny([p(0, 0), p(10, 10)], [[p(0, 10), p(10, 0)]])).toBe(true);
+    expect(crossesAny([p(0, 0), p(10, 0)], [[p(5, 0), p(5, 10)]])).toBe(false);
+    expect(crossesAny([p(0, 0), p(10, 0)], [[p(5, -1e-12), p(15, 1e-12)]])).toBe(false);
+    const square = [p(0, 0), p(10, 0), p(10, 10), p(0, 10)];
+    expect(polygonsCross(square, [p(5, 5), p(15, 5), p(15, 6)])).toBe(true);
+    expect(polygonsCross(square, [p(2, 2), p(8, 2), p(8, 8)])).toBe(false);
+    expect(polygonsCross(square, square)).toBe(false);
   });
 });

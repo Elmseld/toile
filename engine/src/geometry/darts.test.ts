@@ -9,6 +9,7 @@ import { cross, distance, type Point, reflectAcross, rotateAbout, sub, unit } fr
 const BLOCKS_DIR = join(import.meta.dir, "..", "..", "blocks");
 const EXAMPLE_PATH = join(import.meta.dir, "..", "..", "examples", "rectangle-with-dart.json");
 
+// prettier-ignore
 const PROFILES: Record<string, Record<string, number>> = {
   small: {
     bust: 820, waist: 640, hip: 880, neck: 350, shoulder_width: 118, back_width: 330,
@@ -99,7 +100,15 @@ describe("dartCuttingLine on a symmetric dart (E)", () => {
 
 describe("dartCuttingLine on an asymmetric dart (F)", () => {
   // S1 rises toward the dart, S2 is level; their allowances differ.
-  const outline = polygon([p(-200, 80), p(-W, 0), p(0, H), p(W, 0), p(200, 0), p(200, 300), p(-200, 300)]);
+  const outline = polygon([
+    p(-200, 80),
+    p(-W, 0),
+    p(0, H),
+    p(W, 0),
+    p(200, 0),
+    p(200, 300),
+    p(-200, 300),
+  ]);
   const [dart] = findDarts(outline, 1);
   const a1 = 10;
   const a2 = 20;
@@ -134,13 +143,22 @@ describe("dartCuttingLine on an asymmetric dart (F)", () => {
     for (let i = Pm; i <= openP; i++) expect(onClosedLine(close(line[i]!))).toBe(true);
 
     const after = dartCuttingLine(dart!, a1, a2, 1, "after")!;
-    const differs = after.length !== line.length || after.some((point, i) => distance(point, line[i]!) > 0.01);
+    const differs =
+      after.length !== line.length || after.some((point, i) => distance(point, line[i]!) > 0.01);
     expect(differs).toBe(true);
   });
 
   test("a seam before the dart too short to reach the flap edge is extended", () => {
     // S1 is 2 mm long: the flap edge ray meets its backward extension.
-    const short = polygon([p(-W - 2, 0), p(-W, 0), p(0, H), p(W, 0), p(200, 0), p(200, 300), p(-W - 2, 300)]);
+    const short = polygon([
+      p(-W - 2, 0),
+      p(-W, 0),
+      p(0, H),
+      p(W, 0),
+      p(200, 0),
+      p(200, 300),
+      p(-W - 2, 300),
+    ]);
     const [found] = findDarts(short, 1);
     const line = dartCuttingLine(found!, A, A, 1)!;
     expect(line).not.toBeNull();
@@ -166,25 +184,72 @@ describe("findDarts (G)", () => {
   });
 
   test("rejects convex spikes, wide wedges, unequal and curved legs and short outlines", () => {
-    const spike = polygon([p(-200, 0), p(-W, 0), p(0, -H), p(W, 0), p(200, 0), p(200, 300), p(-200, 300)]);
+    const spike = polygon([
+      p(-200, 0),
+      p(-W, 0),
+      p(0, -H),
+      p(W, 0),
+      p(200, 0),
+      p(200, 300),
+      p(-200, 300),
+    ]);
     expect(findDarts(spike, 1)).toEqual([]);
     const wideHalf = H * Math.tan(((MAX_DART_ANGLE / 2 + 1) * Math.PI) / 180);
-    const wide = polygon([p(-200, 0), p(-wideHalf, 0), p(0, H), p(wideHalf, 0), p(200, 0), p(200, 300), p(-200, 300)]);
+    const wide = polygon([
+      p(-200, 0),
+      p(-wideHalf, 0),
+      p(0, H),
+      p(wideHalf, 0),
+      p(200, 0),
+      p(200, 300),
+      p(-200, 300),
+    ]);
     expect(findDarts(wide, 1)).toEqual([]);
-    const unequal = polygon([p(-200, 0), p(-W, 0), p(0, H), p(W + 5, -5), p(200, -5), p(200, 300), p(-200, 300)]);
+    const unequal = polygon([
+      p(-200, 0),
+      p(-W, 0),
+      p(0, H),
+      p(W + 5, -5),
+      p(200, -5),
+      p(200, 300),
+      p(-200, 300),
+    ]);
     expect(findDarts(unequal, 1)).toEqual([]);
     const curved = dartedRectangle();
-    curved[1] = { name: "e1", type: "cubic", from: p(-W, 0), c1: p(-W, 30), c2: p(0, 70), to: p(0, H) };
+    curved[1] = {
+      name: "e1",
+      type: "cubic",
+      from: p(-W, 0),
+      c1: p(-W, 30),
+      c2: p(0, 70),
+      to: p(0, H),
+    };
     expect(findDarts(curved, 1)).toEqual([]);
     const triangle = polygon([p(-W, 0), p(0, H), p(W, 0)]);
     expect(findDarts(triangle, sign(triangle))).toEqual([]);
   });
 
   test("accepts legs equal within the tolerance and a wedge at the limit", () => {
-    const nearly = polygon([p(-200, 0), p(-W, 0), p(0, H), p(W, -1.5), p(200, -1.5), p(200, 300), p(-200, 300)]);
+    const nearly = polygon([
+      p(-200, 0),
+      p(-W, 0),
+      p(0, H),
+      p(W, -1.5),
+      p(200, -1.5),
+      p(200, 300),
+      p(-200, 300),
+    ]);
     expect(findDarts(nearly, 1).length).toBe(1);
     const half = H * Math.tan(((MAX_DART_ANGLE / 2 - 0.01) * Math.PI) / 180);
-    const limit = polygon([p(-200, 0), p(-half, 0), p(0, H), p(half, 0), p(200, 0), p(200, 300), p(-200, 300)]);
+    const limit = polygon([
+      p(-200, 0),
+      p(-half, 0),
+      p(0, H),
+      p(half, 0),
+      p(200, 0),
+      p(200, 300),
+      p(-200, 300),
+    ]);
     expect(findDarts(limit, 1).length).toBe(1);
   });
 
@@ -268,7 +333,8 @@ describe("darts of the real definitions (H)", () => {
           const outline = result.pieces[name]!.outline as readonly Edge[];
           const darts = findDarts(outline, sign(outline));
           expect(darts.map((dart: Dart) => [dart.leg1.name, dart.leg2.name])).toEqual(legs);
-          for (const dart of darts) expect(dartCuttingLine(dart, 15, 15, sign(outline))).not.toBeNull();
+          for (const dart of darts)
+            expect(dartCuttingLine(dart, 15, 15, sign(outline))).not.toBeNull();
         }
       });
     }
@@ -279,10 +345,14 @@ describe("darts of the real definitions (H)", () => {
     { waist: 800, hip: 1080, hip_height: 210 },
   ]) {
     test(`the example definition at waist ${measurements.waist}`, () => {
-      const result = evaluatePattern(JSON.parse(readFileSync(EXAMPLE_PATH, "utf8")), { measurements });
+      const result = evaluatePattern(JSON.parse(readFileSync(EXAMPLE_PATH, "utf8")), {
+        measurements,
+      });
       const outline = result.pieces.front!.outline as readonly Edge[];
       const darts = findDarts(outline, sign(outline));
-      expect(darts.map((dart) => [dart.leg1.name, dart.leg2.name])).toEqual([["dart_left", "dart_right"]]);
+      expect(darts.map((dart) => [dart.leg1.name, dart.leg2.name])).toEqual([
+        ["dart_left", "dart_right"],
+      ]);
     });
   }
 });

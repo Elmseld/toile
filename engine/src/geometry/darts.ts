@@ -9,7 +9,14 @@
 // half the dart angle beyond it; it is cut along the closed cutting line too. Unfolded, the layer
 // at leg A-X is that cut reflected across A-X, and the layer at leg A-Y is that cut rotated back.
 
-import { cubicSegments, type Edge, edgeTangent, joinStrands, offsetEdge, reverseEdge } from "./offset";
+import {
+  cubicSegments,
+  type Edge,
+  edgeTangent,
+  joinStrands,
+  offsetEdge,
+  reverseEdge,
+} from "./offset";
 import {
   add,
   cross,

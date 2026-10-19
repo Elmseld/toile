@@ -41,7 +41,7 @@ export function norm(v: Point): number {
   return Math.hypot(v.x, v.y);
 }
 
-/** The z component of the cross product `a x b`: positive when `b` turns clockwise on screen from `a`. */
+/** The z component of `a x b`: positive when `b` turns clockwise on screen from `a` (y down). */
 export function cross(a: Point, b: Point): number {
   return a.x * b.y - a.y * b.x;
 }

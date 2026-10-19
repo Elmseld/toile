@@ -34,6 +34,8 @@ export const MAX_CUTTING_LINE_SEGMENTS = 20_000;
 export const MITER_LIMIT = 4;
 /** Edges that meet at no more than this angle (degrees) join without a corner. */
 export const SMOOTH_JOIN_ANGLE = 0.5;
+/** Corners within this angle (degrees) of a hairpin are classified by the flattened edges. */
+const HAIRPIN_ANGLE = 10;
 /** Consecutive points closer than this (mm) are merged into one. */
 export const MERGE_TOLERANCE = 1e-6;
 /** At most this many segments at each side of a concave corner are searched for the join. */
@@ -45,7 +47,12 @@ type EdgePoint = Readonly<Point>;
 
 /** One outline edge, in the outline's direction of travel. */
 export type Edge =
-  | { readonly name: string; readonly type: "line"; readonly from: EdgePoint; readonly to: EdgePoint }
+  | {
+      readonly name: string;
+      readonly type: "line";
+      readonly from: EdgePoint;
+      readonly to: EdgePoint;
+    }
   | {
       readonly name: string;
       readonly type: "cubic";
@@ -171,7 +178,9 @@ export function offsetEdge(
  *   `[Q1, Q2]`;
  * - a convex corner: `[Q1, miter, Q2]`, the miter being the intersection of the two offset tangent
  *   lines; farther than MITER_LIMIT times the larger allowance from the vertex, the miter is cut
- *   off square to the corner's bisector at that distance: `[Q1, C1, C2, Q2]`;
+ *   off square to the corner's bisector at that distance: `[Q1, C1, C2, Q2]`. Only a corner that
+ *   turns by 90 degrees or more is cut off; one that turns less can only have such a far miter
+ *   when its allowances differ widely, and gets the straight step `[Q1, Q2]` instead;
  * - a concave corner: `[Q1, vertex, Q2]`. The overshoot lies inside the cut region; the caller
  *   resolves it with `concaveJoin` or leaves it to `outerBoundary`.
  * A smooth join of equal allowances follows the convex or concave rule, which there gives a point
@@ -197,6 +206,15 @@ export function joinCorner(
  * MITER_LIMIT times the larger allowance of the vertex). When they do not meet there, the corner
  * goes through the vertex and `outerBoundary` cleans it up. Pass the same array as `a` and `b`
  * for a single strand that closes on itself; it is then never trimmed.
+ *
+ * `guard` holds the flattened outline edges at the vertex. The end tangent of a curve that curls
+ * away right after the vertex can put a miter, or the meeting point of extended strands, across
+ * the outline itself: such a miter becomes a round join (an arc around the vertex), and such a
+ * meeting point is not used; so are miters and meeting points closer to those edges than the
+ * smaller allowance. Within HAIRPIN_ANGLE of a hairpin, the tangents cannot tell a spike from a
+ * slit, and the flattened edges decide whether the corner is convex. `safe` makes every convex
+ * corner round and allows concave corners only where the strands themselves cross (no
+ * extensions).
  */
 export function joinStrands(
   a: readonly Point[],
@@ -207,18 +225,135 @@ export function joinStrands(
   t2: Point,
   a2: number,
   sign: number,
+  guard: readonly (readonly Point[])[] = [],
+  safe = false,
 ): { a: Point[]; b: Point[] } {
-  const { points: corner, concave } = cornerJoin(vertex, t1, a1, t2, a2, sign);
-  if (concave && a !== b) {
-    const join = concaveJoin(a, b, t1, t2, vertex, MITER_LIMIT * Math.max(a1, a2));
-    if (join !== null) {
-      return { a: [...a.slice(0, join.keepA), join.point], b: b.slice(join.keepB) };
+  const convex = hairpinTurn(vertex, t1, t2, sign, guard);
+  const { points: corner, concave } = cornerJoin(vertex, t1, a1, t2, a2, sign, convex);
+  const clearance = Math.min(a1, a2) - 2 * FLATTEN_TOLERANCE;
+  if (concave) {
+    if (a !== b) {
+      const limit = MITER_LIMIT * Math.max(a1, a2);
+      const maxRank = safe ? 0 : 2;
+      const join = concaveJoin(a, b, t1, t2, vertex, limit, { guard, maxRank, clearance });
+      if (join !== null) {
+        return { a: [...a.slice(0, join.keepA), join.point], b: b.slice(join.keepB) };
+      }
     }
+  } else if (
+    corner.length > 2 &&
+    (safe || crossesAny(corner, guard) || !clearOf(corner, guard, clearance))
+  ) {
+    const n1 = outwardNormal(t1, sign);
+    const n2 = outwardNormal(t2, sign);
+    const round = roundJoin(vertex, n1, a1, n2, a2, unit(sub(t1, t2)) ?? undefined);
+    return { a: [...a, ...round], b: [...b] };
   }
   return { a: [...a, ...corner], b: [...b] };
 }
 
-// joinCorner, also telling whether the corner is concave.
+// Near a hairpin, whether the corner is convex judging by the flattened edges at the vertex (their
+// points next to it); undefined elsewhere or without them, leaving it to the tangents.
+function hairpinTurn(
+  vertex: Point,
+  t1: Point,
+  t2: Point,
+  sign: number,
+  guard: readonly (readonly Point[])[],
+): boolean | undefined {
+  if (!(dot(t1, t2) < 0) || Math.abs(cross(t1, t2)) > Math.sin((HAIRPIN_ANGLE * Math.PI) / 180)) {
+    return undefined;
+  }
+  const [before, after] = guard;
+  const previous = before?.[before.length - 2];
+  const next = after?.[1];
+  if (previous === undefined || next === undefined) return undefined;
+  const turn = cross(sub(vertex, previous), sub(next, vertex));
+  return turn === 0 ? undefined : turn * sign > 0;
+}
+
+// Whether the open polyline `path` stays at least `clearance` from every polyline of `others`.
+function clearOf(
+  path: readonly Point[],
+  others: readonly (readonly Point[])[],
+  clearance: number,
+): boolean {
+  if (!(clearance > 0)) return true;
+  for (let i = 0; i + 1 < path.length; i++) {
+    const p = path[i]!;
+    const q = path[i + 1]!;
+    for (const other of others) {
+      for (let j = 0; j + 1 < other.length; j++) {
+        if (segmentDistance(p, q, other[j]!, other[j + 1]!) < clearance) return false;
+      }
+    }
+  }
+  return true;
+}
+
+// The distance between segments p-q and r-s; 0 when they cross.
+function segmentDistance(p: Point, q: Point, r: Point, s: Point): number {
+  if (segmentsCross(p, q, r, s)) return 0;
+  return Math.min(
+    pointSegmentDistance(p, r, s),
+    pointSegmentDistance(q, r, s),
+    pointSegmentDistance(r, p, q),
+    pointSegmentDistance(s, p, q),
+  );
+}
+
+function pointSegmentDistance(p: Point, a: Point, b: Point): number {
+  const d = sub(b, a);
+  const lengthSquared = dot(d, d);
+  const t = lengthSquared === 0 ? 0 : Math.min(1, Math.max(0, dot(sub(p, a), d) / lengthSquared));
+  return distance(p, add(a, scale(d, t)));
+}
+
+/**
+ * The arc around `vertex` from `vertex + a1 n1` to `vertex + a2 n2`, its radius changing evenly
+ * from `a1` to `a2`, flattened like an offset curve. It goes the short way round unless that
+ * misses the direction `through` (the outward bisector of a corner, which decides at a hairpin).
+ */
+export function roundJoin(
+  vertex: Point,
+  n1: Point,
+  a1: number,
+  n2: Point,
+  a2: number,
+  through?: Point,
+): Point[] {
+  let angle = Math.atan2(cross(n1, n2), dot(n1, n2));
+  const half = { x: Math.cos(angle / 2), y: Math.sin(angle / 2) };
+  const middle = { x: n1.x * half.x - n1.y * half.y, y: n1.x * half.y + n1.y * half.x };
+  if (through !== undefined && dot(middle, through) < 0) {
+    angle += angle > 0 ? -2 * Math.PI : 2 * Math.PI;
+  }
+  const step = Math.sqrt((8 * FLATTEN_TOLERANCE) / Math.max(a1, a2, FLATTEN_TOLERANCE));
+  const steps = Math.min(Math.max(1, Math.ceil(Math.abs(angle) / step)), MAX_CUBIC_SEGMENTS);
+  const points: Point[] = [];
+  for (let k = 0; k <= steps; k++) {
+    const turn = (angle * k) / steps;
+    const radius = a1 + ((a2 - a1) * k) / steps;
+    const c = Math.cos(turn);
+    const s = Math.sin(turn);
+    points.push(add(vertex, scale({ x: n1.x * c - n1.y * s, y: n1.x * s + n1.y * c }, radius)));
+  }
+  return merged(points);
+}
+
+/** Whether the open polyline `path` crosses any of the polylines `others`, clear of rounding. */
+export function crossesAny(path: readonly Point[], others: readonly (readonly Point[])[]): boolean {
+  for (let i = 0; i + 1 < path.length; i++) {
+    for (const other of others) {
+      for (let j = 0; j + 1 < other.length; j++) {
+        if (segmentsCross(path[i]!, path[i + 1]!, other[j]!, other[j + 1]!)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+// joinCorner, also telling whether the corner is concave; `convex` overrides the tangents' verdict.
 function cornerJoin(
   vertex: Point,
   t1: Point,
@@ -226,6 +361,7 @@ function cornerJoin(
   t2: Point,
   a2: number,
   sign: number,
+  convex: boolean = cross(t1, t2) * sign > 0,
 ): { points: Point[]; concave: boolean } {
   if (a1 === 0 && a2 === 0) return { points: [copy(vertex)], concave: false };
   const n1 = outwardNormal(t1, sign);
@@ -236,15 +372,19 @@ function cornerJoin(
   const turn = cross(t1, t2);
   const smooth = Math.atan2(Math.abs(turn), dot(t1, t2)) <= (SMOOTH_JOIN_ANGLE * Math.PI) / 180;
   if (smooth && a1 !== a2) return { points: [q1, q2], concave: false };
-  if (!(turn * sign > 0)) return { points: merged([q1, copy(vertex), q2]), concave: true };
+  if (!convex) return { points: merged([q1, copy(vertex), q2]), concave: true };
 
   const limit = MITER_LIMIT * Math.max(a1, a2);
   const miter = intersectLines(q1, add(q1, t1), q2, add(q2, t2));
   if (miter !== null && distance(miter, vertex) <= limit) {
     return { points: merged([q1, miter, q2]), concave: false };
   }
-  // Cut the miter off on the line square to the outward bisector at `limit` from the vertex.
-  const bisector = unit(add(n1, n2)) ?? unit(sub(t1, t2));
+  // A far miter at a corner that turns by less than 90 degrees comes from very different
+  // allowances on nearly parallel edges; squaring it off would reach far along the edges.
+  if (dot(t1, t2) > 0) return { points: [q1, q2], concave: false };
+  // Cut the miter off on the line square to the outward bisector at `limit` from the vertex. At a
+  // convex corner, t1 - t2 points along that bisector, well defined even at a hairpin.
+  const bisector = unit(sub(t1, t2));
   const along1 = bisector === null ? 0 : dot(t1, bisector);
   const along2 = bisector === null ? 0 : -dot(t2, bisector);
   if (bisector === null || !(along1 > EPSILON) || !(along2 > EPSILON)) {
@@ -259,9 +399,13 @@ function cornerJoin(
  * Where the strand `a` (ending at a concave corner) and the strand `b` (starting there) meet:
  * the intersection of their segments near the corner, each also extended straight beyond its
  * end by its end tangent (`t1` forward from the end of `a`, `t2` backward from the start of `b`).
- * Of all intersections within `limit` of `vertex`, the one that removes or adds the least length
- * wins. `null` when there is none (the caller then joins through the vertex). Looks at most
- * MAX_JOIN_SEGMENTS segments of each strand.
+ * Only intersections within `limit` of `vertex` count. A crossing of the strands themselves wins
+ * over one that extends a strand, which wins over one that extends both (extended tangents of
+ * curling curves can meet inside the piece); within that order, the one that removes or adds the
+ * least length wins. A meeting point on an extension is skipped when the extension crosses the
+ * `guard` polylines (the outline edges at the vertex) or comes closer to them than `clearance`,
+ * and so is one that extends more than `maxRank` strands. `null` when there is none (the caller
+ * then joins through the vertex). Looks at most MAX_JOIN_SEGMENTS segments of each strand.
  */
 export function concaveJoin(
   a: readonly Point[],
@@ -270,7 +414,13 @@ export function concaveJoin(
   t2: Point,
   vertex: Point,
   limit: number,
+  options: {
+    guard?: readonly (readonly Point[])[];
+    maxRank?: number;
+    clearance?: number;
+  } = {},
 ): ConcaveJoin | null {
+  const { guard = [], maxRank = 2, clearance = 0 } = options;
   const lastA = a[a.length - 1];
   const firstB = b[0];
   if (lastA === undefined || firstB === undefined || !(limit > 0)) return null;
@@ -287,9 +437,23 @@ export function concaveJoin(
 
   // Candidate pieces of each strand: [start, end, keep, cost at start, cost at end], where the
   // cost is the length removed from (or added to) the strand when the join is there.
-  type Piece = { p: Point; q: Point; keep: number; cost0: number; cost1: number };
+  type Piece = {
+    p: Point;
+    q: Point;
+    keep: number;
+    cost0: number;
+    cost1: number;
+    extended: boolean;
+  };
   const piecesA: Piece[] = [
-    { p: lastA, q: add(lastA, scale(t1, reach)), keep: a.length, cost0: 0, cost1: reach },
+    {
+      p: lastA,
+      q: add(lastA, scale(t1, reach)),
+      keep: a.length,
+      cost0: 0,
+      cost1: reach,
+      extended: true,
+    },
   ];
   let removed = 0;
   for (let k = a.length - 2; k >= Math.max(0, a.length - 1 - MAX_JOIN_SEGMENTS); k--) {
@@ -297,12 +461,19 @@ export function concaveJoin(
     const q = a[k + 1]!;
     const length = distance(p, q);
     if (touchesBox(p, q, box)) {
-      piecesA.push({ p, q, keep: k + 1, cost0: removed + length, cost1: removed });
+      piecesA.push({ p, q, keep: k + 1, cost0: removed + length, cost1: removed, extended: false });
     }
     removed += length;
   }
   const piecesB: Piece[] = [
-    { p: sub(firstB, scale(t2, reach)), q: firstB, keep: 0, cost0: reach, cost1: 0 },
+    {
+      p: sub(firstB, scale(t2, reach)),
+      q: firstB,
+      keep: 0,
+      cost0: reach,
+      cost1: 0,
+      extended: true,
+    },
   ];
   removed = 0;
   for (let k = 0; k <= Math.min(b.length - 2, MAX_JOIN_SEGMENTS - 1); k++) {
@@ -310,21 +481,28 @@ export function concaveJoin(
     const q = b[k + 1]!;
     const length = distance(p, q);
     if (touchesBox(p, q, box)) {
-      piecesB.push({ p, q, keep: k + 1, cost0: removed, cost1: removed + length });
+      piecesB.push({ p, q, keep: k + 1, cost0: removed, cost1: removed + length, extended: false });
     }
     removed += length;
   }
 
-  let best: (ConcaveJoin & { cost: number }) | null = null;
+  let best: (ConcaveJoin & { cost: number; rank: number }) | null = null;
   for (const pa of piecesA) {
     for (const pb of piecesB) {
       const hit = segmentIntersection(pa.p, pa.q, pb.p, pb.q);
       if (hit === null || distance(hit.point, vertex) > limit) continue;
       const cost =
         pa.cost0 + (pa.cost1 - pa.cost0) * hit.t + pb.cost0 + (pb.cost1 - pb.cost0) * hit.u;
-      if (best === null || cost < best.cost) {
-        best = { point: hit.point, keepA: pa.keep, keepB: pb.keep, cost };
-      }
+      const rank = Number(pa.extended) + Number(pb.extended);
+      const better = best === null || rank < best.rank || (rank === best.rank && cost < best.cost);
+      if (!better || rank > maxRank) continue;
+      if (rank > 0 && crossesAny([pa.p, hit.point, pb.q], guard)) continue;
+      const extensions = [
+        ...(pa.extended ? [[pa.p, hit.point]] : []),
+        ...(pb.extended ? [[hit.point, pb.q]] : []),
+      ];
+      if (extensions.some((path) => !clearOf(path, guard, clearance))) continue;
+      best = { point: hit.point, keepA: pa.keep, keepB: pb.keep, cost, rank };
     }
   }
   return best === null ? null : { point: best.point, keepA: best.keepA, keepB: best.keepB };
@@ -370,20 +548,51 @@ export function findCrossings(loop: readonly Point[]): Crossing[] {
 }
 
 /**
- * The outer boundary of the closed polyline `loop`: starting at its leftmost vertex (smallest x,
- * then smallest y), which is on the outer boundary, it walks forward and at every crossing
- * switches to the other strand, still walking forward. That keeps the outermost of the simple
- * loops the crossings split `loop` into, dropping reversed loops (concave joins, the swallowtails
- * of tight concave curves) and the overlap of lobes (allowances wider than a narrow part).
- * A loop without crossings is returned as it is. The walk maps each place on the loop to exactly
- * one next place, so it always returns to its start; the step guard (`null`) only protects against
- * a bug.
+ * Whether an edge of closed polygon `a` crosses an edge of closed polygon `b`, clear of rounding
+ * (touching and overlapping do not count). Sweep over both polygons' segments sorted by smallest x.
+ */
+export function polygonsCross(a: readonly Point[], b: readonly Point[]): boolean {
+  type Segment = { p: Point; q: Point; minX: number; maxX: number; fromA: boolean };
+  const segments: Segment[] = [];
+  for (const [polygon, fromA] of [
+    [a, true],
+    [b, false],
+  ] as const) {
+    polygon.forEach((p, i) => {
+      const q = polygon[(i + 1) % polygon.length]!;
+      segments.push({ p, q, minX: Math.min(p.x, q.x), maxX: Math.max(p.x, q.x), fromA });
+    });
+  }
+  segments.sort((s1, s2) => s1.minX - s2.minX);
+  let active: Segment[] = [];
+  for (const segment of segments) {
+    active = active.filter((other) => other.maxX >= segment.minX);
+    for (const other of active) {
+      if (other.fromA !== segment.fromA && segmentsCross(segment.p, segment.q, other.p, other.q)) {
+        return true;
+      }
+    }
+    active.push(segment);
+  }
+  return false;
+}
+
+/**
+ * The outer boundary of the closed polyline `loop`. At every crossing, walking forward on one
+ * strand continues forward on the other; that splits `loop` into simple loops that do not cross
+ * each other. Of those, the one with the largest area in the rotational direction of `loop` as a
+ * whole is kept, starting at its leftmost point (smallest x, then smallest y). That drops
+ * reversed loops (concave joins, the swallowtails of tight concave curves, a miter cut off by a
+ * curling curve) and the overlap of lobes (allowances wider than a narrow part). A loop without
+ * crossings is returned as it is. `null` when no loop has that direction (or, defensively, when
+ * the walk exceeds its step bound).
  */
 export function outerBoundary(loop: readonly Point[]): Point[] | null {
   const n = loop.length;
   if (n < 3) return null;
   const crossings = findCrossings(loop);
   if (crossings.length === 0) return loop.map(copy);
+  const direction = Math.sign(polygonArea(loop));
 
   // Per segment, its crossings ordered along it; `slot[c]` is crossing c's place in each list.
   const events: { t: number; crossing: number; side: 0 | 1 }[][] = Array.from(
@@ -402,28 +611,50 @@ export function outerBoundary(loop: readonly Point[]): Point[] | null {
     });
   }
 
-  const start = leftmostIndex(loop);
-  const result: Point[] = [copy(loop[start]!)];
-  const guard = 2 * (n + crossings.length) + 4;
-  let segment = start;
-  let next = 0;
-  for (let steps = 0; ; steps++) {
-    if (steps > guard) return null;
-    const event = events[segment]![next];
-    if (event !== undefined) {
-      const crossing = crossings[event.crossing]!;
-      result.push(copy(crossing.point));
-      const other = event.side === 0 ? 1 : 0;
-      segment = other === 0 ? crossing.i : crossing.j;
-      next = slot[event.crossing]![other]! + 1;
-      continue;
-    }
-    segment = (segment + 1) % n;
-    next = 0;
-    if (segment === start) break;
-    result.push(copy(loop[segment]!));
+  // A state (segment s, k) is the piece of segment s after its first k crossings. Each state has
+  // exactly one successor and one predecessor, so following them visits every state in cycles.
+  const offsets: number[] = [];
+  let states = 0;
+  for (const list of events) {
+    offsets.push(states);
+    states += list.length + 1;
   }
-  return cleanLoop(result);
+  const visited = new Uint8Array(states);
+  let best: Point[] | null = null;
+  let bestArea = 0;
+  for (let first = 0; first < n; first++) {
+    for (let k0 = 0; k0 <= events[first]!.length; k0++) {
+      if (visited[offsets[first]! + k0]) continue;
+      const cycle: Point[] = [];
+      let segment = first;
+      let next = k0;
+      for (let steps = 0; !visited[offsets[segment]! + next]; steps++) {
+        if (steps > states) return null;
+        visited[offsets[segment]! + next] = 1;
+        const event = events[segment]![next];
+        if (event !== undefined) {
+          const crossing = crossings[event.crossing]!;
+          cycle.push(crossing.point);
+          const other = event.side === 0 ? 1 : 0;
+          segment = other === 0 ? crossing.i : crossing.j;
+          next = slot[event.crossing]![other]! + 1;
+        } else {
+          segment = (segment + 1) % n;
+          next = 0;
+          cycle.push(loop[segment]!);
+        }
+      }
+      const area = polygonArea(cycle) * direction;
+      if (area > bestArea) {
+        best = cycle;
+        bestArea = area;
+      }
+    }
+  }
+  if (best === null) return null;
+  const cleaned = cleanLoop(best);
+  const start = leftmostIndex(cleaned);
+  return [...cleaned.slice(start), ...cleaned.slice(0, start)];
 }
 
 /**
@@ -438,7 +669,10 @@ export function cleanLoop(points: readonly Point[]): Point[] {
   for (let guard = out.length; guard > 0 && out.length >= 3; guard--) {
     const first = out[0]!;
     const last = out[out.length - 1]!;
-    if (distance(first, last) < MERGE_TOLERANCE || straightOrSpike(out[out.length - 2]!, last, first)) {
+    if (
+      distance(first, last) < MERGE_TOLERANCE ||
+      straightOrSpike(out[out.length - 2]!, last, first)
+    ) {
       out.pop();
     } else if (straightOrSpike(last, first, out[1]!)) {
       out.shift();
@@ -514,6 +748,27 @@ function properCrossing(loop: readonly Point[], i: number, j: number): Crossing 
   const t = clamp01(o1 / (o1 - o2));
   const u = clamp01(o3 / (o3 - o4));
   return { i, t, j, u, point: add(p1, scale(sub(p2, p1), t)) };
+}
+
+// Whether segments p1-p2 and q1-q2 cross, each one's ends lying clearly (more than
+// MERGE_TOLERANCE) on either side of the other's line: touching, overlapping and crossings within
+// rounding of a shared line do not count.
+function segmentsCross(p1: Point, p2: Point, q1: Point, q2: Point): boolean {
+  if (Math.max(p1.x, p2.x) < Math.min(q1.x, q2.x) || Math.max(q1.x, q2.x) < Math.min(p1.x, p2.x)) {
+    return false;
+  }
+  if (Math.max(p1.y, p2.y) < Math.min(q1.y, q2.y) || Math.max(q1.y, q2.y) < Math.min(p1.y, p2.y)) {
+    return false;
+  }
+  const lengthQ = distance(q1, q2);
+  const lengthP = distance(p1, p2);
+  const apart = (a: number, b: number, length: number): boolean =>
+    (a > MERGE_TOLERANCE * length && b < -MERGE_TOLERANCE * length) ||
+    (a < -MERGE_TOLERANCE * length && b > MERGE_TOLERANCE * length);
+  return (
+    apart(side(q1, q2, p1), side(q1, q2, p2), lengthQ) &&
+    apart(side(p1, p2, q1), side(p1, p2, q2), lengthP)
+  );
 }
 
 // The intersection of segments p1-p2 and q1-q2 (ends included), with its parameters on each.
