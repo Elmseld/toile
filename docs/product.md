@@ -40,8 +40,19 @@ Both groups use the same engine but get different amounts of it exposed.
    and deleted from the list; a user can have at most 100. Deleting a profile keeps its projects,
    which then ask for a new profile. A project stores a copy of the block definition, so later
    changes to a block do not affect it.
-3. **Modify**: the user drags points, edits formulas or parameters (e.g. ease), and the pattern is
-   recalculated immediately. Switching measurement profile recalculates the whole pattern.
+3. **Modify**: on the project page every point is a handle that can be dragged with mouse, touch
+   or pen; the control points of Bézier curves too. Dependent points, curves and pieces follow
+   during the drag, with no server call. Selecting a point (click or tap, or the select with the
+   prompt "Välj en punkt") shows its operation and fields; its formula fields are editable (in
+   millimetres), and an invalid formula shows an error under the field while the drawing stays as
+   it was. The panel shows the point's offset in cm with the button "Återställ läget". A panel
+   "Justeringar" lists the pattern's parameters (e.g. ease, "Rörelsevidd, stuss") in cm or degrees;
+   an empty field returns to the default. "Ångra" and "Gör om" (also Ctrl/Cmd+Z and
+   Ctrl/Cmd+Shift+Z) step through at least 50 edits per page visit; the history is lost on reload.
+   Changes save automatically ("Sparar…", "Sparat", or "Ändringarna kunde inte sparas"), and a
+   reload shows the same pattern. Only point offsets, point formulas and parameter overrides can be
+   edited; point names, operations, curves and pieces cannot (ADR 0008). Switching measurement
+   profile recalculates the whole pattern and keeps the edits.
 4. **Finish**: seam allowance is added per edge. Markings (grainline, notches, fold line) are shown.
 5. **Print**: PDF at 1:1 scale, tiled on A4 with overlap, numbering and a test square.
 

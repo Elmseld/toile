@@ -101,7 +101,8 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   formulas keep their own limits (see Formulas). Storage limits are up to the app (ADR 0006).
 - **Points.** `name`, `op`, the op's fields and an optional `user_offset: { dx, dy }`. Name fields
   hold point names; formula fields hold formulas (ADR 0003) that may also call the geometry
-  functions below. Lengths are mm.
+  functions below. Lengths are mm. The field layout of every op is in
+  `src/geometry/point_ops.json`, which the app also reads at compile time (ADR 0008).
 
   | `op` | Fields | Result |
   |------|--------|--------|
@@ -282,3 +283,23 @@ The engine has no block registry.
   angle convention (ADR 0004 decision 6). Implausible profiles (e.g. a `bust_height` shorter than
   the sideways distance from the neck point to the bust point) make the engine return errors,
   shown as the hook's generic error.
+
+## Editor helpers
+
+`src/editor/` holds the pure logic behind the project page editor (ADR 0008). All of it works on the
+raw definition JSON as stored, so a save differs from the stored definition only where the user
+edited.
+
+- `setUserOffset(definition, point, offset | null)`: replaces one point's `user_offset` (rounded to
+  0.1 mm; `null` removes it). Other points keep their identity.
+- `setPointFormula(definition, point, field, formula)`: replaces one formula field; anything else is
+  returned unchanged.
+- `pointFields(point)`, `controlPoints(definition)`: the op's fields for a panel, and the `c1`/`c2`
+  names of cubic curves.
+- `tryPattern(definition, input)`: compile and evaluate; `ok` only if the result is `ok`, else the
+  errors. `errorsFor(errors, point, field?)` picks the ones for a point.
+- `pickPoint(points, at, radius, prefer?)`: nearest point within a radius, ties to `prefer`.
+- `createHistory`, `push`, `undo`, `redo`, `canUndo`, `canRedo`: bounded (default 100) immutable
+  undo/redo over `{ definition, parameters }`.
+- `toDisplay`, `fromDisplay`, `formatDisplay`: parameter values between stored units and the units
+  shown (mm to cm, degrees per mm to per cm).
