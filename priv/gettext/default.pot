@@ -372,6 +372,7 @@ msgstr ""
 msgid "Save password"
 msgstr ""
 
+#: lib/toile_web/editor_texts.ex
 #: lib/toile_web/live/measurement_profile_live/form.ex
 #: lib/toile_web/live/pattern_live/form.ex
 #: lib/toile_web/live/user_live/settings.ex
@@ -784,6 +785,8 @@ msgid "You don't have any measurement profiles yet."
 msgstr ""
 
 #: lib/toile_web/centimeters.ex
+#: lib/toile_web/editor_texts.ex
+#: lib/toile_web/parameter_texts.ex
 #, elixir-autogen, elixir-format
 msgctxt "decimal separator"
 msgid "."
@@ -819,11 +822,6 @@ msgstr ""
 #: lib/toile_web/live/pattern_live/index.ex
 #, elixir-autogen, elixir-format
 msgid "Delete this pattern?"
-msgstr ""
-
-#: lib/toile_web/live/pattern_live/show.ex
-#, elixir-autogen, elixir-format
-msgid "Drag to move the pattern; scroll or pinch to zoom. With the keyboard: arrow keys move, + and - zoom, 0 fits to the screen."
 msgstr ""
 
 #: lib/toile_web/live/pattern_live/show.ex
@@ -945,4 +943,399 @@ msgstr ""
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
 msgid "At the band at underarm level: across the back between the armhole creases."
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "%{label} (%{unit})"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "%{name} cannot be computed with this change."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "%{name} cannot be used here."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "%{name} needs point names here."
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Adjustments"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Angle (degrees, 0 = right, 90 = down)"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "At an angle from a point"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Back dart length"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Back shoulder dart, length"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Back shoulder dart, width"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Back waist dart, distance below the underarm level"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Bust dart growth"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Bust excess without a bust dart"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Centre point"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Choose a point"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Click or tap a point in the pattern to select it."
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Default: %{value}"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Distance"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Down (dy)"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Drag a point to move it; drag anywhere else to move the view. Scroll or pinch to zoom. Ctrl+Z undoes, Ctrl+Shift+Z redoes. With the keyboard: arrow keys move, + and - zoom, 0 fits to the screen."
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Ease across the back"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Ease at the bust"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Ease at the hip"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Ease at the waist"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Edit the pattern"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Enter a number, e.g. 4.5"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Extra armhole depth"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Extra depth of the front neckline"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "First line"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Formulas count in millimetres."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "From point"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Front dart length"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Front waist dart, distance below the bust point"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Halfway between two points"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Largest bust dart"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Leave empty for the default."
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Lengthen or shorten"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Line"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Move the side seam"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Moved %{x} cm sideways and %{y} cm up or down"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Not moved"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Offset from a point"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "On a line between two points"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Point"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Position sideways (x)"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Position up or down (y)"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Radius"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Raise the back neckline"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Raise the waist at the side"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Redo"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Reset position"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Saved"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Second line"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Shoulder slope, back"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Shoulder slope, front"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Squared out from a line"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Start point"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The first"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The formula cannot be read."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The formula depends on itself."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The formula divides by zero."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The formula does not give a usable number."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The lines do not meet."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The pattern cannot be drawn with this change."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The points end up too close to each other or too far away."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The second"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "There is no function called %{name}."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "There is nothing called %{name}."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "To the right (dx)"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Towards point"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Undo"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Where a line meets a circle"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Where two lines cross"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Which crossing point"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Wrong number of values for %{name}."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Your changes could not be saved"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "cm"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "degrees"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "degrees per cm"
 msgstr ""
