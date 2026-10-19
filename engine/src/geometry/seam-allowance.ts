@@ -4,19 +4,37 @@
 //
 // Steps: read and validate the allowances; flatten and offset every edge (offset.ts), with the
 // dart peak across every detected dart (darts.ts); join consecutive edges at the outline's
-// vertices (miter, clipped miter, round join, concave intersection or smooth step); keep the
-// outer boundary of the resulting closed polyline, which removes loops and overlaps; check it
-// (with a conservative second construction when the first fails) and start it at its leftmost
-// point. Never throws; work is bounded by MAX_CUTTING_LINE_SEGMENTS.
+// vertices (joins.ts: miter, clipped miter, round join, concave intersection or smooth step); keep
+// the outer boundary of the resulting closed polyline, which removes loops and overlaps
+// (boundary.ts); check it (with a conservative second construction when the first fails) and
+// start it at its leftmost point. Never throws.
+//
+// Work is bounded by limits, each refusing the piece as `degenerate_geometry` when exceeded: at
+// most MAX_OUTLINE_ENTRIES outline entries, MAX_CUTTING_LINE_SEGMENTS flattening segments for all
+// edges together, MAX_RAW_LINE_POINTS points in the raw line (offset edges, corner joins and dart
+// peaks together) and one SweepBudget (MAX_SWEEP_PAIRS compared segment pairs, MAX_CROSSINGS
+// crossings) shared by every crossing sweep of the computation, the second construction included.
 //
 // Cost, measured with Bun in Docker on a laptop: about 0.07 to 0.1 ms per skirt piece and 0.2 to
-// 0.25 ms per bodice piece (a few hundred segments; the crossing sweep is near-linear there). A
-// hostile outline of 1000 large cubics at the segment budget takes about 0.3 s. A view should
-// still compute it once per drawn input rather than on every pointer move.
+// 0.25 ms per bodice piece (a few hundred segments; the crossing sweeps are near-linear there). A
+// piece that needs the second construction costs about twice as much. The worst hostile outlines
+// found at the entry limit (stars of hundreds of thin spikes, combs, serpentines of wavy rows, a
+// thousand large cubics, all at 100 mm) take at most about 0.2 s and 100 MB, then give a line or
+// are refused. A view should still compute it once per drawn input rather than on every pointer
+// move.
 
 import { dartCuttingLine, type Dart, findDarts } from "./darts";
 import { insidePolygon } from "./label";
-import { cleanLoop, findCrossings, leftmostIndex, outerBoundary, polygonsCross } from "./boundary";
+import {
+  cleanLoop,
+  findCrossings,
+  leftmostIndex,
+  outerBoundary,
+  polygonsCross,
+  type SweepBudget,
+  sweepBudget,
+  WorkLimitError,
+} from "./boundary";
 import { joinStrands } from "./joins";
 import {
   cubicSegments,
@@ -28,6 +46,7 @@ import {
   offsetEdge,
   polygonArea,
 } from "./offset";
+import { MAX_OUTLINE_ENTRIES } from "./validate";
 import { distance, MAX_COORDINATE, type Point, pointSegmentDistance } from "./vector";
 
 type CuttingPoint = Readonly<Point>;
@@ -74,7 +93,15 @@ const MIN_AREA = 1e-6;
 /** Rounds of `outerBoundary` before a line that still crosses itself is given up. */
 const BOUNDARY_ROUNDS = 3;
 
+/**
+ * The raw cutting line (offset edges, corner joins and dart peaks, before its crossings are
+ * resolved) may have at most this many points. Real pieces have a few hundred; a comb of hundreds
+ * of teeth with round joins at 100 mm about 40 000.
+ */
+export const MAX_RAW_LINE_POINTS = 50_000;
+
 const SELF_CROSSING = "The outline crosses itself, so it has no cutting line";
+const TOO_COMPLEX = "The piece is too complex for a cutting line";
 
 type ReadEdge = { edge: Edge; allowance: number };
 
@@ -106,7 +133,8 @@ type ReadEdge = { edge: Edge; allowance: number };
 export function cuttingLine(piece: CuttingPiece, allowances: SeamAllowances): CuttingLineResult {
   try {
     return compute(piece, allowances);
-  } catch {
+  } catch (error) {
+    if (error instanceof WorkLimitError) return degenerate(TOO_COMPLEX);
     return degenerate("The cutting line could not be computed for this piece");
   }
 }
@@ -123,11 +151,13 @@ function compute(piece: unknown, input: unknown): CuttingLineResult {
   if (!(Math.abs(area) >= MIN_AREA)) return degenerate("The outline encloses no area");
   // Checked up front: whether a crossing outline still gives a line that passes the checks below
   // depends on the allowance, and such a line is nonsense at any allowance.
-  if (findCrossings(flat).length > 0) return degenerate(SELF_CROSSING);
+  const budget = sweepBudget();
+  if (findCrossings(flat, budget).length > 0) return degenerate(SELF_CROSSING);
   const sign = Math.sign(area);
 
   const line =
-    trace(outline, steps, sign, flat, "exact") ?? trace(outline, steps, sign, flat, "safe");
+    trace(outline, steps, sign, flat, "exact", budget) ??
+    trace(outline, steps, sign, flat, "safe", budget);
   if (line === null) return degenerate("No cutting line could be constructed for this outline");
   const start = leftmostIndex(line);
   return { ok: true, points: [...line.slice(start), ...line.slice(0, start)] };
@@ -144,13 +174,15 @@ type Mode = "exact" | "safe";
 
 // The checked cutting line in `mode`, or null when it fails a check: it must not cross itself or
 // the flattened outline, run in the outline's direction and have every outline vertex inside or
-// on it.
+// on it. Throws WorkLimitError when the raw line gets longer than MAX_RAW_LINE_POINTS or the
+// crossing sweeps exhaust `budget`.
 function trace(
   outline: readonly ReadEdge[],
   steps: readonly number[],
   sign: number,
   flat: readonly Point[],
   mode: Mode,
+  budget: SweepBudget,
 ): Point[] | null {
   const units = buildUnits(outline, steps, sign, mode);
   if (units === null) return null;
@@ -160,12 +192,12 @@ function trace(
   // lie on top of each other.
   let loop = cleanLoop(units.flatMap((unit) => unit.points));
   for (let round = 0; round < BOUNDARY_ROUNDS; round++) {
-    const traced = outerBoundary(loop);
+    const traced = outerBoundary(loop, budget);
     if (traced === null || traced.length < 3) return null;
-    if (findCrossings(traced).length === 0) {
+    if (findCrossings(traced, budget).length === 0) {
       const valid =
         polygonArea(traced) * sign > 0 &&
-        !polygonsCross(traced, flat) &&
+        !polygonsCross(traced, flat, budget) &&
         enclosesOutline(traced, outline);
       return valid ? traced : null;
     }
@@ -269,8 +301,12 @@ function dartUnit(
 }
 
 // Joins each unit to the next at their shared outline vertex, trimming or extending them in place.
+// Throws WorkLimitError as soon as the units hold more than MAX_RAW_LINE_POINTS points.
 function joinUnits(units: Unit[], sign: number, mode: Mode): void {
+  let total = 0;
+  for (const unit of units) total += unit.points.length;
   for (let k = 0; k < units.length; k++) {
+    if (total > MAX_RAW_LINE_POINTS) throw new WorkLimitError("the raw cutting line is too long");
     const current = units[k]!;
     const next = units[(k + 1) % units.length]!;
     const corner = {
@@ -285,22 +321,25 @@ function joinUnits(units: Unit[], sign: number, mode: Mode): void {
       guard: [current.endOutline, next.startOutline],
       safe: mode === "safe",
     });
+    total += joined.a.length - current.points.length;
     current.points = joined.a;
-    if (next !== current) next.points = joined.b;
+    if (next !== current) {
+      total += joined.b.length - next.points.length;
+      next.points = joined.b;
+    }
   }
+  if (total > MAX_RAW_LINE_POINTS) throw new WorkLimitError("the raw cutting line is too long");
 }
 
 // Flattening step counts per edge (1 for a line), scaled down together when the piece would get
-// more than MAX_CUTTING_LINE_SEGMENTS segments.
+// more than MAX_CUTTING_LINE_SEGMENTS segments. Each cubic keeps its first segment and a share of
+// the rest, so the total stays within the limit (readOutline allows far fewer edges than that).
 function segmentBudget(outline: readonly ReadEdge[]): number[] {
   const steps = outline.map(({ edge, allowance }) => cubicSegments(edge, allowance));
   const total = steps.reduce((sum, count) => sum + count, 0);
   if (total <= MAX_CUTTING_LINE_SEGMENTS) return steps;
-  const lines = outline.filter(({ edge }) => edge.type !== "cubic").length;
-  const factor = (MAX_CUTTING_LINE_SEGMENTS - lines) / (total - lines);
-  return steps.map((count, i) =>
-    outline[i]!.edge.type === "cubic" ? Math.max(1, Math.floor(count * factor)) : count,
-  );
+  const factor = (MAX_CUTTING_LINE_SEGMENTS - steps.length) / (total - steps.length);
+  return steps.map((count) => 1 + Math.floor((count - 1) * factor));
 }
 
 // Whether every outline vertex lies inside the closed polygon or within MERGE_TOLERANCE of it.
@@ -308,12 +347,18 @@ function enclosesOutline(polygon: readonly Point[], outline: readonly ReadEdge[]
   return outline.every(({ edge: { from } }) => {
     if (insidePolygon(polygon, from.x, from.y)) return true;
     for (let i = 0; i < polygon.length; i++) {
+      const a = polygon[i]!;
+      const b = polygon[(i + 1) % polygon.length]!;
+      // A cheap box test first: this runs over the whole line for every vertex on it (a fold).
       if (
-        pointSegmentDistance(from, polygon[i]!, polygon[(i + 1) % polygon.length]!) <=
-        MERGE_TOLERANCE
+        from.x < Math.min(a.x, b.x) - MERGE_TOLERANCE ||
+        from.x > Math.max(a.x, b.x) + MERGE_TOLERANCE ||
+        from.y < Math.min(a.y, b.y) - MERGE_TOLERANCE ||
+        from.y > Math.max(a.y, b.y) + MERGE_TOLERANCE
       ) {
-        return true;
+        continue;
       }
+      if (pointSegmentDistance(from, a, b) <= MERGE_TOLERANCE) return true;
     }
     return false;
   });
@@ -414,7 +459,9 @@ function readOutline(
     const outline: unknown =
       typeof piece === "object" && piece !== null ? (piece as { outline?: unknown }).outline : null;
     if (!Array.isArray(outline) || outline.length === 0) return "The piece has no outline";
-    if (outline.length > MAX_CUTTING_LINE_SEGMENTS) return "The outline has too many edges";
+    if (outline.length > MAX_OUTLINE_ENTRIES) {
+      return `The outline has more than ${MAX_OUTLINE_ENTRIES} edges`;
+    }
     entries = [...outline];
   } catch {
     return "The outline could not be read";

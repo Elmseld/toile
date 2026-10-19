@@ -1,5 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { cleanLoop, findCrossings, leftmostIndex, outerBoundary, polygonsCross } from "./boundary";
+import {
+  cleanLoop,
+  findCrossings,
+  leftmostIndex,
+  MAX_CROSSINGS,
+  MAX_SWEEP_PAIRS,
+  outerBoundary,
+  polygonsCross,
+  sweepBudget,
+  WorkLimitError,
+} from "./boundary";
 import { type Point } from "./vector";
 
 const p = (x: number, y: number): Point => ({ x, y });
@@ -130,5 +140,32 @@ describe("polygonsCross", () => {
     expect(polygonsCross(square, [p(5, 5), p(15, 5), p(15, 6)])).toBe(true);
     expect(polygonsCross(square, [p(2, 2), p(8, 2), p(8, 8)])).toBe(false);
     expect(polygonsCross(square, square)).toBe(false);
+  });
+});
+
+describe("work limits of the sweeps", () => {
+  const eight = [p(0, 0), p(100, 100), p(100, 0), p(0, 100)];
+  const square = [p(0, 0), p(10, 0), p(10, 10), p(0, 10)];
+
+  test("a fresh budget has the full limits, and one budget is used up across calls", () => {
+    expect(sweepBudget()).toEqual({ pairs: MAX_SWEEP_PAIRS, crossings: MAX_CROSSINGS });
+    const budget = sweepBudget();
+    expect(findCrossings(eight, budget).length).toBe(1);
+    expect(budget.crossings).toBe(MAX_CROSSINGS - 1);
+    expect(budget.pairs).toBeLessThan(MAX_SWEEP_PAIRS);
+    const left = budget.pairs;
+    expect(polygonsCross(square, square, budget)).toBe(false);
+    expect(budget.pairs).toBeLessThan(left);
+  });
+
+  test("running out of crossings or pairs throws WorkLimitError", () => {
+    expect(() => findCrossings(eight, { pairs: 100, crossings: 0 })).toThrow(WorkLimitError);
+    expect(() => findCrossings(eight, { pairs: 0, crossings: 100 })).toThrow(WorkLimitError);
+    expect(() => outerBoundary(eight, { pairs: 100, crossings: 0 })).toThrow(WorkLimitError);
+    expect(() => polygonsCross(square, square, { pairs: 0, crossings: 0 })).toThrow(
+      WorkLimitError,
+    );
+    // Enough for the work: no throw.
+    expect(findCrossings(eight, { pairs: 100, crossings: 1 }).length).toBe(1);
   });
 });

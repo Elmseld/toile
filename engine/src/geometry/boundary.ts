@@ -11,13 +11,48 @@ const SPIKE_TOLERANCE = 1e-9;
 export type Crossing = { i: number; t: number; j: number; u: number; point: Point };
 
 /**
+ * At most this many crossings are collected by all the sweeps of one budget (`SweepBudget`). Real
+ * pieces have a few; a star of 500 thin spikes at 100 mm allowance about 60 000.
+ */
+export const MAX_CROSSINGS = 200_000;
+/**
+ * At most this many pairs of segments whose x ranges overlap are compared by all the sweeps of one
+ * budget (`findCrossings`, `polygonsCross`). Real pieces need a few thousand per sweep; a comb of
+ * hundreds of teeth with overlapping offsets millions. About 0.2 s in Bun on a laptop.
+ */
+export const MAX_SWEEP_PAIRS = 20_000_000;
+
+/** Thrown when a computation would exceed one of its work limits; the caller reports it. */
+export class WorkLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WorkLimitError";
+  }
+}
+
+/**
+ * The work left for the crossing sweeps of one computation, used up in place. One budget is shared
+ * by every sweep of a cutting line, so its total work is bounded, not that of each sweep.
+ */
+export type SweepBudget = { pairs: number; crossings: number };
+
+/** A full budget: MAX_SWEEP_PAIRS pairs and MAX_CROSSINGS crossings. */
+export function sweepBudget(): SweepBudget {
+  return { pairs: MAX_SWEEP_PAIRS, crossings: MAX_CROSSINGS };
+}
+
+/**
  * Every place where two non-adjacent segments of the closed polyline `loop` cross (segment `i`
  * runs from `loop[i]` to `loop[i + 1]`, the last one back to the start). A point exactly on a
  * segment's line counts as lying on its left (a consistent symbolic perturbation), so a crossing
  * through a vertex is found once, a touch is not a crossing and collinear overlaps are ignored.
- * Sweep over the segments sorted by their smallest x.
+ * Sweep over the segments sorted by their smallest x. Throws WorkLimitError when `budget` runs out
+ * of compared pairs or crossings.
  */
-export function findCrossings(loop: readonly Point[]): Crossing[] {
+export function findCrossings(
+  loop: readonly Point[],
+  budget: SweepBudget = sweepBudget(),
+): Crossing[] {
   const n = loop.length;
   const crossings: Crossing[] = [];
   if (n < 4) return crossings;
@@ -34,26 +69,42 @@ export function findCrossings(loop: readonly Point[]): Crossing[] {
     maxY[i] = Math.max(a.y, b.y);
   }
   const order = Array.from({ length: n }, (_, i) => i).sort((p, q) => minX[p]! - minX[q]!);
-  let active: number[] = [];
+  const active = new Int32Array(n);
+  let size = 0;
   for (const i of order) {
-    active = active.filter((j) => maxX[j]! >= minX[i]!);
-    for (const j of active) {
+    // Drop the segments that end before this one starts, compacting the active list in place.
+    let kept = 0;
+    for (let k = 0; k < size; k++) {
+      const j = active[k]!;
+      if (maxX[j]! >= minX[i]!) active[kept++] = j;
+    }
+    size = kept;
+    spendPairs(budget, size);
+    for (let k = 0; k < size; k++) {
+      const j = active[k]!;
       if (maxY[j]! < minY[i]! || maxY[i]! < minY[j]!) continue;
       if (j === (i + 1) % n || i === (j + 1) % n) continue;
-      const [first, second] = i < j ? [i, j] : [j, i];
-      const crossing = properCrossing(loop, first, second);
-      if (crossing !== null) crossings.push(crossing);
+      const crossing = properCrossing(loop, Math.min(i, j), Math.max(i, j));
+      if (crossing === null) continue;
+      budget.crossings--;
+      if (budget.crossings < 0) throw new WorkLimitError("too many crossings");
+      crossings.push(crossing);
     }
-    active.push(i);
+    active[size++] = i;
   }
   return crossings;
 }
 
 /**
  * Whether an edge of closed polygon `a` crosses an edge of closed polygon `b`, clear of rounding
- * (touching and overlapping do not count). Sweep over both polygons' segments sorted by smallest x.
+ * (touching and overlapping do not count). Sweep over both polygons' segments sorted by smallest x;
+ * throws WorkLimitError when `budget` runs out of compared pairs.
  */
-export function polygonsCross(a: readonly Point[], b: readonly Point[]): boolean {
+export function polygonsCross(
+  a: readonly Point[],
+  b: readonly Point[],
+  budget: SweepBudget = sweepBudget(),
+): boolean {
   type Segment = { p: Point; q: Point; minX: number; maxX: number; fromA: boolean };
   const segments: Segment[] = [];
   for (const [polygon, fromA] of [
@@ -66,9 +117,12 @@ export function polygonsCross(a: readonly Point[], b: readonly Point[]): boolean
     });
   }
   segments.sort((s1, s2) => s1.minX - s2.minX);
-  let active: Segment[] = [];
+  const active: Segment[] = [];
   for (const segment of segments) {
-    active = active.filter((other) => other.maxX >= segment.minX);
+    let kept = 0;
+    for (const other of active) if (other.maxX >= segment.minX) active[kept++] = other;
+    active.length = kept;
+    spendPairs(budget, kept);
     for (const other of active) {
       if (other.fromA !== segment.fromA && segmentsCross(segment.p, segment.q, other.p, other.q)) {
         return true;
@@ -87,12 +141,15 @@ export function polygonsCross(a: readonly Point[], b: readonly Point[]): boolean
  * reversed loops (concave joins, the swallowtails of tight concave curves, a miter cut off by a
  * curling curve) and the overlap of lobes (allowances wider than a narrow part). A loop without
  * crossings is returned as it is. `null` when no loop has that direction (or, defensively, when
- * the walk exceeds its step bound).
+ * the walk exceeds its step bound). Finding the crossings spends `budget` (`findCrossings`).
  */
-export function outerBoundary(loop: readonly Point[]): Point[] | null {
+export function outerBoundary(
+  loop: readonly Point[],
+  budget: SweepBudget = sweepBudget(),
+): Point[] | null {
   const n = loop.length;
   if (n < 3) return null;
-  const crossings = findCrossings(loop);
+  const crossings = findCrossings(loop, budget);
   if (crossings.length === 0) return loop.map(copy);
   const direction = Math.sign(polygonArea(loop));
 
@@ -214,6 +271,11 @@ function straightOrSpike(a: Point, b: Point, c: Point): boolean {
   const u = sub(b, a);
   const v = sub(c, b);
   return Math.abs(cross(u, v)) <= SPIKE_TOLERANCE * norm(u) * norm(v);
+}
+
+function spendPairs(budget: SweepBudget, pairs: number): void {
+  budget.pairs -= pairs;
+  if (budget.pairs < 0) throw new WorkLimitError("too many segment pairs to compare");
 }
 
 // Twice the signed area of the triangle a, b, c. Callers count zero (c on the line a-b) as

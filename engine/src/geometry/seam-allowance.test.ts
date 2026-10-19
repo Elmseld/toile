@@ -7,13 +7,15 @@ import { evaluatePattern } from "./evaluate";
 import { insidePolygon } from "./label";
 import { findCrossings } from "./boundary";
 import { MITER_LIMIT } from "./joins";
-import { type Edge, MAX_CUTTING_LINE_SEGMENTS, polygonArea } from "./offset";
+import { cubicSegments, type Edge, MAX_CUTTING_LINE_SEGMENTS, polygonArea } from "./offset";
 import {
   type CuttingPiece,
   cuttingLine,
+  MAX_RAW_LINE_POINTS,
   MAX_SEAM_ALLOWANCE,
   type SeamAllowances,
 } from "./seam-allowance";
+import { MAX_OUTLINE_ENTRIES } from "./validate";
 import { cross, distance, MAX_COORDINATE, type Point } from "./vector";
 
 const BLOCKS_DIR = join(import.meta.dir, "..", "..", "blocks");
@@ -625,6 +627,53 @@ describe("fuzz: star polygons with curves and mixed allowances (M)", () => {
   }, 60_000);
 });
 
+/** `count` corners alternating between radius `outer` and `inner` around (0, 0). */
+function starCorners(count: number, outer: number, inner: number): Point[] {
+  return Array.from({ length: count }, (_, i) => {
+    const angle = (i / count) * 2 * Math.PI;
+    const radius = i % 2 === 0 ? outer : inner;
+    return p(radius * Math.cos(angle), radius * Math.sin(angle));
+  });
+}
+
+/** A comb of `teeth` teeth `width` wide and `height` long, `gap` apart, on a 50 mm back. */
+function combCorners(teeth: number, width: number, gap: number, height: number): Point[] {
+  const corners: Point[] = [];
+  let x = 0;
+  for (let tooth = 0; tooth < teeth; tooth++) {
+    corners.push(p(x, 0), p(x + width, 0), p(x + width, height));
+    x += width + gap;
+    corners.push(p(x, height));
+  }
+  corners.push(p(x, 0), p(x + width, 0), p(x + width, height + 50), p(0, height + 50));
+  return corners;
+}
+
+/** Rows of wavy cubics `gap` apart, joined at alternating ends, closed along the left. */
+function serpentine(rows: number, length: number, gap: number, wave: number): CuttingPiece {
+  const outline: Edge[] = [];
+  let at = p(0, 0);
+  for (let row = 0; row < rows; row++) {
+    const y = row * gap;
+    const to = p(row % 2 === 0 ? length : 50, y);
+    const third = (to.x - at.x) / 3;
+    outline.push({
+      name: `r${row}`,
+      type: "cubic",
+      from: at,
+      c1: p(at.x + third, y + wave),
+      c2: p(at.x + 2 * third, y - wave),
+      to,
+    });
+    const down = p(to.x, y + gap);
+    outline.push({ name: `v${row}`, type: "line", from: to, to: down });
+    at = down;
+  }
+  outline.push({ name: "bottom", type: "line", from: at, to: p(0, at.y) });
+  outline.push({ name: "left", type: "line", from: p(0, at.y), to: p(0, 0) });
+  return { outline };
+}
+
 describe("input robustness (N)", () => {
   const square = polygonPiece([p(0, 0), p(100, 0), p(100, 100), p(0, 100)]);
   const call = (allowances: unknown, piece: unknown = square) =>
@@ -810,6 +859,94 @@ describe("input robustness (N)", () => {
     expect(result.ok ? result.points.length : result.errors[0]!.kind).toBe(
       result.ok ? 4 : "degenerate_geometry",
     );
+  });
+
+  test("the flattening budget holds when many short cubics share it with a few long ones", () => {
+    // 40 bulging cubics that want MAX_CUBIC_SEGMENTS each and 960 straight cubics that want one:
+    // more than the budget together, so the long ones are scaled down. At allowance 0 the line is
+    // the flattened outline, one point per segment.
+    const count = 1000;
+    const corners = Array.from({ length: count }, (_, i) => {
+      const angle = (i / count) * 2 * Math.PI;
+      return p(1e6 * Math.cos(angle), 1e6 * Math.sin(angle));
+    });
+    const outline: Edge[] = corners.map((from, i) => {
+      const to = corners[(i + 1) % count]!;
+      const bulge = i % 25 === 0 ? 5000 / 1e6 : 0;
+      const out = p((from.x + to.x) * bulge * 0.5, (from.y + to.y) * bulge * 0.5);
+      return {
+        name: `c${i}`,
+        type: "cubic",
+        from,
+        c1: p(from.x + (to.x - from.x) / 3 + out.x, from.y + (to.y - from.y) / 3 + out.y),
+        c2: p(
+          from.x + (2 * (to.x - from.x)) / 3 + out.x,
+          from.y + (2 * (to.y - from.y)) / 3 + out.y,
+        ),
+        to,
+      };
+    });
+    expect(outline.reduce((sum, edge) => sum + cubicSegments(edge, 0), 0)).toBeGreaterThan(
+      MAX_CUTTING_LINE_SEGMENTS,
+    );
+    expect(points(cuttingLine({ outline }, { default: 0 })).length).toBeLessThanOrEqual(
+      MAX_CUTTING_LINE_SEGMENTS,
+    );
+  });
+
+  test("an outline with more than MAX_OUTLINE_ENTRIES edges is refused before any work", () => {
+    const corners = Array.from({ length: MAX_OUTLINE_ENTRIES + 1 }, (_, i) => {
+      const angle = (i / (MAX_OUTLINE_ENTRIES + 1)) * 2 * Math.PI;
+      return p(1000 * Math.cos(angle), 1000 * Math.sin(angle));
+    });
+    expect(cuttingLine(polygonPiece(corners), { default: 10 })).toEqual({
+      ok: false,
+      errors: [
+        {
+          kind: "degenerate_geometry",
+          message: `The outline has more than ${MAX_OUTLINE_ENTRIES} edges`,
+        },
+      ],
+    });
+    expect(cuttingLine(polygonPiece(corners.slice(1)), { default: 10 }).ok).toBe(true);
+  });
+
+  // Hostile outlines at the entry limit, at the largest allowance: each either gives a line of
+  // bounded size or is refused as too complex, quickly. The limits cap the crossings, the pairs of
+  // segments compared and the raw line; without them, outlines like these with more edges took
+  // tens of seconds and gigabytes.
+  const hostile: [string, CuttingPiece][] = [
+    ["a star of 499 thin spikes", polygonPiece(starCorners(998, 5000, 100))],
+    ["a star of 499 short spikes", polygonPiece(starCorners(998, 110, 100))],
+    ["a comb of 249 thin teeth", polygonPiece(combCorners(249, 1, 1, 100))],
+    ["a comb of 249 wide teeth", polygonPiece(combCorners(249, 50, 50, 1000))],
+    ["a serpentine of 499 wavy rows", serpentine(499, 3000, 30, 10)],
+  ];
+  for (const [label, piece] of hostile) {
+    test(`${label} at ${MAX_SEAM_ALLOWANCE} mm stays within the work limits`, () => {
+      expect(piece.outline.length).toBeLessThanOrEqual(MAX_OUTLINE_ENTRIES);
+      const started = performance.now();
+      const result = cuttingLine(piece, { default: MAX_SEAM_ALLOWANCE });
+      // Generous for slow CI machines; on a laptop each takes about 0.2 s at most.
+      expect(performance.now() - started).toBeLessThan(3000);
+      if (result.ok) {
+        expect(result.points.length).toBeLessThanOrEqual(MAX_RAW_LINE_POINTS);
+        expect(selfIntersects(result.points)).toBe(false);
+      } else {
+        expect(result.errors.length).toBe(1);
+        expect(result.errors[0]!.kind).toBe("degenerate_geometry");
+      }
+    });
+  }
+
+  test("the serpentine is refused as too complex, not as crossing itself", () => {
+    const result = cuttingLine(serpentine(499, 3000, 30, 10), { default: MAX_SEAM_ALLOWANCE });
+    expect(result).toEqual({
+      ok: false,
+      errors: [
+        { kind: "degenerate_geometry", message: "The piece is too complex for a cutting line" },
+      ],
+    });
   });
 
   test("an outline of 1000 large cubics finishes within the segment budget", () => {
