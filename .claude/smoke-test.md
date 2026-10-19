@@ -61,7 +61,7 @@ Expected: (2) the project page with "Bakstycke" and "Framstycke" drawn over a cm
 
 ### Bodice project
 1. Create a measurement profile with a value for every measurement except Ärmhålsdjup.
-2. On `/patterns/new`, open the block select ("Välj ett grundmönster"; "Livstycke" and "Rak kjol", sorted by label), choose "Livstycke" and that profile, and save.
+2. On `/patterns/new`, open the block select ("Välj ett grundmönster"; "Liv" and "Rak kjol", sorted by label), choose "Liv" and that profile, and save.
 3. On the project page, click "Redigera måttprofil", enter a value for Ärmhålsdjup and save.
 4. Check the project page again.
 Expected: (2) the project page lists "Ärmhålsdjup" under "Mått som saknas för det här mönstret" with nothing drawn; (3) saving returns to the project; (4) "Bakstycke" and "Framstycke" are drawn over the cm grid.

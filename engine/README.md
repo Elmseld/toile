@@ -199,7 +199,7 @@ The engine has no block registry.
   fitting skirt block. The constants are not yet checked against the book. The waist and hip seam
   lengths equal measurement plus ease by construction (tested within 1 mm). It uses no
   angle-dependent op, so it does not depend on the angle convention.
-- **`bodice.json`** ("Livstycke"): `back` (shoulder dart, waist dart) and `front` (bust dart in the
+- **`bodice.json`** ("Liv"): `back` (shoulder dart, waist dart) and `front` (bust dart in the
   shoulder, waist dart). Measurements `bust`, `waist`, `neck`, `shoulder_width`, `back_width`,
   `chest_width`, `back_length`, `armhole_depth`, `front_length`, `bust_height`, `bust_distance`.
   Parameters: `ease_bust` (80 mm), `ease_waist` (40 mm), `ease_armhole_depth` (10 mm) and the draft

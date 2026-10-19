@@ -9,11 +9,11 @@ type: feature
 The bodice block is the foundation for tops and dresses and the most complex block.
 
 ## Desired behaviour
-The user can create a project from the block "Livstycke" (Bodice) with front and back pieces,
+The user can create a project from the block "Liv" (Bodice) with front and back pieces,
 computed from the measurement profile.
 
 ## Acceptance criteria
-- [x] The block "Livstycke" as a pattern definition: back with shoulder dart and waist dart, front with bust dart and waist dart, neckline and armhole curves. The source of the drafting method is stated.
+- [x] The block "Liv" as a pattern definition: back with shoulder dart and waist dart, front with bust dart and waist dart, neckline and armhole curves. The source of the drafting method is stated.
 - [x] Ease at bust, waist and armhole depth are parameters.
 - [x] The armhole length (front + back) is exposed as a measurable value, so that the sleeve (0007) can use it.
 - [x] Engine tests verify that the bust and waist circumference of the finished pattern equal measurement + ease within 2 mm, and that the front and back shoulder seams are equally long (± 1 mm, including any shoulder dart).

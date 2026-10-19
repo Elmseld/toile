@@ -243,7 +243,7 @@ msgstr "Grundmönstren räknas fram ur dina mått och följer med när du byter 
 #: lib/toile_web/controllers/page_html/home.html.heex
 #, elixir-autogen, elixir-format
 msgid "Toile is a web app for drafting and developing sewing patterns. You start from basic blocks (bodice, skirt, sleeve) calculated from your own measurements, adapt them and print them at 1:1 scale."
-msgstr "Toile är en webbapp för att konstruera och utveckla sömnadsmönster. Du utgår från grundmönster (livstycke, kjol, ärm) som räknas fram ur dina egna mått, ändrar dem och skriver ut dem i skala 1:1."
+msgstr "Toile är en webbapp för att konstruera och utveckla sömnadsmönster. Du utgår från grundmönster (liv, kjol, ärm) som räknas fram ur dina egna mått, ändrar dem och skriver ut dem i skala 1:1."
 
 #: lib/toile_web/controllers/page_html/home.html.heex
 #, elixir-autogen, elixir-format
@@ -940,7 +940,7 @@ msgstr "Från den utstående nackkotan rakt ned längs ryggraden till en linjal 
 #: lib/toile_web/block_texts.ex
 #, elixir-autogen, elixir-format
 msgid "Bodice"
-msgstr "Livstycke"
+msgstr "Liv"
 
 #: lib/toile_web/live/pattern_live/form.ex
 #, elixir-autogen, elixir-format

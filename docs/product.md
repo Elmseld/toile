@@ -28,7 +28,7 @@ Both groups use the same engine but get different amounts of it exposed.
    form is touch-friendly: one field per row, 44 px minimum height, numeric keyboard.
 2. **New pattern**: under "Mina mönster" (`/patterns`) the user clicks "Nytt mönster"
    (`/patterns/new`), names the project and picks a block ("Rak kjol", a straight skirt, or
-   "Livstycke", a bodice) from a select with the prompt "Välj ett grundmönster" (no preselection)
+   "Liv", a bodice) from a select with the prompt "Välj ett grundmönster" (no preselection)
    and one of their measurement profiles. The project page (`/patterns/:id`) calculates the pattern
    in the browser and draws the front and back pieces to scale over a centimetre grid, with zoom
    (wheel, pinch, zoom in/out buttons), pan (drag) and a "Fit to screen" ("Anpassa till skärmen")
