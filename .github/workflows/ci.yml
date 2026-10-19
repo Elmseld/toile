@@ -58,6 +58,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run test:coverage
+      # The pattern view's pure helpers (label placement) are tested with the engine's Bun.
+      - run: bun test ../assets/js
 
   docker:
     runs-on: ubuntu-latest

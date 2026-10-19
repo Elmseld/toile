@@ -8,6 +8,9 @@
 //   data-error-text    shown instead of a drawing when the pattern cannot be computed
 // The element's aria-label also names the SVG.
 //
+// Each piece's label is centred inside it where its text box is farthest from the outline, darts
+// and grainline (label_placement.js), and shrunk when the piece is too narrow for it.
+//
 // The SVG user unit is 1 mm. The pattern is computed once per input; zoom and pan only change
 // the viewBox (and the grid lines that cover what is visible). Events on the element:
 //   toile:fit                      resets the view to the whole pattern
@@ -16,6 +19,7 @@
 // arrow keys pan, + and - zoom and 0 fits.
 
 import {compilePattern, patternBounds, piecePathData} from "../../../engine/src/index"
+import {placeLabel} from "./label_placement"
 import {center, fit, gridPathData, panBy, toAttribute, visibleArea, zoomAt} from "./viewport"
 
 const SVG_NS = "http://www.w3.org/2000/svg"
@@ -176,14 +180,23 @@ const PatternView = {
         }),
       )
 
-      const label = svgElement("text", {
+      const text = labels[piece.name] ?? piece.name
+      // Inside the piece, clear of the outline, darts and grainline (label_placement.js); a
+      // piece without area falls back to beside the grainline's midpoint.
+      const place = placeLabel(piece, text, LABEL_SIZE) ?? {
         x: (from.x + to.x) / 2 + LABEL_SIZE / 2,
         y: (from.y + to.y) / 2,
-        "font-size": LABEL_SIZE,
+        size: LABEL_SIZE,
+      }
+      const label = svgElement("text", {
+        x: place.x,
+        y: place.y,
+        "font-size": place.size,
         fill: "currentColor",
+        "text-anchor": "middle",
         "dominant-baseline": "middle",
       })
-      label.textContent = labels[piece.name] ?? piece.name
+      label.textContent = text
       group.appendChild(label)
       svg.appendChild(group)
     }

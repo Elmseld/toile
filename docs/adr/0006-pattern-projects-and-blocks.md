@@ -39,6 +39,12 @@ engine in the browser.
   `data-key`, `data-definition` or `data-input` differ from what it last drew. No `push_event`. A
   wrapper keyed by the profile id is only an extra measure; LiveView may move the hook element by
   its id instead of mounting it again. CI builds the JS bundle so a broken engine import fails.
+- **Piece labels.** The view writes each piece's name inside the piece, centred at the point whose
+  text box is farthest from every drawn line (the outline with its darts, and the grainline),
+  found on a fixed grid over the piece's bounding box and refined once; the text shrinks, down to
+  40 %, when the piece is too narrow (`assets/js/hooks/label_placement.js`). This only places text;
+  it is a view concern, so it lives with the hook, not in the engine. Its tests run with the
+  engine's Bun: `cd engine && bun test ../assets/js`.
 - jsonb does not preserve object key order. The engine's results do not depend on it; only the
   order of reported errors can differ. Arrays keep their order.
 
