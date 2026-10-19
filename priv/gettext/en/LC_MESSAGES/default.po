@@ -522,11 +522,6 @@ msgstr[1] ""
 
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
-msgid "Across the back between the armhole creases, halfway between the neck bone and the underarm."
-msgstr ""
-
-#: lib/toile_web/measurement_texts.ex
-#, elixir-autogen, elixir-format
 msgid "Across the front between the armhole creases, above the bust."
 msgstr ""
 
@@ -945,4 +940,9 @@ msgstr ""
 #: lib/toile_web/live/pattern_live/form.ex
 #, elixir-autogen, elixir-format
 msgid "Choose a block"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Across the back between the armhole creases, about 10 cm below the neck bone."
 msgstr ""

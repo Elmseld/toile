@@ -522,11 +522,6 @@ msgstr[1] "%{count} mått saknas"
 
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
-msgid "Across the back between the armhole creases, halfway between the neck bone and the underarm."
-msgstr "Tvärs över ryggen mellan armhålsvecken, halvvägs mellan nackkotan och armhålan."
-
-#: lib/toile_web/measurement_texts.ex
-#, elixir-autogen, elixir-format
 msgid "Across the front between the armhole creases, above the bust."
 msgstr "Tvärs över bröstet mellan armhålsvecken, ovanför bysten."
 
@@ -946,3 +941,8 @@ msgstr "Liv"
 #, elixir-autogen, elixir-format
 msgid "Choose a block"
 msgstr "Välj ett grundmönster"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Across the back between the armhole creases, about 10 cm below the neck bone."
+msgstr "Tvärs över ryggen mellan armhålsvecken, ungefär 10 cm nedanför nackkotan."
