@@ -37,8 +37,8 @@ validates only (`docs/product.md`).
    `front_armhole_to_notch`; an engine test pins all five.
 5. **Addability is a name check in Elixir, with no geometry.** A block with `imports` can be added
    when it is not yet in the project and every import names a part of the project whose stored
-   definition declares that value (as a formula, parameter or measurement). Blocks with `imports`
-   are not base blocks: they are not offered under "Nytt mönster" and creating a project from one
+   definition declares that value (as a formula, parameter, measurement or import). Blocks with
+   `imports` are not base blocks: they are not offered under "Nytt mönster" and creating a project from one
    is rejected. `Toile.Patterns.add_part/3` is scoped (ADR 0001), takes a row lock, rechecks
    addability inside the transaction (a client-supplied block key is whitelisted, a double click
    cannot add twice) and never turns the key into an atom. A bodice project created before the

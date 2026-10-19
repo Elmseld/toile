@@ -387,7 +387,8 @@ defmodule Toile.Patterns do
   A block can be added when it has imports (base blocks only start projects), is not a part of
   the project yet (the main part is named by the project's `block`), and every import
   `"<part>.<value>"` names a part of the project whose stored definition declares `value` as a
-  formula, parameter or measurement. Only names are compared, no geometry: a bodice project
+  formula, parameter, measurement or import of its own (the engine's result values include
+  resolved imports, so a part can pass a value on). Only names are compared, no geometry: a bodice project
   created before the bodice exposed the values the sleeve imports keeps its own copy (ADR 0006)
   and is not offered the sleeve. Takes a project that was already fetched through a scoped
   function, so it needs no scope.
@@ -423,7 +424,7 @@ defmodule Toile.Patterns do
 
   defp declares?(%{} = definition, value) do
     has_key?(definition["formulas"], value) or has_key?(definition["parameters"], value) or
-      value in declared_measurements(definition)
+      has_key?(definition["imports"], value) or value in declared_measurements(definition)
   end
 
   defp declares?(_definition, _value), do: false

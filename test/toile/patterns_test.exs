@@ -716,7 +716,7 @@ defmodule Toile.PatternsTest do
       assert Patterns.addable_blocks(without) == []
     end
 
-    test "accepts an imported value declared as a parameter or a measurement" do
+    test "accepts an imported value declared as a parameter, a measurement or an import" do
       definition = Blocks.definition("bodice")
       formulas = definition["formulas"]
 
@@ -730,14 +730,23 @@ defmodule Toile.PatternsTest do
         |> Map.put("formulas", Map.delete(formulas, "back_armhole_to_notch"))
         |> Map.put("measurements", ["back_armhole_to_notch" | definition["measurements"]])
 
-      for definition <- [as_parameter, as_measurement] do
+      as_import =
+        definition
+        |> Map.put("formulas", Map.delete(formulas, "back_armhole_to_notch"))
+        |> Map.put("imports", %{"back_armhole_to_notch" => "other.back_armhole_to_notch"})
+
+      for definition <- [as_parameter, as_measurement, as_import] do
         project = %PatternProject{block: "bodice", definition: definition}
         assert Patterns.addable_blocks(project) == ["straight_sleeve"]
       end
     end
 
     test "is empty for odd stored definitions" do
-      for definition <- [nil, %{}, %{"formulas" => "x", "parameters" => [], "measurements" => 1}] do
+      for definition <- [
+            nil,
+            %{},
+            %{"formulas" => "x", "parameters" => [], "measurements" => 1, "imports" => "y"}
+          ] do
         assert Patterns.addable_blocks(%PatternProject{block: "bodice", definition: definition}) ==
                  []
       end
