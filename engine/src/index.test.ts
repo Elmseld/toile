@@ -4,7 +4,11 @@ import {
   distance,
   evaluateFormulas,
   evaluatePattern,
+  evaluateProject,
+  compileProject,
+  layoutParts,
   MAX_COORDINATE,
+  PART_GAP,
   NOTCH_LENGTH,
   NOTCH_PAIR_SPACING,
   piecePathData,
@@ -110,4 +114,16 @@ test("notches are evaluated through the package entry point", () => {
   expect(result.pieces.t?.notches[0]?.point).toEqual({ x: 50, y: 0 });
   expect(result.pieces.t?.notches[0]?.marks).toHaveLength(2);
   expect([NOTCH_LENGTH, NOTCH_PAIR_SPACING]).toEqual([6, 4]);
+});
+
+test("projects are evaluated and laid out through the package entry point", () => {
+  const parts = [
+    { name: "a", definition: { version: 1, formulas: { w: "10" } } },
+    { name: "b", definition: { version: 1, imports: { w: "a.w" }, formulas: { v: "w * 2" } } },
+  ];
+  const result = evaluateProject(parts, { measurements: {} });
+  expect(result.parts.b?.values.v).toBe(20);
+  expect(compileProject(parts).evaluate({ measurements: {} })).toEqual(result);
+  const layout = layoutParts([{ minX: 0, minY: 0, maxX: 1, maxY: 1 }, { minX: 0, minY: 0, maxX: 1, maxY: 1 }]);
+  expect(layout.offsets[1]).toEqual({ dx: 1 + PART_GAP, dy: 0 });
 });
