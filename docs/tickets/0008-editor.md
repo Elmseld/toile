@@ -28,3 +28,8 @@ formula. Parameters (e.g. ease) can be changed in a side panel. Everything is re
 
 ## Notes
 The engine runs in the client via the JS hook from 0005. The server receives and validates the pattern definition when saving.
+
+Piece labels are placed by the engine's `placeLabel` (`engine/src/geometry/label.ts`), which
+takes about 7 to 14 ms per bodice piece (about 20 ms per bodice render). Recomputing it on every
+pointer move would eat most of a frame, so cache the placement per outline or recompute the
+labels only after a drag ends.

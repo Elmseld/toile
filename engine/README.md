@@ -182,6 +182,14 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   control points and the grainline points (null without pieces or when no coordinate is finite, non-finite numbers skipped; the result type
   `Bounds` is exported), so a
   caller can fit the `viewBox` without doing geometry itself.
+- **Labels.** `placeLabel(piece, text, size)` returns `{ x, y, size, clearance }`: the centre
+  (for `text-anchor="middle"` and `dominant-baseline="middle"`) and font size (mm) at which the
+  estimated text box lies inside the piece, farthest from the outline (darts included), the
+  grainline and its arrowheads, shrinking the size down to 40 % for a narrow piece; `null` when
+  nothing fits (a sliver, or a degenerate outline), and the caller places the label itself.
+  Views draw the grainline arrowheads `GRAINLINE_ARROW_SIZE` (8 mm) long and wide, tip on the end
+  point, as placement assumes. It costs about 7 to 14 ms per bodice piece, so a view should not
+  call it on every pointer move (`engine/src/geometry/label.ts`).
 
 ## Blocks
 

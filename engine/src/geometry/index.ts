@@ -1,5 +1,5 @@
-// Public API of the geometry module: pattern definitions, their evaluation and SVG output
-// (ADR 0004).
+// Public API of the geometry module: pattern definitions, their evaluation, SVG output (ADR 0004)
+// and label placement for views.
 
 export type {
   CompiledPattern,
@@ -23,6 +23,12 @@ export type {
   UserOffset,
 } from "./types";
 export { compilePattern, evaluatePattern } from "./evaluate";
+export {
+  GRAINLINE_ARROW_SIZE,
+  type LabelPiece,
+  type LabelPlacement,
+  placeLabel,
+} from "./label";
 export { type Bounds, curvePathData, formatNumber, patternBounds, piecePathData } from "./svg";
 export {
   MAX_OUTLINE_ENTRIES,

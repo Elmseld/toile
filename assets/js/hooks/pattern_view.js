@@ -9,7 +9,8 @@
 // The element's aria-label also names the SVG.
 //
 // Each piece's label is centred inside it where its text box is farthest from the outline, darts
-// and grainline (label_placement.js), and shrunk when the piece is too narrow for it.
+// and grainline (the engine's placeLabel), and shrunk when the piece is too narrow for it. The
+// grainline arrowheads are drawn at GRAINLINE_ARROW_SIZE, the size placeLabel keeps clear of.
 //
 // The SVG user unit is 1 mm. The pattern is computed once per input; zoom and pan only change
 // the viewBox (and the grid lines that cover what is visible). Events on the element:
@@ -18,14 +19,18 @@
 // Wheel zooms around the pointer, two pointers pinch-zoom, one pointer pans, and with focus the
 // arrow keys pan, + and - zoom and 0 fits.
 
-import {compilePattern, patternBounds, piecePathData} from "../../../engine/src/index"
-import {placeLabel} from "./label_placement"
+import {
+  GRAINLINE_ARROW_SIZE,
+  compilePattern,
+  patternBounds,
+  piecePathData,
+  placeLabel,
+} from "../../../engine/src/index"
 import {center, fit, gridPathData, panBy, toAttribute, visibleArea, zoomAt} from "./viewport"
 
 const SVG_NS = "http://www.w3.org/2000/svg"
 const FIT_MARGIN = 20
 const LABEL_SIZE = 14
-const ARROW_SIZE = 8
 // Grid lines closer than this many pixels are not drawn (they would only grey the view).
 const MIN_GRID_SPACING_PX = 4
 const KEY_PAN_FRACTION = 0.1
@@ -138,8 +143,8 @@ const PatternView = {
       refX: 10,
       refY: 5,
       markerUnits: "userSpaceOnUse",
-      markerWidth: ARROW_SIZE,
-      markerHeight: ARROW_SIZE,
+      markerWidth: GRAINLINE_ARROW_SIZE,
+      markerHeight: GRAINLINE_ARROW_SIZE,
       orient: "auto-start-reverse",
     })
     arrow.appendChild(svgElement("path", {d: "M0 0L10 5L0 10z", fill: "currentColor"}))
@@ -181,7 +186,7 @@ const PatternView = {
       )
 
       const text = labels[piece.name] ?? piece.name
-      // Inside the piece, clear of the outline, darts and grainline (label_placement.js); a
+      // Inside the piece, clear of the outline, darts and grainline (the engine's placeLabel); a
       // piece without area falls back to beside the grainline's midpoint.
       const place = placeLabel(piece, text, LABEL_SIZE) ?? {
         x: (from.x + to.x) / 2 + LABEL_SIZE / 2,
