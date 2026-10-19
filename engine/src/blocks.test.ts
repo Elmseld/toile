@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { compilePattern, distance, evaluatePattern, validateDefinition } from "./geometry";
 import type { ComputedPattern, ComputedPiece, PatternResult, Point, UserOffset } from "./geometry";
 import { cubicAt } from "./geometry/bezier";
+import { insidePolygon, outlinePolygon } from "./geometry/label";
 import { isMeasurementKey, MEASUREMENT_KEYS } from "./measurements";
 
 const BLOCKS_DIR = join(import.meta.dir, "..", "blocks");
@@ -804,17 +805,62 @@ describe("bodice: front neck point", () => {
   });
 });
 
+/** The names the sleeve imports from the bodice (ADR 0007), plus the total armhole length. */
+const BODICE_INTERFACE = [
+  "armhole_length",
+  "back_armhole_length",
+  "front_armhole_length",
+  "back_armhole_to_notch",
+  "front_armhole_to_notch",
+];
+
 describe("bodice: values for other blocks", () => {
-  // The sleeve (0007) reads these names. Renaming one means migrating the block copies stored in
-  // pattern projects (ADR 0006), so this test pins them.
-  test("exposes armhole_length, back_armhole_length and front_armhole_length", () => {
+  // The sleeve imports these names. Renaming one means migrating the block copies stored in
+  // pattern projects (ADR 0006, ADR 0007), so this test pins them.
+  test("exposes the armhole lengths and the arc lengths from the side points to the notches", () => {
     const formulas = bodice().formulas as Record<string, string>;
     const result = expectOk(compilePattern(bodice()).evaluate({ measurements: BODICE_A }));
-    for (const name of ["armhole_length", "back_armhole_length", "front_armhole_length"]) {
+    for (const name of BODICE_INTERFACE) {
       expect(Object.keys(formulas)).toContain(name);
       expect(result.values[name]).toBeGreaterThan(0);
     }
   });
+
+  for (const [label, measurements] of BODICE_SETS) {
+    test(`set ${label}: the notch values are the lower armhole curves`, () => {
+      const result = expectOk(compilePattern(bodice()).evaluate({ measurements }));
+      expect(result.values.back_armhole_to_notch).toBe(curveLength(result, "b_armhole_lower"));
+      expect(result.values.front_armhole_to_notch).toBe(curveLength(result, "f_armhole_lower"));
+    });
+  }
+});
+
+describe("bodice: notches", () => {
+  test("the back armhole has a double notch at the back width point, the front one a single at the chest point", () => {
+    const pieces = bodice().pieces as { name: string; notches?: unknown }[];
+    expect(pieces.map((candidate) => candidate.notches)).toEqual([
+      [{ curve: "b_armhole_lower", distance: "0", marks: 2 }],
+      [{ curve: "f_armhole_upper", distance: "0" }],
+    ]);
+  });
+
+  for (const [label, measurements] of BODICE_SETS) {
+    test(`set ${label}: the notches lie on the back width and chest points, marks inside the piece`, () => {
+      const result = expectOk(compilePattern(bodice()).evaluate({ measurements }));
+      for (const [pieceName, pointName, marks] of [
+        ["back", "b_width_pt", 2],
+        ["front", "f_chest", 1],
+      ] as const) {
+        const computed = piece(result, pieceName);
+        expect(computed.notches).toHaveLength(1);
+        const notch = computed.notches[0]!;
+        expectWithin(distance(notch.point, point(result, pointName)), 0, 0.01);
+        expect(notch.marks).toHaveLength(marks);
+        const polygon = outlinePolygon(computed);
+        for (const mark of notch.marks) expect(insidePolygon(polygon, mark.to.x, mark.to.y)).toBe(true);
+      }
+    });
+  }
 });
 
 describe("bodice: parameters", () => {
