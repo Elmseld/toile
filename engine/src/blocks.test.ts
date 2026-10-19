@@ -280,7 +280,7 @@ describe("straight skirt: missing measurements", () => {
   });
 });
 
-/** Aldrich size 12: the bust point lies 10 mm below the bust line, so the bust dart crosses it. */
+/** Aldrich size 12: the bust point lies below the bust line, so the bust dart crosses it. */
 const BODICE_A: Measurements = {
   bust: 880,
   waist: 680,
@@ -290,7 +290,6 @@ const BODICE_A: Measurements = {
   chest_width: 324,
   back_length: 410,
   armhole_depth: 210,
-  front_length: 445,
   bust_height: 265,
   bust_distance: 190,
 };
@@ -305,16 +304,11 @@ const BODICE_B: Measurements = {
   chest_width: 360,
   back_length: 425,
   armhole_depth: 230,
-  front_length: 475,
   bust_height: 285,
   bust_distance: 220,
 };
 
-/**
- * A large figure whose front_length exceeds back_length by much more than in sets A and B. The
- * balance-derived bust dart would be about 23 degrees and 120 mm wide on a 135 mm shoulder, so the
- * max_bust_dart_angle cap applies.
- */
+/** A large, full-busted figure: half the bust exceeds the chest width by 210 mm. */
 const BODICE_LARGE: Measurements = {
   bust: 1200,
   waist: 1000,
@@ -324,14 +318,37 @@ const BODICE_LARGE: Measurements = {
   chest_width: 390,
   back_length: 430,
   armhole_depth: 240,
-  front_length: 510,
   bust_height: 320,
   bust_distance: 240,
 };
 
+/**
+ * A full figure with a short armhole depth and a long bust height, so the bust point lies about
+ * 85 mm below the bust line and the bust dart takes a wide wedge out of it.
+ */
+const BODICE_LOW_BUST: Measurements = {
+  bust: 1060,
+  waist: 900,
+  neck: 355,
+  shoulder_width: 125,
+  back_width: 390,
+  chest_width: 390,
+  back_length: 420,
+  armhole_depth: 200,
+  bust_height: 340,
+  bust_distance: 210,
+};
+
+const BODICE_SETS = [
+  ["A", BODICE_A],
+  ["B", BODICE_B],
+  ["large", BODICE_LARGE],
+  ["low bust", BODICE_LOW_BUST],
+] as const;
+
 const BODICE_DEFAULTS = { ease_bust: 80, ease_waist: 40, ease_armhole_depth: 10 };
 
-const MAX_BUST_DART_ANGLE = 15;
+const BUST_DART = { rate: 0.12, offset: 50, max: 20 };
 
 const BODICE_ARMHOLES = ["b_armhole_upper", "b_armhole_lower", "f_armhole_lower", "f_armhole_upper"];
 
@@ -397,7 +414,7 @@ describe("bodice: definition", () => {
     expect(String(definition.source)).toContain("close fitting bodice block");
   });
 
-  test("declares exactly the eleven catalogue measurements", () => {
+  test("declares exactly the ten catalogue measurements", () => {
     const measurements = bodice().measurements as string[];
     expect(measurements).toEqual([
       "bust",
@@ -408,7 +425,6 @@ describe("bodice: definition", () => {
       "chest_width",
       "back_length",
       "armhole_depth",
-      "front_length",
       "bust_height",
       "bust_distance",
     ]);
@@ -428,7 +444,9 @@ describe("bodice: definition", () => {
       back_shoulder_dart_length: 80,
       back_waist_dart_gap: 20,
       front_waist_dart_gap: 20,
-      max_bust_dart_angle: MAX_BUST_DART_ANGLE,
+      bust_dart_rate: BUST_DART.rate,
+      bust_dart_offset: BUST_DART.offset,
+      max_bust_dart_angle: BUST_DART.max,
     });
   });
 
@@ -493,11 +511,7 @@ describe("bodice: definition", () => {
   });
 });
 
-for (const [label, measurements] of [
-  ["A", BODICE_A],
-  ["B", BODICE_B],
-  ["large", BODICE_LARGE],
-] as const) {
+for (const [label, measurements] of BODICE_SETS) {
   describe(`bodice: measurement set ${label}`, () => {
     const result = expectOk(compilePattern(bodice()).evaluate({ measurements }));
     const bustLine = measurements.armhole_depth! + BODICE_DEFAULTS.ease_armhole_depth;
@@ -579,6 +593,14 @@ for (const [label, measurements] of [
       expect(backMax).toBeLessThan(frontMin);
     });
 
+    test("the front shoulder point is level with the back shoulder point", () => {
+      expect(point(result, "f_shoulder").y).toBeCloseTo(point(result, "b_shoulder").y, 6);
+    });
+
+    test("the front neck point lies no lower than the back neck point", () => {
+      expect(point(result, "f_neck").y).toBeLessThanOrEqual(point(result, "b_neck").y + 1e-9);
+    });
+
     test("the front neckline runs down from the neck point to centre front", () => {
       expect(point(result, "f_neck").y).toBeLessThan(point(result, "f_shoulder").y);
       expect(point(result, "f_neck_cf").y).toBeGreaterThan(point(result, "f_neck").y);
@@ -596,52 +618,112 @@ test("bodice: the bust point lies below the bust line in set A and above it in s
   expect(b.values.bust_dart_at_underarm).toBe(0);
 });
 
+function dartWidth(result: ComputedPattern): number {
+  return between(result, "f_bdart_neck", "f_bdart_arm");
+}
+
+/** The bust excess of a measurement set: half the bust less the chest width (mm). */
+function bustExcess(measurements: Measurements): number {
+  return measurements.bust! / 2 - measurements.chest_width!;
+}
+
+/** The checks every bust dart must pass: AC4 and the front shoulder level with the back. */
+function expectBalanced(result: ComputedPattern, measurements: Measurements): void {
+  expectWithin(shoulderSeam(result, "back"), shoulderSeam(result, "front"), 1);
+  expectWithin(2 * bustLineWidths(result), measurements.bust! + BODICE_DEFAULTS.ease_bust, 2);
+  expectWithin(2 * bodiceWaistSeams(result), measurements.waist! + BODICE_DEFAULTS.ease_waist, 2);
+  expect(point(result, "f_shoulder").y).toBeCloseTo(point(result, "b_shoulder").y, 6);
+}
+
 describe("bodice: bust dart size", () => {
   const compiled = compilePattern(bodice());
+  const evaluate = (measurements: Measurements, parameters = {}) =>
+    expectOk(compiled.evaluate({ measurements, parameters }));
 
-  function dartWidth(result: ComputedPattern): number {
-    return between(result, "f_bdart_neck", "f_bdart_arm");
-  }
-
-  test("the bust dart stays plausible for a large figure: capped and narrower than the shoulder", () => {
-    const result = expectOk(compiled.evaluate({ measurements: BODICE_LARGE }));
-    expect(result.values.bust_dart_balance_angle).toBeGreaterThan(MAX_BUST_DART_ANGLE);
-    expect(result.values.bust_dart_angle).toBeCloseTo(MAX_BUST_DART_ANGLE, 9);
-    expect(dartWidth(result)).toBeLessThan(0.6 * BODICE_LARGE.shoulder_width!);
-  });
-
-  test("below the cap the dart is the balance angle", () => {
-    for (const measurements of [BODICE_A, BODICE_B]) {
-      const result = expectOk(compiled.evaluate({ measurements }));
-      expect(result.values.bust_dart_balance_angle).toBeLessThan(MAX_BUST_DART_ANGLE);
-      expect(result.values.bust_dart_angle).toBe(result.values.bust_dart_balance_angle!);
+  test("the angle is bust_dart_rate times the bust excess over bust_dart_offset", () => {
+    for (const [, measurements] of BODICE_SETS) {
+      const result = evaluate(measurements);
+      expect(result.values.bust_excess).toBeCloseTo(bustExcess(measurements), 9);
+      expect(result.values.bust_dart_angle).toBeCloseTo(
+        BUST_DART.rate * (bustExcess(measurements) - BUST_DART.offset),
+        9,
+      );
     }
   });
 
-  test("max_bust_dart_angle is a parameter", () => {
-    const parameters = { max_bust_dart_angle: 10 };
-    const result = expectOk(compiled.evaluate({ measurements: BODICE_B, parameters }));
-    expect(result.values.bust_dart_angle).toBeCloseTo(10, 9);
-    expectWithin(shoulderSeam(result, "back"), shoulderSeam(result, "front"), 1);
-    expectWithin(2 * bustLineWidths(result), BODICE_B.bust! + BODICE_DEFAULTS.ease_bust, 2);
+  test("the dart width is plausible from an average to a large figure", () => {
+    const a = dartWidth(evaluate(BODICE_A));
+    const b = dartWidth(evaluate(BODICE_B));
+    const large = dartWidth(evaluate(BODICE_LARGE));
+    expect(a).toBeGreaterThan(25);
+    expect(a).toBeLessThan(45);
+    expect(b).toBeGreaterThan(50);
+    expect(b).toBeLessThan(75);
+    expect(large).toBeGreaterThan(85);
+    expect(large).toBeLessThan(0.8 * BODICE_LARGE.shoulder_width!);
   });
 
-  test("the dart grows about 2 mm in width per mm of front_length", () => {
-    const at = (front_length: number) =>
-      dartWidth(expectOk(compiled.evaluate({ measurements: { ...BODICE_A, front_length } })));
-    const slope = (at(455) - at(435)) / 20;
-    expect(slope).toBeGreaterThan(1.5);
-    expect(slope).toBeLessThan(2.5);
+  test("the dart width changes by under 0.8 mm per mm of chest_width and 0.4 mm per mm of bust", () => {
+    for (const [, measurements] of BODICE_SETS) {
+      const slope = (key: string) => {
+        const at = (delta: number) =>
+          dartWidth(evaluate({ ...measurements, [key]: measurements[key]! + delta }));
+        return Math.abs(at(5) - at(-5)) / 10;
+      };
+      expect(slope("chest_width")).toBeLessThan(0.8);
+      expect(slope("bust")).toBeLessThan(0.4);
+      expect(slope("bust_height")).toBeLessThan(0.5);
+    }
   });
 
-  test("the dart is zero when the front neck point lies no higher than the back neck point", () => {
-    const measurements: Measurements = { ...BODICE_A, front_length: 425 };
-    const result = expectOk(compiled.evaluate({ measurements }));
-    expect(point(result, "f_neck").y).toBeGreaterThanOrEqual(point(result, "b_neck").y);
+  test("front_length does not change the pattern", () => {
+    const short = evaluate({ ...BODICE_A, front_length: 400 });
+    const long = evaluate({ ...BODICE_A, front_length: 520 });
+    expect(long.points).toEqual(short.points);
+    expect(long.values).toEqual(short.values);
+  });
+
+  test("the drafted front length of sets A and B is within 5 mm of their measured front length", () => {
+    for (const [measurements, frontLength] of [
+      [BODICE_A, 445],
+      [BODICE_B, 475],
+    ] as const) {
+      const result = evaluate(measurements);
+      const drafted =
+        between(result, "f_neck", "f_bp") + point(result, "f_waist_cf").y - point(result, "f_bp").y;
+      expectWithin(drafted, frontLength, 5);
+    }
+  });
+
+  test("max_bust_dart_angle caps the dart for an implausibly large bust excess", () => {
+    const measurements: Measurements = { ...BODICE_LARGE, chest_width: 340 };
+    const result = evaluate(measurements);
+    expect(BUST_DART.rate * (bustExcess(measurements) - BUST_DART.offset)).toBeGreaterThan(
+      BUST_DART.max,
+    );
+    expect(result.values.bust_dart_angle).toBeCloseTo(BUST_DART.max, 9);
+    expect(dartWidth(result)).toBeLessThan(0.8 * measurements.shoulder_width!);
+    expectBalanced(result, measurements);
+  });
+
+  test("the dart is zero and the front neck point level with the back one for a small bust excess", () => {
+    const measurements: Measurements = { ...BODICE_A, chest_width: 400 };
+    const result = evaluate(measurements);
+    expect(bustExcess(measurements)).toBeLessThan(BUST_DART.offset);
     expect(result.values.bust_dart_angle).toBe(0);
     expect(dartWidth(result)).toBeCloseTo(0, 9);
-    expectWithin(shoulderSeam(result, "back"), shoulderSeam(result, "front"), 1);
-    expectWithin(2 * bustLineWidths(result), measurements.bust! + BODICE_DEFAULTS.ease_bust, 2);
+    expect(point(result, "f_neck").y).toBeCloseTo(point(result, "b_neck").y, 6);
+    expectBalanced(result, measurements);
+  });
+
+  test("the dart parameters change the angle", () => {
+    expect(evaluate(BODICE_B, { max_bust_dart_angle: 10 }).values.bust_dart_angle).toBeCloseTo(10, 9);
+    expectBalanced(evaluate(BODICE_B, { max_bust_dart_angle: 10 }), BODICE_B);
+    expect(evaluate(BODICE_A, { bust_dart_rate: 0 }).values.bust_dart_angle).toBe(0);
+    expect(evaluate(BODICE_A, { bust_dart_offset: 0 }).values.bust_dart_angle).toBeCloseTo(
+      BUST_DART.rate * bustExcess(BODICE_A),
+      9,
+    );
   });
 });
 
@@ -708,11 +790,7 @@ describe("bodice: missing measurements", () => {
   });
 });
 
-for (const [label, measurements] of [
-  ["A", BODICE_A],
-  ["B", BODICE_B],
-  ["large", BODICE_LARGE],
-] as const) {
+for (const [label, measurements] of BODICE_SETS) {
   describe(`bodice: waist suppression, measurement set ${label}`, () => {
     const result = expectOk(compilePattern(bodice()).evaluate({ measurements }));
     const wedge =

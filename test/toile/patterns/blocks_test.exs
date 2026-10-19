@@ -40,7 +40,7 @@ defmodule Toile.Patterns.BlocksTest do
 
     assert definition["measurements"] ==
              ~w(bust waist neck shoulder_width back_width chest_width back_length armhole_depth
-                front_length bust_height bust_distance)
+                bust_height bust_distance)
 
     assert definition ==
              @blocks_dir |> Path.join("bodice.json") |> File.read!() |> JSON.decode!()
