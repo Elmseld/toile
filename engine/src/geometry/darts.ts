@@ -9,15 +9,8 @@
 // half the dart angle beyond it; it is cut along the closed cutting line too. Unfolded, the layer
 // at leg A-X is that cut reflected across A-X, and the layer at leg A-Y is that cut rotated back.
 
-import {
-  cubicSegments,
-  type Edge,
-  edgeTangent,
-  joinStrands,
-  offsetEdge,
-  reverseEdge,
-  SMOOTH_JOIN_ANGLE,
-} from "./offset";
+import { joinStrands, SMOOTH_JOIN_ANGLE } from "./joins";
+import { cubicSegments, type Edge, edgeTangent, offsetEdge, reverseEdge } from "./offset";
 import {
   add,
   cross,
@@ -187,7 +180,7 @@ function pressedBefore(
   const off1 = offsetEdge(dart.s1, a1, sign, segments.s1);
   const off2 = offsetEdge(dart.s2, a2, sign, segments.s2).map(close);
   const closedStart2 = turn(start2);
-  const joined = joinStrands(off1, off2, x, end1, a1, closedStart2, a2, sign);
+  const joined = joinStrands(off1, off2, { vertex: x, t1: end1, a1, t2: closedStart2, a2, sign });
   const frame = [...joined.a, ...joined.b];
 
   const p = nearestLineCrossing(frame, apex, x);

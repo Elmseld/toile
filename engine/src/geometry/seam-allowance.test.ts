@@ -5,13 +5,9 @@ import { cubicAt, cubicDerivative } from "./bezier";
 import { findDarts } from "./darts";
 import { evaluatePattern } from "./evaluate";
 import { insidePolygon } from "./label";
-import {
-  type Edge,
-  findCrossings,
-  MAX_CUTTING_LINE_SEGMENTS,
-  MITER_LIMIT,
-  polygonArea,
-} from "./offset";
+import { findCrossings } from "./boundary";
+import { MITER_LIMIT } from "./joins";
+import { type Edge, MAX_CUTTING_LINE_SEGMENTS, polygonArea } from "./offset";
 import {
   type CuttingPiece,
   cuttingLine,

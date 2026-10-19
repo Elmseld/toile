@@ -57,6 +57,19 @@ export function unit(v: Point): Point | null {
   return { x: v.x / length, y: v.y / length };
 }
 
+/** `value` clamped to `[0, 1]`. */
+export function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+/** The distance from `p` to the segment `a -> b` (to `a` when the segment is a point). */
+export function pointSegmentDistance(p: Point, a: Point, b: Point): number {
+  const d = sub(b, a);
+  const lengthSquared = dot(d, d);
+  const t = lengthSquared === 0 ? 0 : clamp01(dot(sub(p, a), d) / lengthSquared);
+  return distance(p, add(a, scale(d, t)));
+}
+
 /**
  * `p` rotated about `center` by the angle whose cosine and sine are `cos` and `sin` (positive
  * turns `x` toward `y`: clockwise on screen, with y down).

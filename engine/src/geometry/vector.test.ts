@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   add,
   angleOf,
+  clamp01,
   cross,
   direction,
   dot,
@@ -11,6 +12,7 @@ import {
   norm,
   perpendicularOffset,
   type Point,
+  pointSegmentDistance,
   reflectAcross,
   rotateAbout,
   scale,
@@ -174,6 +176,19 @@ describe("cross, dot and unit", () => {
     expect(unit(p(1e-10, 0))).toBeNull();
     expect(unit(p(Number.NaN, 1))).toBeNull();
     expect(unit(p(Infinity, 0))).toBeNull();
+  });
+});
+
+describe("clamp01 and pointSegmentDistance", () => {
+  test("clamp01 keeps values in [0, 1]", () => {
+    expect([-1, 0, 0.25, 1, 2].map(clamp01)).toEqual([0, 0, 0.25, 1, 1]);
+  });
+
+  test("measures to the nearest point of the segment, its ends included", () => {
+    expect(pointSegmentDistance(p(5, 3), p(0, 0), p(10, 0))).toBe(3);
+    expect(pointSegmentDistance(p(13, 4), p(0, 0), p(10, 0))).toBe(5);
+    expect(pointSegmentDistance(p(-3, -4), p(0, 0), p(10, 0))).toBe(5);
+    expect(pointSegmentDistance(p(3, 4), p(0, 0), p(0, 0))).toBe(5);
   });
 });
 

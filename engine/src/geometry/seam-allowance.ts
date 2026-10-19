@@ -16,23 +16,19 @@
 
 import { dartCuttingLine, type Dart, findDarts } from "./darts";
 import { insidePolygon } from "./label";
+import { cleanLoop, findCrossings, leftmostIndex, outerBoundary, polygonsCross } from "./boundary";
+import { joinStrands } from "./joins";
 import {
-  cleanLoop,
   cubicSegments,
   type Edge,
   edgeTangent,
-  findCrossings,
   flattenEdge,
-  polygonsCross,
-  joinStrands,
-  leftmostIndex,
   MAX_CUTTING_LINE_SEGMENTS,
   MERGE_TOLERANCE,
   offsetEdge,
-  outerBoundary,
   polygonArea,
 } from "./offset";
-import { distance, MAX_COORDINATE, type Point } from "./vector";
+import { distance, MAX_COORDINATE, type Point, pointSegmentDistance } from "./vector";
 
 type CuttingPoint = Readonly<Point>;
 
@@ -272,18 +268,18 @@ function joinUnits(units: Unit[], sign: number, mode: Mode): void {
   for (let k = 0; k < units.length; k++) {
     const current = units[k]!;
     const next = units[(k + 1) % units.length]!;
-    const joined = joinStrands(
-      current.points,
-      next.points,
-      current.endVertex,
-      current.endTangent,
-      current.endAllowance,
-      next.startTangent,
-      next.startAllowance,
+    const corner = {
+      vertex: current.endVertex,
+      t1: current.endTangent,
+      a1: current.endAllowance,
+      t2: next.startTangent,
+      a2: next.startAllowance,
       sign,
-      [current.endOutline, next.startOutline],
-      mode === "safe",
-    );
+    };
+    const joined = joinStrands(current.points, next.points, corner, {
+      guard: [current.endOutline, next.startOutline],
+      safe: mode === "safe",
+    });
     current.points = joined.a;
     if (next !== current) next.points = joined.b;
   }
@@ -308,24 +304,14 @@ function enclosesOutline(polygon: readonly Point[], outline: readonly ReadEdge[]
     if (insidePolygon(polygon, from.x, from.y)) return true;
     for (let i = 0; i < polygon.length; i++) {
       if (
-        segmentDistance(from, polygon[i]!, polygon[(i + 1) % polygon.length]!) <= MERGE_TOLERANCE
+        pointSegmentDistance(from, polygon[i]!, polygon[(i + 1) % polygon.length]!) <=
+        MERGE_TOLERANCE
       ) {
         return true;
       }
     }
     return false;
   });
-}
-
-function segmentDistance(p: Point, a: Point, b: Point): number {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const lengthSquared = dx * dx + dy * dy;
-  const t =
-    lengthSquared === 0
-      ? 0
-      : Math.min(1, Math.max(0, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSquared));
-  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
 }
 
 type ReadAllowances =
