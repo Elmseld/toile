@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type Dart, dartCuttingLine, findDarts, MAX_DART_ANGLE } from "./darts";
+import { type Dart, dartPeak, findDarts, MAX_DART_ANGLE } from "./darts";
 import { evaluatePattern } from "./evaluate";
-import { type Edge, polygonArea, reverseEdge } from "./offset";
+import { cubicSegments, type Edge, polygonArea, reverseEdge } from "./offset";
 import { cross, distance, type Point, reflectAcross, rotateAbout, sub, unit } from "./vector";
 
 const BLOCKS_DIR = join(import.meta.dir, "..", "..", "blocks");
@@ -29,6 +29,35 @@ const PROFILES: Record<string, Record<string, number>> = {
 };
 
 const p = (x: number, y: number): Point => ({ x, y });
+
+/**
+ * The cutting line across `dart` pressed toward the seam before it (`dartPeak`) or after it: the
+ * peak of the mirrored dart (seams and legs reversed and swapped, `sign` flipped), reversed.
+ */
+function dartCuttingLine(
+  dart: Dart,
+  a1: number,
+  a2: number,
+  sign: number,
+  press: "before" | "after" = "before",
+): Point[] | null {
+  const segments = { s1: cubicSegments(dart.s1, a1), s2: cubicSegments(dart.s2, a2) };
+  if (press === "before") return dartPeak(dart, a1, a2, sign, segments)?.points ?? null;
+  const mirrored: Dart = {
+    s1: reverseEdge(dart.s2),
+    s1Index: dart.s2Index,
+    leg1: reverseEdge(dart.leg2),
+    leg2: reverseEdge(dart.leg1),
+    legIndex: dart.legIndex,
+    s2: reverseEdge(dart.s1),
+    s2Index: dart.s1Index,
+    x: dart.y,
+    apex: dart.apex,
+    y: dart.x,
+  };
+  const line = dartPeak(mirrored, a2, a1, -sign, { s1: segments.s2, s2: segments.s1 });
+  return line === null ? null : line.points.reverse();
+}
 
 /** A closed outline of straight lines through `points`, named e0, e1, ... */
 function polygon(points: Point[]): Edge[] {

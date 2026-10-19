@@ -10,7 +10,7 @@
 // at leg A-X is that cut reflected across A-X, and the layer at leg A-Y is that cut rotated back.
 
 import { joinStrands, SMOOTH_JOIN_ANGLE } from "./joins";
-import { cubicSegments, type Edge, edgeTangent, offsetEdge, reverseEdge } from "./offset";
+import { type Edge, edgeTangent, offsetEdge } from "./offset";
 import {
   add,
   cross,
@@ -31,7 +31,7 @@ export const MAX_DART_ANGLE = 60;
 export const DART_LEG_TOLERANCE = { mm: 1, ratio: 0.02 } as const;
 /**
  * A bend of the closed cutting line on S1's side of the fold, within this ratio of the larger
- * allowance of the fold, is moved onto the fold (see dartCuttingLine).
+ * allowance of the fold, is moved onto the fold (see dartPeak).
  */
 export const DART_BEND_SNAP = 0.25;
 
@@ -51,9 +51,6 @@ export type Dart = {
   readonly apex: Point;
   readonly y: Point;
 };
-
-/** Which seam the closed dart is pressed toward. Production uses `"before"` (S1). */
-export type DartPress = "before" | "after";
 
 /**
  * The darts of `outline` (`sign` is the sign of its area), ordered by `legIndex`: outline entries
@@ -107,74 +104,12 @@ export function findDarts(outline: readonly Edge[], sign: number): Dart[] {
   return darts.sort((d1, d2) => d1.legIndex - d2.legIndex);
 }
 
-/**
- * The cutting line across `dart`, from the start of the offset seam before it (allowance `a1`)
- * to the end of the offset seam after it (`a2`): the dart peak (module comment). `segments` are
- * the flattening step counts of the two seams. When the seam before the dart is too short to
- * reach the flap's far edge, it is extended straight backwards along its start tangent to find
- * that edge (an approximation; the line still starts at the seam's offset start). Legs of unequal
- * length (within DART_LEG_TOLERANCE) are matched at their top ends X and Y. When the closed seam
- * bends at X (an untrued seam) and the bend of the closed cutting line lies on S1's side of the
- * fold, within DART_BEND_SNAP times the larger allowance of it, the layer at leg A-X would carry
- * the bend twice (once, then mirrored) as a jog of about 1 mm segments. There the cut of that
- * layer runs straight from the bend to the mirrored flap beyond the mirrored bend, as if the bend
- * were on the fold; this cuts the allowance short by a few hundredths of it at most. The layer at
- * leg A-Y and the seam after the dart keep the exact closed cut. `null` when the
- * construction fails (no crossing of the closed cutting line with the dart's leg line or flap
- * edge); the caller then treats the dart's edges as ordinary edges.
- */
-export function dartCuttingLine(
-  dart: Dart,
-  a1: number,
-  a2: number,
-  sign: number,
-  press: DartPress = "before",
-  segments: { s1: number; s2: number } = {
-    s1: cubicSegments(dart.s1, a1),
-    s2: cubicSegments(dart.s2, a2),
-  },
-): Point[] | null {
-  if (press === "before") return pressedBefore(dart, a1, a2, sign, segments)?.points ?? null;
-  const mirrored: Dart = {
-    s1: reverseEdge(dart.s2),
-    s1Index: dart.s2Index,
-    leg1: reverseEdge(dart.leg2),
-    leg2: reverseEdge(dart.leg1),
-    legIndex: dart.legIndex,
-    s2: reverseEdge(dart.s1),
-    s2Index: dart.s1Index,
-    x: dart.y,
-    apex: dart.apex,
-    y: dart.x,
-  };
-  const line = pressedBefore(mirrored, a2, a1, -sign, { s1: segments.s2, s2: segments.s1 });
-  return line === null ? null : line.points.reverse();
-}
-
 /** A dart peak pressed toward S1, and the index in `points` where its last part starts. */
 export type DartPeak = {
   readonly points: Point[];
   /** From here on, `points` is the offset seam after the dart, from where the fold crosses it. */
   readonly tail: number;
 };
-
-/**
- * The cutting line across `dart` pressed toward the seam before it, as `dartCuttingLine` with
- * `"before"`, also telling where its part along the seam after the dart starts. `seam1` replaces
- * the offset of the seam before the dart: pass the `tail` of the peak of the previous dart when
- * that seam lies between two darts (`findDarts` chains them), so that both darts get their peak
- * and the line runs on from one into the next.
- */
-export function dartPeak(
-  dart: Dart,
-  a1: number,
-  a2: number,
-  sign: number,
-  segments: { s1: number; s2: number },
-  seam1?: Point[],
-): DartPeak | null {
-  return pressedBefore(dart, a1, a2, sign, segments, seam1);
-}
 
 // Whether X -> A -> Y is a dart (see findDarts).
 function isDart(x: Point, apex: Point, y: Point, sign: number): boolean {
@@ -192,7 +127,28 @@ function isDart(x: Point, apex: Point, y: Point, sign: number): boolean {
   return Math.abs(l1 - l2) <= tolerance;
 }
 
-function pressedBefore(
+/**
+ * The cutting line across `dart`, pressed toward the seam before it, from the start of the offset
+ * seam before it (allowance `a1`) to the end of the offset seam after it (`a2`): the dart peak
+ * (module comment). The other press direction is the peak of the mirrored dart (the outline
+ * reversed), reversed. `segments` are the flattening step counts of the two seams. When the seam
+ * before the dart is too short to reach the flap's far edge, it is extended straight backwards
+ * along its start tangent to find that edge (an approximation; the line still starts at the seam's
+ * offset start). Legs of unequal length (within DART_LEG_TOLERANCE) are matched at their top ends
+ * X and Y. When the closed seam bends at X (an untrued seam) and the bend of the closed cutting
+ * line lies on S1's side of the fold, within DART_BEND_SNAP times the larger allowance of it, the
+ * layer at leg A-X would carry the bend twice (once, then mirrored) as a jog of about 1 mm
+ * segments. There the cut of that layer runs straight from the bend to the mirrored flap beyond
+ * the mirrored bend, as if the bend were on the fold; this cuts the allowance short by a few
+ * hundredths of it at most. The layer at leg A-Y and the seam after the dart keep the exact closed
+ * cut. `tail` tells where the part along the seam after the dart starts. `seam1` replaces the
+ * offset of the seam before the dart: pass the previous dart's peak points from its `tail` on when
+ * that seam lies between two darts (`findDarts` chains them), so that both darts get their peak
+ * and the line runs on from one into the next. `null` when the construction fails (no crossing of
+ * the closed cutting line with the dart's leg line or flap edge); the caller then treats the
+ * dart's edges as ordinary edges.
+ */
+export function dartPeak(
   dart: Dart,
   a1: number,
   a2: number,
