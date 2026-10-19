@@ -372,6 +372,7 @@ msgstr "Lösenord"
 msgid "Save password"
 msgstr "Spara lösenord"
 
+#: lib/toile_web/editor_texts.ex
 #: lib/toile_web/live/measurement_profile_live/form.ex
 #: lib/toile_web/live/pattern_live/form.ex
 #: lib/toile_web/live/user_live/settings.ex
@@ -784,6 +785,7 @@ msgid "You don't have any measurement profiles yet."
 msgstr "Du har inga måttprofiler än."
 
 #: lib/toile_web/centimeters.ex
+#: lib/toile_web/editor_texts.ex
 #, elixir-autogen, elixir-format
 msgctxt "decimal separator"
 msgid "."
@@ -820,11 +822,6 @@ msgstr "Det gick inte att byta måttprofil"
 #, elixir-autogen, elixir-format
 msgid "Delete this pattern?"
 msgstr "Vill du ta bort mönstret?"
-
-#: lib/toile_web/live/pattern_live/show.ex
-#, elixir-autogen, elixir-format
-msgid "Drag to move the pattern; scroll or pinch to zoom. With the keyboard: arrow keys move, + and - zoom, 0 fits to the screen."
-msgstr "Dra för att flytta mönstret, scrolla eller nyp för att zooma. Med tangentbordet: piltangenterna flyttar, + och - zoomar, 0 anpassar till skärmen."
 
 #: lib/toile_web/live/pattern_live/show.ex
 #, elixir-autogen, elixir-format
@@ -946,3 +943,403 @@ msgstr "Knyt ett band runt överkroppen, vågrätt och så högt upp i armhålor
 #, elixir-autogen, elixir-format
 msgid "At the band at underarm level: across the back between the armhole creases."
 msgstr "Vid bandet i armhålsnivå: tvärs över ryggen mellan armhålsvecken."
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "%{label} (%{unit})"
+msgstr "%{label} (%{unit})"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "%{name} cannot be computed with this change."
+msgstr "%{name} kan inte beräknas med den här ändringen."
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "%{name} cannot be used here."
+msgstr "%{name} kan inte användas här."
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "%{name} needs point names here."
+msgstr "%{name} behöver punktnamn här."
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Adjustments"
+msgstr "Justeringar"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Angle (degrees, 0 = right, 90 = down)"
+msgstr "Vinkel (grader, 0 = höger, 90 = nedåt)"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "At an angle from a point"
+msgstr "I en vinkel från en punkt"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Back dart length"
+msgstr "Bakre inprovningens längd"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Back shoulder dart, length"
+msgstr "Axelinprovning bak, längd"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Back shoulder dart, width"
+msgstr "Axelinprovning bak, bredd"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Back waist dart, distance below the underarm level"
+msgstr "Midjeinprovning bak, avstånd under ärmhålsnivån"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Bust dart growth"
+msgstr "Bystinprovningens ökning"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Bust excess without a bust dart"
+msgstr "Bystöverskott utan bystinprovning"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Centre point"
+msgstr "Mittpunkt"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Choose a point"
+msgstr "Välj en punkt"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Click or tap a point in the pattern to select it."
+msgstr "Klicka eller tryck på en punkt i mönstret för att välja den."
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Default: %{value}"
+msgstr "Standard: %{value}"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Distance"
+msgstr "Avstånd"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Down (dy)"
+msgstr "Nedåt (dy)"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Drag a point to move it; drag anywhere else to move the view. Scroll or pinch to zoom. Ctrl+Z undoes, Ctrl+Shift+Z redoes. With the keyboard: arrow keys move, + and - zoom, 0 fits to the screen."
+msgstr "Dra en punkt för att flytta den; dra någon annanstans för att flytta vyn. Scrolla eller nyp för att zooma. Ctrl+Z ångrar, Ctrl+Skift+Z gör om. Med tangentbordet: piltangenterna flyttar, + och - zoomar, 0 anpassar till skärmen."
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Ease across the back"
+msgstr "Rörelsevidd, ryggbredd"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Ease at the bust"
+msgstr "Rörelsevidd, byst"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Ease at the hip"
+msgstr "Rörelsevidd, stuss"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Ease at the waist"
+msgstr "Rörelsevidd, midja"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Edit the pattern"
+msgstr "Redigera mönstret"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Enter a number, e.g. 4.5"
+msgstr "Skriv ett tal, t.ex. 4,5"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Extra armhole depth"
+msgstr "Tillägg, ärmhålsdjup"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Extra depth of the front neckline"
+msgstr "Extra djup, främre halsringningen"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "First line"
+msgstr "Första linjen"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Formulas count in millimetres."
+msgstr "Formlerna räknar i millimeter."
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "From point"
+msgstr "Från punkt"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Front dart length"
+msgstr "Främre inprovningens längd"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Front waist dart, distance below the bust point"
+msgstr "Midjeinprovning fram, avstånd under bystpunkten"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Halfway between two points"
+msgstr "Mitt emellan två punkter"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Largest bust dart"
+msgstr "Största bystinprovning"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Leave empty for the default."
+msgstr "Lämna tomt för standardvärdet."
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Lengthen or shorten"
+msgstr "Förläng eller förkorta"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Line"
+msgstr "Linje"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Move the side seam"
+msgstr "Flytta sidsömmen"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Moved %{x} cm sideways and %{y} cm up or down"
+msgstr "Flyttad %{x} cm i sidled och %{y} cm i höjdled"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Not moved"
+msgstr "Inte flyttad"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Offset from a point"
+msgstr "Förskjuten från en punkt"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "On a line between two points"
+msgstr "På en linje mellan två punkter"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Point"
+msgstr "Punkt"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Position sideways (x)"
+msgstr "Läge i sidled (x)"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Position up or down (y)"
+msgstr "Läge i höjdled (y)"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Radius"
+msgstr "Radie"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Raise the back neckline"
+msgstr "Höjning av bakre halsringningen"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Raise the waist at the side"
+msgstr "Höjning vid sidan i midjan"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Redo"
+msgstr "Gör om"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Reset position"
+msgstr "Återställ läget"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Saved"
+msgstr "Sparat"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Second line"
+msgstr "Andra linjen"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Shoulder slope, back"
+msgstr "Axelsänkning bak"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Shoulder slope, front"
+msgstr "Axelsänkning fram"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Squared out from a line"
+msgstr "Vinkelrätt ut från en linje"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Start point"
+msgstr "Startpunkt"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The first"
+msgstr "Den första"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The formula cannot be read."
+msgstr "Formeln går inte att läsa."
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The formula depends on itself."
+msgstr "Formeln beror på sig själv."
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The formula divides by zero."
+msgstr "Formeln delar med noll."
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The formula does not give a usable number."
+msgstr "Formeln ger inget användbart tal."
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The lines do not meet."
+msgstr "Linjerna möts inte."
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The pattern cannot be drawn with this change."
+msgstr "Mönstret kan inte ritas med den här ändringen."
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The points end up too close to each other or too far away."
+msgstr "Punkterna hamnar för nära varandra eller för långt bort."
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The second"
+msgstr "Den andra"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "There is no function called %{name}."
+msgstr "Det finns ingen funktion som heter %{name}."
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "There is nothing called %{name}."
+msgstr "Det finns inget som heter %{name}."
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "To the right (dx)"
+msgstr "Åt höger (dx)"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Towards point"
+msgstr "Mot punkt"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Undo"
+msgstr "Ångra"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Where a line meets a circle"
+msgstr "Där en linje skär en cirkel"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Where two lines cross"
+msgstr "Där två linjer korsas"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Which crossing point"
+msgstr "Vilken skärningspunkt"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Wrong number of values for %{name}."
+msgstr "Fel antal värden till %{name}."
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Your changes could not be saved"
+msgstr "Ändringarna kunde inte sparas"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "cm"
+msgstr "cm"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "degrees"
+msgstr "grader"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "degrees per cm"
+msgstr "grader per cm"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Not saved: the pattern keeps the last value that worked."
+msgstr "Inte sparat: mönstret behåller det senaste värdet som fungerade."

@@ -18,6 +18,7 @@ msgid "has already been taken"
 msgstr "används redan"
 
 #: lib/toile/patterns.ex
+#: lib/toile/patterns/pattern_project.ex
 #, elixir-autogen
 msgid "is invalid"
 msgstr "är ogiltigt"
@@ -142,3 +143,8 @@ msgstr "är för stor"
 #, elixir-autogen, elixir-format
 msgid "you can have at most %{limit} patterns"
 msgstr "du kan ha högst %{limit} mönster"
+
+#: lib/toile/patterns/pattern_project.ex
+#, elixir-autogen, elixir-format
+msgid "contains changes that cannot be saved"
+msgstr "innehåller ändringar som inte kan sparas"

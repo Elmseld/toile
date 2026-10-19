@@ -21,7 +21,8 @@ engine in the browser.
   The engine validates the definition on the client. Any release image build must include
   `engine/blocks` and `engine/src`.
 - **Limits.** At most 100 projects per user (advisory lock, as for measurement profiles) and a
-  definition of at most 1 000 000 bytes encoded (`Toile.Patterns.DefinitionSize`). A block file
+  definition of at most 200 000 bytes encoded (`Toile.Patterns.DefinitionSize`; 1 000 000 until
+  ADR 0008 lowered it so an editor save fits a websocket frame). A block file
   over that cap fails to compile (checked by `Toile.Patterns.Blocks.Loader`), so creating a project from a block never hits it.
 - **Ownership.** Scoped per user (ADR 0001). The chosen `measurement_profile_id` must belong to the
   same user: the context checks it (for a form error), and the database enforces it with a
@@ -35,10 +36,11 @@ engine in the browser.
 - **Client.** A LiveView external hook (`PatternView`) imports the engine from `engine/src` through
   esbuild and computes the pattern once per input. Zoom and pan change only the SVG `viewBox`. The
   hook element is `phx-update="ignore"`, but LiveView still patches its data attributes: switching
-  profile changes `data-key` and `data-input`, and the hook's `updated()` callback redraws when
-  `data-key`, `data-definition` or `data-input` differ from what it last drew. No `push_event`. A
-  wrapper keyed by the profile id is only an extra measure; LiveView may move the hook element by
-  its id instead of mounting it again. CI builds the JS bundle so a broken engine import fails.
+  profile changes `data-key` and `data-input`, and the hook's `updated()` callback redraws and
+  refits when either differs from what it last drew. `data-definition` is read on mount only,
+  because the editor owns the working definition (ADR 0008). No `push_event`. The profile-keyed
+  wrapper is gone, so the hook (and its undo history) survives a profile switch.
+  CI builds the JS bundle so a broken engine import fails.
 - **Piece labels.** Each piece's name is written inside the piece, centred at the point whose
   text box is farthest from every drawn line (the outline with its darts, and the grainline with
   its arrowheads), found on a fixed grid over the piece's bounding box and refined once; the text

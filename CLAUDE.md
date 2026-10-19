@@ -4,7 +4,7 @@ Read `docs/product.md` for what the product is and its principles, and `AGENTS.m
 
 ## Layout
 - `lib/`: Phoenix/LiveView app. Stores and validates pattern definitions but never computes geometry.
-- `engine/`: pattern engine in TypeScript (Bun). Pure functions, no DOM, no I/O. All geometry lives here. `engine/src/measurements.json` is the single list of measurement keys; `lib/` reads it at compile time (`docs/adr/0005-measurement-keys.md`). `engine/blocks/` holds the block definitions, also read by `lib/` at compile time (`docs/adr/0006-pattern-projects-and-blocks.md`).
+- `engine/`: pattern engine in TypeScript (Bun). Pure functions, no DOM, no I/O. All geometry lives here. `engine/src/measurements.json` is the single list of measurement keys; `lib/` reads it at compile time (`docs/adr/0005-measurement-keys.md`). `engine/src/geometry/point_ops.json` is the field layout of the point ops, also read by `lib/` at compile time (`docs/adr/0008-pattern-editor.md`). `engine/blocks/` holds the block definitions, also read by `lib/` at compile time (`docs/adr/0006-pattern-projects-and-blocks.md`).
 - `docs/tickets/`: work items for `/ship`. `docs/adr/`: architecture decisions.
 
 ## Running things

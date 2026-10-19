@@ -65,3 +65,13 @@ Expected: (2) the project page with "Bakstycke" and "Framstycke" drawn over a cm
 3. On the project page, click "Redigera måttprofil", enter a value for Nacke till armhålsnivå and save.
 4. Check the project page again.
 Expected: (2) the project page lists "Nacke till armhålsnivå" under "Mått som saknas för det här mönstret" with nothing drawn; (3) saving returns to the project; (4) "Bakstycke" and "Framstycke" are drawn over the cm grid.
+
+### Pattern editor
+Do this with the mouse and again with touch emulation.
+1. Open a "Rak kjol" project and drag a hem point.
+2. Reload the page.
+3. Open a "Liv" project and drag an armhole control point (a hollow handle).
+4. Select a point with the select "Välj en punkt", type `waist / ` into a formula field, then fix it.
+5. Change a value in the "Justeringar" panel, then empty the field.
+6. Click "Ångra" and "Gör om", then press Ctrl+Z.
+Expected: (1) the outline follows during the drag, the label moves at release and the status shows "Sparat"; (2) the moved point is still moved; (3) the armhole curve follows; (4) an error shows under the field and the drawing stays until the formula is valid; (5) the pattern updates, and an empty field returns to the default; (6) each step is undone and redone, and the buttons are disabled when there is nothing left.
