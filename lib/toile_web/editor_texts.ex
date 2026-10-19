@@ -19,6 +19,8 @@ defmodule ToileWeb.EditorTexts do
 
     * `"ops"`: a plain description of each point operation, by op name.
     * `"fields"`: a label for each point field, by field name.
+    * `"which"`: the values of the `which` field (`"first"`, `"second"`) as the point panel shows
+      them.
     * `"errors"`: a text for each engine error kind the editor shows, plus `"generic"` for any
       other and `"parameter_format"` for a parameter value that is not a number.
     * `"status"`: the save status, `"saving"`, `"saved"` and `"failed"`.
@@ -36,6 +38,10 @@ defmodule ToileWeb.EditorTexts do
     %{
       "ops" => ops(),
       "fields" => fields(),
+      "which" => %{
+        "first" => gettext("The first"),
+        "second" => gettext("The second")
+      },
       "errors" => errors(),
       "status" => %{
         "saving" => gettext("Saving..."),

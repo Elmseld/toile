@@ -47,6 +47,7 @@ defmodule ToileWeb.EditorTextsTest do
              "number" => ""
            }
 
+    assert texts["which"] == %{"first" => "The first", "second" => "The second"}
     assert texts["reset_offset"] == "Reset position"
     assert texts["decimal_separator"] == "."
   end
