@@ -71,7 +71,8 @@ export function findDarts(outline: readonly Edge[], sign: number): Dart[] {
   if (n < 4) return [];
   const candidate = outline.map((leg1, i) => {
     const leg2 = outline[(i + 1) % n]!;
-    return leg1.type === "line" && leg2.type === "line" && isDart(leg1.from, leg1.to, leg2.to, sign);
+    if (leg1.type !== "line" || leg2.type !== "line") return false;
+    return isDart(leg1.from, leg1.to, leg2.to, sign);
   });
   // Start at a candidate with no candidate three entries before it, whose seam after could be
   // this one's seam before.

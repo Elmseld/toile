@@ -217,8 +217,8 @@ type Mode = "exact" | "safe";
 
 // The checked cutting line in `mode` with the detected darts that got no peak, or null when it
 // fails a check: it must not cross itself or the flattened outline, run in the outline's
-// direction and have every outline vertex inside or on it. Throws WorkLimitError when the raw line gets longer than MAX_RAW_LINE_POINTS or the
-// crossing sweeps exhaust `budget`.
+// direction and have every outline vertex inside or on it. Throws WorkLimitError when the raw
+// line gets longer than MAX_RAW_LINE_POINTS or the crossing sweeps exhaust `budget`.
 function trace(
   outline: readonly ReadEdge[],
   steps: readonly number[],
