@@ -211,22 +211,46 @@ cuttingLine(piece, { default: 10, edges: { b_hem: 40, b_cb: 0 } })
   returned. Allowances are not part of the pattern definition; the caller stores them.
 - **Result.** `points` is a closed, simple polygon in mm (SVG coordinates, last point not
   repeated), in the same rotational direction as the outline, starting at the leftmost point, with
-  every outline point inside or on it. It is a polyline within about 0.02 mm of the true offset.
+  every outline vertex inside or on it. It is a polyline within about 0.02 mm of the true offset.
   `cuttingLinePathData(points)` gives its SVG path data. A caller that fits a `viewBox` must include
   the cutting line: `patternBounds` covers outlines only.
 - **Corners.** Convex corners are mitered, clipped at `MITER_LIMIT` (4) times the larger
   allowance; concave corners are the intersection of the offset edges; smooth joins have no
-  corner (a straight step when the allowances differ). Tight concave curves and allowances wider
-  than a narrow part never make the line loop or cross itself.
-- **Darts.** A dart is two straight, equal-length legs at a concave apex with a wedge of at most
-  60 degrees. Its cut edge is the neighbouring seams' cutting line with the dart closed and pressed
-  toward the seam before it, then unfolded (the dart peak); the legs are not on the cutting line.
-  Darts with curved or unequal legs are not detected and get an ordinary concave corner.
-- **Errors** are values, never thrown: `invalid_seam_allowance` and `degenerate_geometry` (empty or
-  zero-area outline, non-finite coordinates, a self-intersecting outline). Work is bounded by
-  `MAX_CUTTING_LINE_SEGMENTS` (20 000) per piece.
+  corner (a straight step when the allowances differ). Next to a curve that curls away sharply, a
+  convex corner is round instead of mitered. Tight concave curves and allowances wider than a
+  narrow part never make the line loop or cross itself. If that construction fails its checks, a
+  conservative one (all convex corners round, darts as ordinary edges) is used and the result lists
+  `safe_construction`.
+- **Darts.** A dart is two straight, equal-length legs (within `max(1 mm, 2 %)`; unequal legs are
+  matched at their top ends) at a concave apex with a wedge of at most 60 degrees. Its cut edge is
+  the neighbouring seams' cutting line with the dart closed and pressed toward the seam before it
+  (fixed direction), then unfolded (the dart peak); the legs are not on the cutting line. Two
+  darts with one seam between them both get a peak, until that seam is too short. A bend of an
+  untrued waist within `DART_BEND_SNAP` (0.25) times the allowance of the fold is treated as on the
+  fold. Darts with curved or clearly unequal legs are not detected and get an ordinary concave
+  corner.
+- **Approximations.** The ok result has an optional `approximations: CuttingLineApproximation[]`,
+  present only when non-empty: `{ kind: "safe_construction" }` (the conservative construction was
+  used) and `{ kind: "dart_without_peak", legs: [i, j] }` (a detected dart cut as ordinary edges,
+  with a notch; `legs` index the piece's own `outline`).
+- **Errors** are values, never thrown. `invalid_seam_allowance`: one per invalid value, at most
+  `MAX_ALLOWANCE_ERRORS` (100), a map of more than `MAX_SECTION_ENTRIES` edges is one error, names
+  are cut to 80 characters in messages (`edge` keeps the full name); render messages as text, the
+  names are user-controlled. They come before geometry errors. `degenerate_geometry`: empty or
+  zero-area outline, non-finite coordinates, a self-intersecting outline (refused at every
+  allowance), or a piece over a work limit ("too complex"): `MAX_OUTLINE_ENTRIES` (1000),
+  `MAX_CUTTING_LINE_SEGMENTS` (20 000), `MAX_RAW_LINE_POINTS` (50 000), `MAX_SWEEP_PAIRS` and
+  `MAX_CROSSINGS`.
+- **Reach.** The line lies at most `hypot(MITER_LIMIT * a, a)`, about 4.12 times the largest
+  allowance `a`, from the outline.
+- **Limitations.** The back neckline of the bodice has a radius under 4 mm at the shoulder, so its
+  cutting line has a concave kink there (true offset geometry; a bodice block follow-up). Two
+  darts a few mm apart at 50 to 100 mm allowance can give a line that touches the outline in one
+  direction.
+- **Modules.** `offset.ts`, `joins.ts`, `boundary.ts`, `darts.ts`, `seam-allowance.ts`.
 - **Cost.** About 0.1 ms per skirt piece and 0.2 to 0.25 ms per bodice piece (Bun in Docker on a
-  laptop); a hostile outline at the segment budget takes about 0.3 s. A view should compute it once
+  laptop), twice that with the safe fallback; the worst hostile outlines at the entry limit take
+  at most about 0.2 s. A view should compute it once
   per drawn input, not on every pointer move.
 
 ## Blocks
