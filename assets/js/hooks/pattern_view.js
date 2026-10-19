@@ -7,7 +7,15 @@
 //   data-input         {"measurements": {...}, "parameters": {...}} in millimetres (JSON)
 //   data-piece-labels  {pieceName: label} (JSON)
 //   data-error-text    shown instead of a drawing when the pattern cannot be computed
+//   data-editor        the id of the editor aside (optional); with it the pattern is editable
+//   data-texts         the editor's UI texts (JSON, ToileWeb.EditorTexts)
 // The element's aria-label also names the SVG.
+//
+// With an editor (assets/js/editor/pattern_editor.js, docs/adr/0008-pattern-editor.md) the
+// editor owns the working definition and parameters: compute() asks it for the result, it calls
+// update() while points are dragged and edited, and it draws the point handles into a layer of
+// the SVG. A press on a point is the editor's (drag); a press elsewhere pans as before, and a
+// second pointer during a drag cancels the drag and pinches.
 //
 // Drawing has three parts: compute() evaluates the pattern for the current input, draw() builds
 // the SVG elements once per input (and fits the view to them), and update() moves the existing
@@ -34,6 +42,7 @@ import {
   piecePathData,
   placeLabel,
 } from "../../../engine/src/index"
+import {PatternEditor} from "../editor/pattern_editor"
 import {center, fit, gridPathData, panBy, toAttribute, visibleArea, zoomAt} from "./viewport"
 
 const SVG_NS = "http://www.w3.org/2000/svg"
@@ -69,6 +78,7 @@ const PatternView = {
     this.onPointerDown = event => this.pointerDown(event)
     this.onPointerMove = event => this.pointerMove(event)
     this.onPointerUp = event => this.pointerUp(event)
+    this.onPointerCancel = event => this.pointerCancel(event)
     this.onKeyDown = event => this.keyDown(event)
     this.onFit = () => this.setView(this.fitted)
     this.onZoom = event => this.zoomBy(Number(event.detail?.factor))
@@ -77,8 +87,8 @@ const PatternView = {
     this.el.addEventListener("pointerdown", this.onPointerDown)
     this.el.addEventListener("pointermove", this.onPointerMove)
     this.el.addEventListener("pointerup", this.onPointerUp)
-    this.el.addEventListener("pointercancel", this.onPointerUp)
-    this.el.addEventListener("lostpointercapture", this.onPointerUp)
+    this.el.addEventListener("pointercancel", this.onPointerCancel)
+    this.el.addEventListener("lostpointercapture", this.onPointerCancel)
     this.el.addEventListener("keydown", this.onKeyDown)
     this.el.addEventListener("toile:fit", this.onFit)
     this.el.addEventListener("toile:zoom", this.onZoom)
@@ -92,7 +102,12 @@ const PatternView = {
     this.definition = parseJSON(this.el.dataset.definition, null)
     this.drawnKey = this.el.dataset.key
     this.drawnInput = this.el.dataset.input
-    this.draw(this.compute(parseJSON(this.drawnInput, null)))
+    // The pointer that drags a point, and where it last was (client pixels).
+    this.dragPointer = null
+    this.dragAt = null
+    const input = parseJSON(this.drawnInput, null)
+    this.editor = PatternEditor.create(this, this.definition, input)
+    this.draw(this.compute(input))
   },
 
   // phx-update="ignore" still patches data attributes. Only new input (another profile) redraws;
@@ -105,13 +120,21 @@ const PatternView = {
     this.draw(this.compute(parseJSON(input, null)))
   },
 
+  // Saves made while the connection was down are sent again.
+  reconnected() {
+    this.editor?.resendIfUnsaved()
+  },
+
   destroyed() {
+    this.editor?.destroy()
     this.resizeObserver?.disconnect()
     if (this.frame !== null) cancelAnimationFrame(this.frame)
   },
 
-  // The pattern evaluated for `input`, or null without input. Compiles once per definition.
+  // The pattern evaluated for `input`, or null without input. Compiles once per definition. The
+  // editor evaluates its working state instead, with the measurements of `input`.
   compute(input) {
+    if (this.editor) return this.editor.load(input)
     if (!input) return null
     this.compiled ??= compilePattern(this.definition)
     return this.compiled.evaluate(input)
@@ -121,6 +144,8 @@ const PatternView = {
   // has, if any), or shows the error text when the pattern cannot be drawn.
   draw(result, {fit: refit = true} = {}) {
     const view = refit ? null : this.viewBox
+    this.editor?.cancelDrag()
+    this.dragPointer = null
     this.pointers.clear()
     this.svg = null
     this.el.replaceChildren()
@@ -142,8 +167,10 @@ const PatternView = {
   // Moves the drawn elements to `result` (a result of the same definition) without changing the
   // view. With labels: "keep" the labels stay where they are, e.g. while a point is dragged;
   // "place" places them again. A result with other pieces than the drawing is drawn anew in the
-  // same view, and a result when nothing is drawn yet is drawn and fitted.
+  // same view, and a result when nothing is drawn yet is drawn and fitted. A result with errors
+  // changes nothing: the last good drawing stays.
   update(result, {labels = "place"} = {}) {
+    if (!result?.ok) return
     if (!this.svg || !this.drawsPieces(result)) {
       this.draw(result, {fit: !this.svg})
       return
@@ -159,15 +186,13 @@ const PatternView = {
       elements.grainline.setAttribute("y2", to.y)
       if (labels === "place") this.placeLabelOf(piece, pathData, elements.label)
     }
+    this.editor?.moveHandles(result)
   },
 
   drawsPieces(result) {
-    const names = Object.keys(result?.pieces ?? {})
-    return (
-      result?.ok === true &&
-      names.length === this.pieceElements.size &&
-      names.every(name => this.pieceElements.has(name))
-    )
+    const names = Object.keys(result.pieces)
+    const drawn = this.pieceElements
+    return names.length === drawn.size && names.every(name => drawn.has(name))
   },
 
   // Inside the piece, clear of the outline, darts and grainline (the engine's placeLabel),
@@ -265,6 +290,12 @@ const PatternView = {
       this.pieceElements.set(piece.name, {outline, grainline, label})
     }
 
+    if (this.editor) {
+      const handles = svgElement("g", {id: `${id}-handles`, "pointer-events": "none"})
+      svg.appendChild(handles)
+      this.editor.drawHandles(handles, result)
+    }
+
     return svg
   },
 
@@ -290,6 +321,7 @@ const PatternView = {
     const {area, scale} = visibleArea(this.viewBox, width, height)
     this.minorGrid.setAttribute("d", this.gridAt(area, scale, 10))
     this.majorGrid.setAttribute("d", this.gridAt(area, scale, 100))
+    this.editor?.scaleHandles(scale)
   },
 
   gridAt(area, scale, step) {
@@ -332,12 +364,30 @@ const PatternView = {
 
   pointerDown(event) {
     if (!this.svg || (event.pointerType === "mouse" && event.button !== 0)) return
+    const at = {x: event.clientX, y: event.clientY}
+    if (this.dragPointer !== null) {
+      // A second pointer during a drag: the point goes back, and the two pointers pinch.
+      this.editor.cancelDrag()
+      this.pointers.set(this.dragPointer, this.dragAt)
+      this.dragPointer = null
+    } else if (this.pointers.size === 0 && this.editor?.pointerDown(event)) {
+      this.el.setPointerCapture(event.pointerId)
+      this.dragPointer = event.pointerId
+      this.dragAt = at
+      return
+    }
     this.el.setPointerCapture(event.pointerId)
-    this.pointers.set(event.pointerId, {x: event.clientX, y: event.clientY})
+    this.pointers.set(event.pointerId, at)
   },
 
   pointerMove(event) {
+    if (event.pointerId === this.dragPointer) {
+      this.dragAt = {x: event.clientX, y: event.clientY}
+      this.editor.moveDrag(event)
+      return
+    }
     const previous = this.pointers.get(event.pointerId)
+    if (!previous) this.hover(event)
     if (!previous || !this.svg) return
     const current = {x: event.clientX, y: event.clientY}
 
@@ -373,7 +423,28 @@ const PatternView = {
   },
 
   pointerUp(event) {
+    if (event.pointerId === this.dragPointer) {
+      this.dragPointer = null
+      this.editor.endDrag()
+      return
+    }
     this.pointers.delete(event.pointerId)
+  },
+
+  // The browser took the pointer away (or capture was lost): a drag ends without a change.
+  pointerCancel(event) {
+    if (event.pointerId === this.dragPointer) {
+      this.dragPointer = null
+      this.editor.cancelDrag()
+      return
+    }
+    this.pointers.delete(event.pointerId)
+  },
+
+  // A mouse over a point shows the move cursor.
+  hover(event) {
+    if (event.pointerType !== "mouse" || !this.svg || !this.editor) return
+    this.el.classList.toggle("cursor-move", this.editor.pick(event) !== null)
   },
 
   keyDown(event) {
