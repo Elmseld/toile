@@ -362,18 +362,25 @@ The engine has no block registry.
   `s` are never negative; where the tilt reaches the guide angle (a very wide sleeve or a large
   tilt) `t = 2a`, `s = 0` and the half is two arcs; `t` never exceeds 90 degrees, so the cap never
   overhangs. The length's derivative with respect to `t` is zero when `s = 0`, so the length is
-  smooth across that switch and the Newton solve below needs no special case; it uses the analytic
-  derivative in `h` (the width derivative follows from the length being homogeneous of degree 1).
-  Out-of-range shape constants (a share outside 0 to 1, a tilt of 0 or less) make the guard value
-  `cap_constants_ok` fail, so the cap is not drawn instead of looping. The cap height and the crown
+  smooth across that switch. The Newton solve below uses the analytic derivative in `h` (the width
+  derivative follows from the length being homogeneous of degree 1); its term for the turn's change
+  with `h` is multiplied by `(90 - t) / max(90 - t, 0.000001)`, which is 0 at the 90 degree cap,
+  where `t` no longer changes with `h`. Out-of-range shape constants (a share outside 0 to 1, a
+  tilt of 0 or less) make the guard value `cap_constants_ok` fail, and a solve that leaves either
+  half more than 0.1 mm from its target (in closed form, `back_cap_solved` and
+  `front_cap_solved`), a half width of 0 or less, or a cap height of 0 or less makes `cap_fit_ok`
+  fail; every cap arc depends on both, so an implausible input (for example a far too narrow
+  `upper_arm`, such as 60 mm on armhole halves of 220 and 240 mm) gives `invalid_result` instead
+  of a looped cap or one of the wrong length. The cap height and the crown
   shift `cap_split` (front half `bicep / 2 + cap_split` wide, back `bicep / 2 - cap_split`) are
   solved so that each half equals its armhole half plus `cap_ease / 2`: a chord estimate, then
   Newton steps on the height, the shift and the height again, unrolled as formulas (values `cap_h_0`
   to `cap_h_4`, `cap_split_0`, `cap_split_1`; ADR 0007 decision 7). The arcs are cubics with the
   circular-arc handles. Tested: the cap halves are within 0.05 mm of their targets for the four test
-  figures with upper arms 240 to 380 mm (under 0.01 mm), so the cap equals the bodice armhole plus
-  `cap_ease` (tested within 2 mm, under 0.01 mm), also after a deeper armhole or a user offset on
-  the back width point. The cap height changes by about 0.6 to 0.7 mm per mm of armhole length
+  figures with upper arms 240 to 380 mm (under 0.01 mm; under 0.045 mm with `cap_inflection_tilt`
+  90, two arcs or the 90 degree cap, where the cubic stands in for a 90 degree arc), so the cap
+  equals the bodice armhole plus `cap_ease` (tested within 2 mm, under 0.01 mm), also after a
+  deeper armhole or a user offset on the back width point. The cap height changes by about 0.6 to 0.7 mm per mm of armhole length
   (tested under 1) and -0.36 to -0.53 mm per mm of `upper_arm` (tested under 0.75 in size);
   `cap_convex_share` 0.5 or 0.7 leaves the cap length unchanged (tested within 0.2 mm). Shape,
   tested for the four test figures with upper arms within 20 mm of theirs: the inflection tangent

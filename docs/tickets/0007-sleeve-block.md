@@ -46,8 +46,9 @@ armholes of equal length.
   sloped (about 52 to 66 degrees for the test figures), not vertical: two arcs alone would meet
   vertically when the cap is about as high as the half is wide, a dome on vertical sides
   (smoke finding V1). Where the tilt reaches the guide angle the half falls back to two arcs; the
-  turn never exceeds 90 degrees, so the cap never overhangs. Shape constants out of range give an
-  error, not a looped cap. Details in `engine/README.md`.
+  turn never exceeds 90 degrees, so the cap never overhangs. Shape constants out of range, or a
+  solve that leaves a half more than 0.1 mm off its target (a far too narrow sleeve), give an
+  error, not a looped cap or one of the wrong length. Details in `engine/README.md`.
 - **Starting values are ours:** `ease_upper_arm` 50, `ease_wrist` 80, `cap_ease` 30,
   `length_adjustment` 0 (mm), `cap_convex_share` 0.6 and `cap_inflection_tilt` 15 degrees. They
   are pinned by engine tests and to be adjusted after test fitting (a toile).

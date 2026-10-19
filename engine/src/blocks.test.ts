@@ -1490,6 +1490,12 @@ function guideDeviation(
   return { rise, hollow };
 }
 
+/** Each drawn cap half is within `tolerance` mm of its solved target. */
+function expectHalvesSolved(result: ComputedPattern, tolerance = 0.05): void {
+  expectWithin(capSum(result, CAP.back), result.values.back_cap_target!, tolerance);
+  expectWithin(capSum(result, CAP.front), result.values.front_cap_target!, tolerance);
+}
+
 /** The cap halves and their total equal the bodice armholes plus cap ease (AC3). */
 function expectCapFits(project: SleeveProject, capEase = SLEEVE_DEFAULTS.cap_ease): void {
   const { bodice: b, sleeve: s } = project;
@@ -1736,6 +1742,7 @@ describe("straight sleeve: width variants", () => {
       expectWithin(curveLength(s, `s_cap_${side}_mid`), 0, 1e-6);
     }
     expectCapFits(project);
+    expectHalvesSolved(s);
     expectSmoothCap(s);
   });
 
@@ -1751,6 +1758,7 @@ describe("straight sleeve: width variants", () => {
       expect(curveLength(s, `s_cap_${side}_mid`)).toBeGreaterThan(1);
     }
     expectCapFits(project);
+    expectHalvesSolved(s);
     expectSmoothCap(s);
   });
 
@@ -1887,5 +1895,54 @@ describe("straight sleeve: cap solve and sensitivity", () => {
     }
     // The whole sweep is plausible, so every combination evaluates.
     expect(evaluated).toBe(SLEEVE_SETS.length * 15);
+  });
+
+  test("with cap_inflection_tilt 90 (two arcs, or the 90 degree cap) each half is within 0.05 mm over the sweep", () => {
+    // The turn reaches the 90 degree cap during the solve for the slim sleeves, where the Newton
+    // derivative must leave out the turn's change with the height.
+    const compiled = compilePattern(sleeve());
+    let capped = 0;
+    for (const [label, measurements] of SLEEVE_SETS) {
+      const imports = armholeImports(sleeveProject(measurements).bodice);
+      for (let upperArm = 240; upperArm <= 380; upperArm += 10) {
+        const result = expectOk(
+          compiled.evaluate({
+            measurements: { ...SLEEVE_ARMS[label], upper_arm: upperArm },
+            parameters: { cap_inflection_tilt: 90 },
+            imports,
+          }),
+        );
+        if (result.values.back_cap_turn === 90) capped++;
+        expectHalvesSolved(result);
+      }
+    }
+    expect(capped).toBeGreaterThan(0);
+  });
+
+  test("a narrow sleeve whose cap the solve cannot fit gives errors, not a cap of the wrong length", () => {
+    const compiled = compilePattern(sleeve());
+    const imports = {
+      back_armhole_length: 220,
+      front_armhole_length: 240,
+      back_armhole_to_notch: 100,
+      front_armhole_to_notch: 100,
+    };
+    for (const upperArm of [40, 60]) {
+      const result = compiled.evaluate({
+        measurements: { upper_arm: upperArm, arm_length: 580, wrist: 160 },
+        imports,
+      });
+      expect(result.ok).toBe(false);
+      const guard = (result.ok ? [] : result.errors).find(
+        (error) => "name" in error && error.name === "cap_fit_guard",
+      );
+      expect(guard?.kind).toBe("invalid_result");
+      expect(result.pieces.sleeve).toBeUndefined();
+    }
+    // A plausible width on the same armhole is solved well inside the guard.
+    const plausible = expectOk(
+      compiled.evaluate({ measurements: { upper_arm: 240, arm_length: 580, wrist: 160 }, imports }),
+    );
+    expectHalvesSolved(plausible, 0.01);
   });
 });
