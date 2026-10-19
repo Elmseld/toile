@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { curvePathData, formatNumber, patternBounds, piecePathData } from "./svg";
+import {
+  curvePathData,
+  cuttingLinePathData,
+  formatNumber,
+  patternBounds,
+  piecePathData,
+} from "./svg";
 import type { ComputedCurve, ComputedPiece } from "./types";
 import type { Point } from "./vector";
 
@@ -168,5 +174,18 @@ describe("patternBounds", () => {
       grainline: { from: nan, to: nan },
     };
     expect(patternBounds({ pieces: { n: piece } })).toBeNull();
+  });
+});
+
+describe("cuttingLinePathData", () => {
+  test("a closed polygon with rounded numbers and no -0", () => {
+    const points = [p(-10, -10), p(210.004, -10), p(210, 110.256), p(-0.001, 110)];
+    expect(cuttingLinePathData(points)).toBe("M -10 -10 L 210 -10 L 210 110.26 L 0 110 Z");
+  });
+
+  test("two points still close; fewer than two give an empty string", () => {
+    expect(cuttingLinePathData([p(0, 0), p(1, 1)])).toBe("M 0 0 L 1 1 Z");
+    expect(cuttingLinePathData([p(0, 0)])).toBe("");
+    expect(cuttingLinePathData([])).toBe("");
   });
 });

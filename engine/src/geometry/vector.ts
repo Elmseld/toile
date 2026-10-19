@@ -41,12 +41,54 @@ export function norm(v: Point): number {
   return Math.hypot(v.x, v.y);
 }
 
-function cross(a: Point, b: Point): number {
+/** The z component of `a x b`: positive when `b` turns clockwise on screen from `a` (y down). */
+export function cross(a: Point, b: Point): number {
   return a.x * b.y - a.y * b.x;
 }
 
-function dot(a: Point, b: Point): number {
+export function dot(a: Point, b: Point): number {
   return a.x * b.x + a.y * b.y;
+}
+
+/** `v` scaled to length 1, or `null` when it is shorter than `EPSILON` or not finite. */
+export function unit(v: Point): Point | null {
+  const length = norm(v);
+  if (!(length >= EPSILON) || !Number.isFinite(length)) return null;
+  return { x: v.x / length, y: v.y / length };
+}
+
+/** `value` clamped to `[0, 1]`. */
+export function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+/** The distance from `p` to the segment `a -> b` (to `a` when the segment is a point). */
+export function pointSegmentDistance(p: Point, a: Point, b: Point): number {
+  const d = sub(b, a);
+  const lengthSquared = dot(d, d);
+  const t = lengthSquared === 0 ? 0 : clamp01(dot(sub(p, a), d) / lengthSquared);
+  return distance(p, add(a, scale(d, t)));
+}
+
+/**
+ * `p` rotated about `center` by the angle whose cosine and sine are `cos` and `sin` (positive
+ * turns `x` toward `y`: clockwise on screen, with y down).
+ */
+export function rotateAbout(p: Point, center: Point, cos: number, sin: number): Point {
+  const dx = p.x - center.x;
+  const dy = p.y - center.y;
+  return { x: center.x + dx * cos - dy * sin, y: center.y + dx * sin + dy * cos };
+}
+
+/**
+ * The mirror image of `p` across the infinite line through `a` and `b`. When `a` and `b` coincide
+ * there is no line, and `p` is returned unchanged (as a copy).
+ */
+export function reflectAcross(p: Point, a: Point, b: Point): Point {
+  const d = unit(sub(b, a));
+  if (d === null) return { x: p.x, y: p.y };
+  const foot = add(a, scale(d, dot(sub(p, a), d)));
+  return { x: 2 * foot.x - p.x, y: 2 * foot.y - p.y };
 }
 
 /**

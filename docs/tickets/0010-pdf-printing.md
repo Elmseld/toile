@@ -13,7 +13,7 @@ From the project page the user can download a PDF where the pattern is at 1:1 sc
 with overlap, so the pages can be taped together.
 
 ## Acceptance criteria
-- [ ] The PDF contains all pattern pieces at 1:1 scale, with the seam allowance and markings from 0009.
+- [ ] The PDF contains all pattern pieces at 1:1 scale, with the seam allowance from 0009 and the markings from 0015.
 - [ ] The pages have a margin and alignment marks/edges for matching them up. Each page is labelled with row and column (e.g. "B3").
 - [ ] The first page contains a test square of exactly 10 × 10 cm and an overview map of the pages.
 - [ ] Empty pages (with no pattern) are not printed.
