@@ -186,19 +186,25 @@ const PatternView = {
       )
 
       const text = labels[piece.name] ?? piece.name
-      // Inside the piece, clear of the outline, darts and grainline (the engine's placeLabel); a
-      // piece without area falls back to beside the grainline's midpoint.
-      const place = placeLabel(piece, text, LABEL_SIZE) ?? {
-        x: (from.x + to.x) / 2 + LABEL_SIZE / 2,
-        y: (from.y + to.y) / 2,
-        size: LABEL_SIZE,
-      }
+      // Inside the piece, clear of the outline, darts and grainline (the engine's placeLabel),
+      // centred on the returned point. A piece without area falls back to the grainline's
+      // midpoint, start-anchored half a label height to its right so the text sits beside the
+      // line instead of straddling it.
+      const placed = placeLabel(piece, text, LABEL_SIZE)
+      const place = placed
+        ? {...placed, anchor: "middle"}
+        : {
+            x: (from.x + to.x) / 2 + LABEL_SIZE / 2,
+            y: (from.y + to.y) / 2,
+            size: LABEL_SIZE,
+            anchor: "start",
+          }
       const label = svgElement("text", {
         x: place.x,
         y: place.y,
         "font-size": place.size,
         fill: "currentColor",
-        "text-anchor": "middle",
+        "text-anchor": place.anchor,
         "dominant-baseline": "middle",
       })
       label.textContent = text
