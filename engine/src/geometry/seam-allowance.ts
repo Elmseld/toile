@@ -46,7 +46,7 @@ import {
   offsetEdge,
   polygonArea,
 } from "./offset";
-import { MAX_OUTLINE_ENTRIES } from "./validate";
+import { MAX_OUTLINE_ENTRIES, MAX_SECTION_ENTRIES } from "./validate";
 import { distance, MAX_COORDINATE, type Point, pointSegmentDistance } from "./vector";
 
 type CuttingPoint = Readonly<Point>;
@@ -88,6 +88,10 @@ export type CuttingLineResult =
 
 /** The largest seam allowance (mm) accepted for an edge. */
 export const MAX_SEAM_ALLOWANCE = 100;
+/** At most this many `invalid_seam_allowance` errors are returned; the rest are dropped. */
+export const MAX_ALLOWANCE_ERRORS = 100;
+/** Curve names longer than this are cut short in error messages (`edge` keeps the whole name). */
+const MAX_NAME_IN_MESSAGE = 80;
 /** Outlines whose signed area is smaller than this (mm^2) have no inside. */
 const MIN_AREA = 1e-6;
 /** Rounds of `outerBoundary` before a line that still crosses itself is given up. */
@@ -126,9 +130,10 @@ type ReadEdge = { edge: Edge; allowance: number };
  * - A detected dart (darts.ts) gets a dart peak, pressed toward the seam before it in outline
  *   order. Its legs are not on the cutting line; their allowances are validated but not used.
  *
- * Every invalid allowance value is its own `invalid_seam_allowance` error, and then there is no
- * line. An empty, open, zero-area, non-finite or self-intersecting outline is
- * `degenerate_geometry`. Never throws.
+ * Every invalid allowance value is its own `invalid_seam_allowance` error (at most
+ * MAX_ALLOWANCE_ERRORS of them; a map of more than MAX_SECTION_ENTRIES edges is a single error),
+ * and then there is no line. An empty, open, zero-area, non-finite or self-intersecting outline is
+ * `degenerate_geometry`, and so is one that exceeds a work limit (module comment). Never throws.
  */
 export function cuttingLine(piece: CuttingPiece, allowances: SeamAllowances): CuttingLineResult {
   try {
@@ -400,24 +405,35 @@ function readAllowances(input: unknown): ReadAllowances {
         kind: "invalid_seam_allowance",
         message: "The seam allowances per edge must be an object keyed by curve name",
       });
-    }
-    for (const name of keys ?? []) {
-      const entry = readField(record.value, name);
-      if (validAllowance(entry.value)) {
-        edges.set(name, entry.value);
-      } else {
-        errors.push({
-          kind: "invalid_seam_allowance",
-          edge: name,
-          message:
-            `The seam allowance of "${name}" must be a number from 0 to ` +
-            `${MAX_SEAM_ALLOWANCE} mm`,
-        });
+    } else if (keys.length > MAX_SECTION_ENTRIES) {
+      errors.push({
+        kind: "invalid_seam_allowance",
+        message: `The seam allowances per edge must have at most ${MAX_SECTION_ENTRIES} entries`,
+      });
+    } else {
+      for (const name of keys) {
+        const entry = readField(record.value, name);
+        if (validAllowance(entry.value)) {
+          edges.set(name, entry.value);
+        } else if (errors.length < MAX_ALLOWANCE_ERRORS) {
+          errors.push({
+            kind: "invalid_seam_allowance",
+            edge: name,
+            message:
+              `The seam allowance of "${shortName(name)}" must be a number from 0 to ` +
+              `${MAX_SEAM_ALLOWANCE} mm`,
+          });
+        }
       }
     }
   }
   if (errors.length > 0) return { ok: false, errors };
   return { ok: true, default: fallback.value as number, edges };
+}
+
+// `name` cut to MAX_NAME_IN_MESSAGE characters for an error message.
+function shortName(name: string): string {
+  return name.length > MAX_NAME_IN_MESSAGE ? `${name.slice(0, MAX_NAME_IN_MESSAGE)}...` : name;
 }
 
 function readField(source: unknown, key: string): { ok: boolean; value: unknown } {

@@ -11,11 +11,12 @@ import { cubicSegments, type Edge, MAX_CUTTING_LINE_SEGMENTS, polygonArea } from
 import {
   type CuttingPiece,
   cuttingLine,
+  MAX_ALLOWANCE_ERRORS,
   MAX_RAW_LINE_POINTS,
   MAX_SEAM_ALLOWANCE,
   type SeamAllowances,
 } from "./seam-allowance";
-import { MAX_OUTLINE_ENTRIES } from "./validate";
+import { MAX_OUTLINE_ENTRIES, MAX_SECTION_ENTRIES } from "./validate";
 import { cross, distance, MAX_COORDINATE, type Point } from "./vector";
 
 const BLOCKS_DIR = join(import.meta.dir, "..", "..", "blocks");
@@ -720,6 +721,31 @@ describe("input robustness (N)", () => {
     }
     const both = call({ default: -5, edges: { e0: -1 } });
     expect(both.ok ? 0 : both.errors.length).toBe(2);
+  });
+
+  test("a huge edge map is one error, errors are capped and long names cut short", () => {
+    const huge: Record<string, number> = {};
+    for (let i = 0; i <= MAX_SECTION_ENTRIES; i++) huge[`k${i}`] = 10;
+    expect(call({ default: 10, edges: huge })).toEqual({
+      ok: false,
+      errors: [
+        {
+          kind: "invalid_seam_allowance",
+          message: `The seam allowances per edge must have at most ${MAX_SECTION_ENTRIES} entries`,
+        },
+      ],
+    });
+    const bad: Record<string, number> = {};
+    for (let i = 0; i < 2 * MAX_ALLOWANCE_ERRORS; i++) bad[`k${i}`] = -1;
+    const capped = call({ default: -1, edges: bad });
+    expect(capped.ok ? 0 : capped.errors.length).toBe(MAX_ALLOWANCE_ERRORS);
+    const long = "x".repeat(10_000);
+    const result = call({ default: 10, edges: { [long]: -1 } });
+    expect(result.ok ? null : result.errors[0]).toEqual({
+      kind: "invalid_seam_allowance",
+      edge: long,
+      message: `The seam allowance of "${"x".repeat(80)}..." must be a number from 0 to 100 mm`,
+    });
   });
 
   test("names not in the outline are ignored; prototype keys are plain names", () => {
