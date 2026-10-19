@@ -28,8 +28,8 @@ Builds on the engine (0002, 0003) and the project view (0005).
 ## Decisions
 - **Drafting method:** Aldrich, *Metric Pattern Cutting for Women's Wear*, 6th ed., the close
   fitting bodice block. Deviations are stated in the block's `source`: back and front are drafted
-  in separate frames 50 mm apart, and the bust dart is derived (below) instead of taken from a
-  size chart.
+  in separate frames 50 mm apart, and the bust dart is derived (below), where Aldrich takes it
+  from a size chart.
 - **New measurement `armhole_depth`** ("Nacke till armhålsnivå", nape straight down the spine to a band
   tied level as high under the arms as it goes), added to the catalogue per ADR 0005. The profile has 18 measurements; existing
   profiles lack it (not measured) and existing skirt projects are unaffected.
@@ -74,7 +74,8 @@ Builds on the engine (0002, 0003) and the project view (0005).
   leaves no armhole that turns one way. That is treated as a measuring error. The block has no
   guard.
 - **Ease defaults:** bust 80 mm, waist 40 mm, armhole depth 10 mm. These and the draft constants are
-  parameters, not yet checked against the book.
+  parameters: our own starting values, set and pinned by the engine tests, to be adjusted after
+  test fitting (a toile/provsömnad).
 - **Armhole length:** the bodice exposes three `values` keys, `armhole_length`,
   `back_armhole_length` and `front_armhole_length` (formulas using `length(curve)`, ADR 0004
   decision 8). No engine change. How the sleeve consumes them is left to 0007. The three names are

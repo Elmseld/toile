@@ -29,8 +29,8 @@ correct proportions, with zoom and pan.
 ## Decisions
 - **Angle convention (resolved):** keep 0 = right, 90 = down (ADR 0004 decision 6, now confirmed).
 - **Drafting method:** Aldrich, *Metric Pattern Cutting for Women's Wear*, 6th ed., close fitting
-  skirt block. The constants are parameters; the definition notes they are not yet checked against
-  the book.
+  skirt block. The constants are parameters; they are our own starting values, set and pinned by the
+  engine tests, to be adjusted after test fitting (a toile/provsömnad).
 - **Skirt length:** the `skirt_length` measurement plus a parameter `length_adjustment` (default 0 mm).
 - **Ease defaults:** hip 40 mm, waist 10 mm.
 - Architecture: `docs/adr/0006-pattern-projects-and-blocks.md`.

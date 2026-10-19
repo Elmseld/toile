@@ -204,7 +204,8 @@ The engine has no block registry.
   (10 mm), `ease_hip` (40 mm), `length_adjustment` (0 mm, added to `skirt_length` in the formula `finished_length`) and the draft
   constants `side_shift`, `side_rise`, `back_dart_length`, `front_dart_length`. The `source` field
   names the method: Winifred Aldrich, *Metric Pattern Cutting for Women's Wear*, 6th ed., the close
-  fitting skirt block. The constants are not yet checked against the book. The waist and hip seam
+  fitting skirt block. The constants are our own starting values, set and pinned by the engine tests, to be adjusted
+  after test fitting (a toile/provsömnad). The waist and hip seam
   lengths equal measurement plus ease by construction (tested within 1 mm). It uses no
   angle-dependent op, so it does not depend on the angle convention.
 - **`bodice.json`** ("Liv"): `back` (shoulder dart, waist dart) and `front` (bust dart in the
@@ -215,8 +216,8 @@ The engine has no block registry.
   `back_shoulder_drop`, `front_shoulder_drop`, `back_shoulder_dart`, `back_shoulder_dart_length`,
   `back_waist_dart_gap`, `front_waist_dart_gap`, `bust_dart_rate` (0.12 degrees per mm),
   `bust_dart_offset` (50 mm) and `max_bust_dart_angle` (20 degrees). The `source` names Aldrich,
-  the close fitting bodice block, and its deviations. Instead of the book's size-chart value, the
-  bust dart angle follows from the bust excess `bust / 2 - chest_width` (value `bust_excess`):
+  the close fitting bodice block, and its deviations. Aldrich takes the bust dart from a size chart; here the
+  bust dart angle is derived and follows from the bust excess `bust / 2 - chest_width` (value `bust_excess`):
   `bust_dart_rate` degrees per mm above `bust_dart_offset`, at least 0 and at most
   `max_bust_dart_angle` (value `bust_dart_angle`). The bust point lies `bust_height` from the
   front neck point. The dart is a rotation about it, and the front neck point is placed so that
@@ -233,7 +234,8 @@ The engine has no block registry.
   (tested). Test figures: about
   34 mm (size 12), 61 mm (bust 1040 mm) and 100 mm (bust 1200 mm, chest width 390 mm). The cap
   only guards against implausible input such as a chest width measured far too narrow. The
-  constants and ease are not yet checked against the book. The `back_width` is measured at
+  constants and ease are our own starting values, set and pinned by the engine tests, to be
+  adjusted after test fitting (a toile/provsömnad). The `back_width` is measured at
   underarm level, and the block draws it as a vertical line from there up to half the armhole
   depth. Each armhole is two cubics, from the shoulder point through the back width point
   (front: the chest point) to the side point. The curve leaves the shoulder seam at a right
