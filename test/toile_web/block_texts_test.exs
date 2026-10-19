@@ -13,6 +13,11 @@ defmodule ToileWeb.BlockTextsTest do
     end
   end
 
+  test "labels the bodice and the straight skirt" do
+    assert BlockTexts.label("bodice") == "Bodice"
+    assert BlockTexts.label("straight_skirt") == "Straight skirt"
+  end
+
   test "block labels are distinct" do
     labels = Enum.map(Blocks.keys(), &BlockTexts.label/1)
 

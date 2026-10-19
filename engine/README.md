@@ -182,6 +182,14 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   control points and the grainline points (null without pieces or when no coordinate is finite, non-finite numbers skipped; the result type
   `Bounds` is exported), so a
   caller can fit the `viewBox` without doing geometry itself.
+- **Labels.** `placeLabel(piece, text, size)` returns `{ x, y, size, clearance }`: the centre
+  (for `text-anchor="middle"` and `dominant-baseline="middle"`) and font size (mm) at which the
+  estimated text box lies inside the piece, farthest from the outline (darts included), the
+  grainline and its arrowheads, shrinking the size down to 40 % for a narrow piece; `null` when
+  nothing fits (a sliver, or a degenerate outline), and the caller places the label itself.
+  Views draw the grainline arrowheads `GRAINLINE_ARROW_SIZE` (8 mm) long and wide, tip on the end
+  point, as placement assumes. It costs about 7 to 14 ms per bodice piece, so a view should not
+  call it on every pointer move (`engine/src/geometry/label.ts`).
 
 ## Blocks
 
@@ -196,6 +204,81 @@ The engine has no block registry.
   (10 mm), `ease_hip` (40 mm), `length_adjustment` (0 mm, added to `skirt_length` in the formula `finished_length`) and the draft
   constants `side_shift`, `side_rise`, `back_dart_length`, `front_dart_length`. The `source` field
   names the method: Winifred Aldrich, *Metric Pattern Cutting for Women's Wear*, 6th ed., the close
-  fitting skirt block. The constants are not yet checked against the book. The waist and hip seam
+  fitting skirt block. The constants are our own starting values, set and pinned by the engine tests, to be adjusted
+  after test fitting (a toile/provsömnad). The waist and hip seam
   lengths equal measurement plus ease by construction (tested within 1 mm). It uses no
   angle-dependent op, so it does not depend on the angle convention.
+- **`bodice.json`** ("Liv"): `back` (shoulder dart, waist dart) and `front` (bust dart in the
+  shoulder, waist dart). Measurements `bust`, `waist`, `neck`, `shoulder_width`, `back_width`,
+  `chest_width`, `back_length`, `armhole_depth`, `bust_height`, `bust_distance`.
+  Parameters: `ease_bust` (80 mm), `ease_waist` (40 mm), `ease_armhole_depth` (10 mm) and the draft
+  constants `ease_back_width`, `side_shift`, `back_neck_rise`, `front_neck_extra`,
+  `back_shoulder_drop`, `front_shoulder_drop`, `back_shoulder_dart`, `back_shoulder_dart_length`,
+  `back_waist_dart_gap`, `front_waist_dart_gap`, `bust_dart_rate` (0.12 degrees per mm),
+  `bust_dart_offset` (50 mm) and `max_bust_dart_angle` (20 degrees). The `source` names Aldrich,
+  the close fitting bodice block, and its deviations. Aldrich takes the bust dart from a size chart; here the
+  bust dart angle is derived and follows from the bust excess `bust / 2 - chest_width` (value `bust_excess`):
+  `bust_dart_rate` degrees per mm above `bust_dart_offset`, at least 0 and at most
+  `max_bust_dart_angle` (value `bust_dart_angle`). The bust point lies `bust_height` from the
+  front neck point. The dart is a rotation about it, and the front neck point is placed so that
+  the front shoulder point (dart open) lies level with the back one. With no dart the front neck
+  point therefore lies above the back one by `front_shoulder_drop - back_shoulder_drop` (level
+  with it for the equal default drops). The dart opens in the shoulder, so its neck side rises
+  further by `r * (sin(phi - bust_dart_angle) - sin(phi))`, where `r` and `phi` are the distance
+  and direction from the bust point to the closed front shoulder point; the rise grows with the
+  dart (tested: about 15, 27 and 45 mm in the test figures below). The defaults are calibrated
+  so that the size 12 test set and a larger set draft a front length (neck point, bust point,
+  waist) within 2 mm of their measured `front_length`. The block itself does not use
+  `front_length`. The dart width at the shoulder changes by under 0.8 mm per mm of
+  `chest_width`, under 0.4 mm per mm of `bust` and under 0.5 mm per mm of `bust_height`
+  (tested). Test figures: about
+  34 mm (size 12), 61 mm (bust 1040 mm) and 100 mm (bust 1200 mm, chest width 390 mm). The cap
+  only guards against implausible input such as a chest width measured far too narrow. The
+  constants and ease are our own starting values, set and pinned by the engine tests, to be
+  adjusted after test fitting (a toile/provsömnad). The `back_width` is measured at
+  underarm level, and the block draws it as a vertical line from there up to half the armhole
+  depth. Each armhole is two cubics, from the shoulder point through the back width point
+  (front: the chest point) to the side point. The curve leaves the shoulder seam at a right
+  angle and reaches the side point horizontally. At the width or chest point both cubics share
+  the direction that makes their curvature about equal there (Hobby's mock curvature for three
+  points with given end directions; values `b_arm_width_angle` and `f_arm_chest_angle`), so the
+  curve need not be vertical at that point. In travel order (back: shoulder, width point, side
+  point; front: side point, chest point, shoulder) with start direction `a`, end direction `b`,
+  chord directions `c1` and `c2` and chord lengths `d1` and `d2`, that direction is
+  `w = (d2 * (3 * c1 - a) + d1 * (3 * c2 - b)) / (2 * (d1 + d2))`: the linearised curvature at
+  the end of the first cubic equals the one at the start of the second. For the back
+  (`b_arm_width_balance`) `a` is the shoulder direction and `b` is 0 degrees, so the second term
+  reads `3 * d1 * c2`; for the front (`f_arm_chest_balance`) `a` is 360 degrees and `b` is the
+  shoulder direction. Both side directions point right. The formula is linear in the angles, so
+  all of them must lie in one window without a wrap: `angle()` returns `[0, 360)`, the back
+  chords point down (between 0 and 180 degrees) and the front chords up (between 180 and 360),
+  so the side direction is written as 0 for the back and as 360 for the front. For the same
+  reason the shoulder direction is the upper chord plus the turn from it to the right angle on
+  the shoulder seam, taken between -180 and 180 degrees (`atan2(sin(t), cos(t))`, values
+  `b_arm_shoulder_turn` and `f_arm_shoulder_turn`): a shoulder point above the neck point, whose
+  seam direction wraps past 360 degrees, still gives a direction next to the chord. Above the
+  width or chest point the armhole passes less than 1 mm inside the vertical back width or
+  chest line in sets A, B and large (tested: under 3 mm), and up to about 4 mm (front) and 6 mm
+  (back, whose shoulder point already lies inside the back width line) in the low-bust set
+  (tested: under 7 mm). Each cubic gets the handles of a circular arc with the same turn,
+  shortened where needed to the intersection of its two end tangents, so the control polygon is
+  convex and the curve turns one way only. All directions keep at least `armhole_turn_margin`
+  (5 degrees) from the chords between the three points; the right angle at the shoulder gives
+  way only where the chord to the width or chest point comes closer to it than that. So a width
+  point straight below the shoulder point or outside it still gives one smooth armhole (tested
+  without a turn the other way for the test figures, back widths 300 to 400 mm and chest widths
+  280 to 400 mm, and with either shoulder point raised by 60 mm). A back width point outside the line from the shoulder
+  point to the side point (size 12: a `back_width` above about 415 mm) leaves no such curve and
+  the armhole turns the other way near it. The block does not correct that: it points to a
+  measuring error. The front armhole is about 10 to 17 mm longer than the back one in the test
+  figures (shape of the front armhole curve). By
+  construction (tested within 2 mm) the bust line through the underarm points, net of darts,
+  equals `bust` + `ease_bust`, the waist seam segments equal `waist` + `ease_waist`, and the
+  front and back shoulder seams (dart closed) are equal. The bodice exposes three `values` keys
+  (mm): `armhole_length`, `back_armhole_length` and `front_armhole_length`. How the sleeve (0007)
+  consumes them is 0007's decision. The three names are a stable interface: renaming one requires
+  migrating the block copies stored in pattern projects (ADR 0006); a test pins them. It uses
+  angle-dependent ops (`along_angle`, `perpendicular`, `angle()`), so it relies on the confirmed
+  angle convention (ADR 0004 decision 6). Implausible profiles (e.g. a `bust_height` shorter than
+  the sideways distance from the neck point to the bust point) make the engine return errors,
+  shown as the hook's generic error.

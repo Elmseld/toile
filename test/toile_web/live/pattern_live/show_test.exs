@@ -8,6 +8,7 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
   alias Toile.Measurements
   alias Toile.Patterns
+  alias Toile.Patterns.Blocks
 
   @skirt %{waist: 680, hip: 940, hip_height: 206, skirt_length: 600}
 
@@ -148,6 +149,50 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       refute has_element?(view, "#missing-measurements")
       assert has_element?(view, "#pattern-view-#{complete.id} #pattern-canvas")
+    end
+
+    test "draws a bodice project", %{conn: conn, scope: scope} do
+      project = pattern_project_fixture(scope, block: "bodice")
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      assert has_element?(view, "header", "Bodice")
+      assert has_element?(view, "#pattern-view-#{project.measurement_profile_id} #pattern-canvas")
+      assert canvas_data(view, "definition") == Blocks.definition("bodice")
+
+      measurements = canvas_data(view, "input")["measurements"]
+
+      for key <- Blocks.definition("bodice")["measurements"] do
+        assert measurements[key] == 500
+      end
+
+      refute has_element?(view, "#missing-measurements")
+    end
+
+    test "lists armhole depth as missing for a bodice", %{conn: conn, scope: scope} do
+      profile =
+        measurement_profile_fixture(scope, %{
+          name: "No armhole depth",
+          measurements: Map.delete(complete_measurements(), :armhole_depth)
+        })
+
+      project =
+        pattern_project_fixture(scope, block: "bodice", measurement_profile_id: profile.id)
+
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      assert has_element?(view, "#missing-measurement-armhole_depth", "Nape to underarm level")
+      # The rest of the profile is complete, so armhole depth is the only entry.
+      missing =
+        view
+        |> render()
+        |> LazyHTML.from_document()
+        |> LazyHTML.query("#missing-measurements li")
+
+      assert Enum.count(missing) == 1
+      # hip is in the profile's catalogue but not a bodice measurement.
+      refute has_element?(view, "#missing-measurement-hip")
+      refute has_element?(view, "#missing-measurement-bust")
+      refute has_element?(view, "#pattern-canvas")
     end
 
     test "asks for a profile when the project has none", %{conn: conn, scope: scope} do

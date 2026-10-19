@@ -5,11 +5,13 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { compilePattern, distance, evaluatePattern, validateDefinition } from "./geometry";
-import type { ComputedPattern, ComputedPiece, PatternResult } from "./geometry";
-import { isMeasurementKey } from "./measurements";
+import type { ComputedPattern, ComputedPiece, PatternResult, Point, UserOffset } from "./geometry";
+import { cubicAt } from "./geometry/bezier";
+import { isMeasurementKey, MEASUREMENT_KEYS } from "./measurements";
 
 const BLOCKS_DIR = join(import.meta.dir, "..", "blocks");
 const SKIRT_PATH = join(BLOCKS_DIR, "straight_skirt.json");
+const BODICE_PATH = join(BLOCKS_DIR, "bodice.json");
 
 type Measurements = Record<string, number>;
 
@@ -18,6 +20,28 @@ const SET_A: Measurements = { waist: 680, hip: 940, hip_height: 206, skirt_lengt
 const SET_B: Measurements = { waist: 840, hip: 1080, hip_height: 220, skirt_length: 700 };
 
 const DEFAULTS = { ease_waist: 10, ease_hip: 40, length_adjustment: 0 };
+
+/** A plausible value for every catalogue key, so any block file can evaluate against it. */
+const FULL_PROFILE: Measurements = {
+  bust: 880,
+  waist: 680,
+  hip: 940,
+  neck: 370,
+  shoulder_width: 122,
+  back_width: 344,
+  chest_width: 324,
+  back_length: 410,
+  armhole_depth: 210,
+  front_length: 445,
+  bust_height: 265,
+  bust_distance: 190,
+  hip_height: 206,
+  skirt_length: 600,
+  arm_length: 580,
+  upper_arm: 280,
+  wrist: 160,
+  height: 1650,
+};
 
 function blockFiles(): string[] {
   return readdirSync(BLOCKS_DIR)
@@ -35,6 +59,14 @@ function skirtText(): string {
 
 function skirt(): Record<string, unknown> {
   return JSON.parse(skirtText());
+}
+
+function bodiceText(): string {
+  return readFileSync(BODICE_PATH, "utf8");
+}
+
+function bodice(): Record<string, unknown> {
+  return JSON.parse(bodiceText());
 }
 
 function curveLength(result: ComputedPattern, name: string): number {
@@ -91,16 +123,29 @@ function expectOk(result: PatternResult): ComputedPattern {
 }
 
 describe("every block file", () => {
-  test("there is at least the straight skirt", () => {
+  test("there are at least the bodice and the straight skirt", () => {
+    expect(blockFiles()).toContain("bodice.json");
     expect(blockFiles()).toContain("straight_skirt.json");
   });
 
+  test("the full profile has a value for every catalogue key", () => {
+    expect(Object.keys(FULL_PROFILE).sort()).toEqual([...MEASUREMENT_KEYS].sort());
+  });
+
   for (const file of blockFiles()) {
-    test(`${file} has a valid key, validates and evaluates against measurement set A`, () => {
+    test(`${file} has a valid key, validates and evaluates against the full profile`, () => {
       expect(file).toMatch(/^[a-z][a-z0-9_]*\.json$/);
       const definition = readJson(join(BLOCKS_DIR, file));
       expect(validateDefinition(definition).ok).toBe(true);
-      expectOk(evaluatePattern(definition, { measurements: SET_A }));
+      expectOk(evaluatePattern(definition, { measurements: FULL_PROFILE }));
+    });
+
+    test(`${file} declares only catalogue measurement keys`, () => {
+      const { measurements } = readJson(join(BLOCKS_DIR, file)) as { measurements: unknown };
+      expect(Array.isArray(measurements)).toBe(true);
+      for (const key of measurements as unknown[]) {
+        expect(typeof key === "string" && isMeasurementKey(key)).toBe(true);
+      }
     });
   }
 });
@@ -233,5 +278,859 @@ describe("straight skirt: missing measurements", () => {
     expect(result.errors).toContainEqual(
       expect.objectContaining({ kind: "missing_measurement", name: "hip" }),
     );
+  });
+});
+
+/** Aldrich size 12: the bust point lies below the bust line, so the bust dart crosses it. */
+const BODICE_A: Measurements = {
+  bust: 880,
+  waist: 680,
+  neck: 370,
+  shoulder_width: 122,
+  back_width: 344,
+  chest_width: 324,
+  back_length: 410,
+  armhole_depth: 210,
+  bust_height: 265,
+  bust_distance: 190,
+};
+
+/** A larger figure whose bust point lies above the bust line, so no dart crosses it. */
+const BODICE_B: Measurements = {
+  bust: 1040,
+  waist: 840,
+  neck: 400,
+  shoulder_width: 130,
+  back_width: 380,
+  chest_width: 360,
+  back_length: 425,
+  armhole_depth: 230,
+  bust_height: 285,
+  bust_distance: 220,
+};
+
+/** A large, full-busted figure: half the bust exceeds the chest width by 210 mm. */
+const BODICE_LARGE: Measurements = {
+  bust: 1200,
+  waist: 1000,
+  neck: 420,
+  shoulder_width: 135,
+  back_width: 400,
+  chest_width: 390,
+  back_length: 430,
+  armhole_depth: 240,
+  bust_height: 320,
+  bust_distance: 240,
+};
+
+/**
+ * A full figure with a short armhole depth and a long bust height, so the bust point lies about
+ * 85 mm below the bust line and the bust dart takes a wide wedge out of it.
+ */
+const BODICE_LOW_BUST: Measurements = {
+  bust: 1060,
+  waist: 900,
+  neck: 355,
+  shoulder_width: 125,
+  back_width: 390,
+  chest_width: 390,
+  back_length: 420,
+  armhole_depth: 200,
+  bust_height: 340,
+  bust_distance: 210,
+};
+
+const BODICE_SETS = [
+  ["A", BODICE_A],
+  ["B", BODICE_B],
+  ["large", BODICE_LARGE],
+  ["low bust", BODICE_LOW_BUST],
+] as const;
+
+const BODICE_DEFAULTS = { ease_bust: 80, ease_waist: 40, ease_armhole_depth: 10 };
+
+const BUST_DART = { rate: 0.12, offset: 50, max: 20 };
+
+const BODICE_ARMHOLES = ["b_armhole_upper", "b_armhole_lower", "f_armhole_lower", "f_armhole_upper"];
+
+/** The x where the line through points `a` and `b` crosses the horizontal line at `y`. */
+function xAtY(a: { x: number; y: number }, b: { x: number; y: number }, y: number): number {
+  return a.x + ((b.x - a.x) * (y - a.y)) / (b.y - a.y);
+}
+
+/**
+ * The back and front widths on the bust line (through the underarm points), net of the bust
+ * dart where it crosses the line. The wedge is measured from the drafted dart legs, independently
+ * of the block's own formulas.
+ */
+function bustLineWidths(result: ComputedPattern): number {
+  const back = between(result, "b_underarm_cb", "b_side_top");
+  const bustLine = point(result, "f_underarm_cf").y;
+  const bp = point(result, "f_bp");
+  const wedge =
+    bp.y > bustLine
+      ? xAtY(bp, point(result, "f_bdart_neck"), bustLine) -
+        xAtY(bp, point(result, "f_bdart_arm"), bustLine)
+      : 0;
+  const front = point(result, "f_underarm_cf").x - point(result, "f_side_top").x - wedge;
+  return back + front;
+}
+
+function bodiceWaistSeams(result: ComputedPattern): number {
+  return (
+    curveLength(result, "b_waist_cb_seg") +
+    curveLength(result, "b_waist_side_seg") +
+    curveLength(result, "f_waist_cf_seg") +
+    curveLength(result, "f_waist_side_seg")
+  );
+}
+
+/** The shoulder seam without the dart intake, which is its length once the dart is sewn closed. */
+function shoulderSeam(result: ComputedPattern, side: "back" | "front"): number {
+  const prefix = side === "back" ? "b" : "f";
+  return (
+    curveLength(result, `${prefix}_shoulder_neck`) + curveLength(result, `${prefix}_shoulder_arm`)
+  );
+}
+
+function outlineCurves(definition: Record<string, unknown>, pieceName: string): string[] {
+  const pieces = definition.pieces as { name: string; outline: { curve: string }[] }[];
+  const found = pieces.find((candidate) => candidate.name === pieceName);
+  if (found === undefined) throw new Error(`piece ${pieceName} is not defined`);
+  return found.outline.map((entry) => entry.curve);
+}
+
+function curveTypes(definition: Record<string, unknown>): Record<string, string> {
+  const curves = definition.curves as { name: string; type: string }[];
+  return Object.fromEntries(curves.map((curve) => [curve.name, curve.type]));
+}
+
+describe("bodice: definition", () => {
+  test("names the block and its drafting source", () => {
+    const definition = bodice();
+    expect(definition.version).toBe(1);
+    expect(definition.name).toBe("Bodice");
+    expect(typeof definition.source).toBe("string");
+    expect(String(definition.source)).toContain("Aldrich");
+    expect(String(definition.source)).toContain("close fitting bodice block");
+  });
+
+  test("declares exactly the ten catalogue measurements", () => {
+    const measurements = bodice().measurements as string[];
+    expect(measurements).toEqual([
+      "bust",
+      "waist",
+      "neck",
+      "shoulder_width",
+      "back_width",
+      "chest_width",
+      "back_length",
+      "armhole_depth",
+      "bust_height",
+      "bust_distance",
+    ]);
+    for (const key of measurements) expect(isMeasurementKey(key)).toBe(true);
+  });
+
+  test("declares the parameters with their defaults (AC2)", () => {
+    expect(bodice().parameters).toEqual({
+      ...BODICE_DEFAULTS,
+      ease_back_width: 10,
+      side_shift: 10,
+      back_neck_rise: 20,
+      front_neck_extra: 10,
+      back_shoulder_drop: 40,
+      front_shoulder_drop: 40,
+      back_shoulder_dart: 10,
+      back_shoulder_dart_length: 80,
+      back_waist_dart_gap: 20,
+      front_waist_dart_gap: 20,
+      bust_dart_rate: BUST_DART.rate,
+      bust_dart_offset: BUST_DART.offset,
+      max_bust_dart_angle: BUST_DART.max,
+    });
+  });
+
+  test("has a back and a front piece, in that order", () => {
+    const pieces = bodice().pieces as { name: string }[];
+    expect(pieces.map((candidate) => candidate.name)).toEqual(["back", "front"]);
+  });
+
+  test("the back outline has a neckline, a darted shoulder, an armhole, side, darted waist and centre back", () => {
+    const definition = bodice();
+    expect(outlineCurves(definition, "back")).toEqual([
+      "b_neckline",
+      "b_shoulder_neck",
+      "b_sdart_leg_neck",
+      "b_sdart_leg_arm",
+      "b_shoulder_arm",
+      "b_armhole_upper",
+      "b_armhole_lower",
+      "b_side",
+      "b_waist_side_seg",
+      "b_wdart_leg_side",
+      "b_wdart_leg_cb",
+      "b_waist_cb_seg",
+      "b_cb",
+    ]);
+    const types = curveTypes(definition);
+    for (const name of ["b_neckline", "b_armhole_upper", "b_armhole_lower"]) {
+      expect(types[name]).toBe("cubic");
+    }
+  });
+
+  test("the front outline has a neckline, centre front, darted waist, side, an armhole and a darted shoulder", () => {
+    const definition = bodice();
+    expect(outlineCurves(definition, "front")).toEqual([
+      "f_neckline",
+      "f_cf",
+      "f_waist_cf_seg",
+      "f_wdart_leg_cf",
+      "f_wdart_leg_side",
+      "f_waist_side_seg",
+      "f_side",
+      "f_armhole_lower",
+      "f_armhole_upper",
+      "f_shoulder_arm",
+      "f_bdart_leg_arm",
+      "f_bdart_leg_neck",
+      "f_shoulder_neck",
+    ]);
+    const types = curveTypes(definition);
+    for (const name of ["f_neckline", "f_armhole_lower", "f_armhole_upper"]) {
+      expect(types[name]).toBe("cubic");
+    }
+  });
+
+  test("the bust dart legs meet at the bust point", () => {
+    const curves = bodice().curves as { name: string; from: string; to: string }[];
+    const legs = curves.filter((curve) => curve.name.startsWith("f_bdart_leg_"));
+    expect(legs.map((leg) => [leg.from, leg.to])).toEqual([
+      ["f_bdart_arm", "f_bp"],
+      ["f_bp", "f_bdart_neck"],
+    ]);
+  });
+});
+
+for (const [label, measurements] of BODICE_SETS) {
+  describe(`bodice: measurement set ${label}`, () => {
+    const result = expectOk(compilePattern(bodice()).evaluate({ measurements }));
+    const bustLine = measurements.armhole_depth! + BODICE_DEFAULTS.ease_armhole_depth;
+
+    test("the bust line lies through the underarm points", () => {
+      expect(point(result, "b_underarm_cb").y).toBeCloseTo(bustLine, 6);
+      expect(point(result, "f_underarm_cf").y).toBeCloseTo(bustLine, 6);
+      expect(point(result, "b_side_top").y).toBeCloseTo(bustLine, 6);
+      expect(point(result, "f_side_top").y).toBeCloseTo(bustLine, 6);
+    });
+
+    test("the widths on the bust line add up to bust + ease, net of darts (AC4)", () => {
+      expectWithin(2 * bustLineWidths(result), measurements.bust! + BODICE_DEFAULTS.ease_bust, 2);
+    });
+
+    test("the waist seams add up to waist + ease, net of darts (AC4)", () => {
+      expectWithin(
+        2 * bodiceWaistSeams(result),
+        measurements.waist! + BODICE_DEFAULTS.ease_waist,
+        2,
+      );
+    });
+
+    test("the back and front shoulder seams are equal and the shoulder width (AC4)", () => {
+      expectWithin(shoulderSeam(result, "back"), shoulderSeam(result, "front"), 1);
+      expectWithin(shoulderSeam(result, "back"), measurements.shoulder_width!, 1);
+      expectWithin(shoulderSeam(result, "front"), measurements.shoulder_width!, 1);
+    });
+
+    test("the legs of each dart are equal", () => {
+      for (const [a, b] of [
+        ["b_sdart_leg_neck", "b_sdart_leg_arm"],
+        ["b_wdart_leg_side", "b_wdart_leg_cb"],
+        ["f_wdart_leg_cf", "f_wdart_leg_side"],
+        ["f_bdart_leg_arm", "f_bdart_leg_neck"],
+      ] as const) {
+        expectWithin(curveLength(result, a), curveLength(result, b), 0.01);
+      }
+    });
+
+    test("the back and front side seams are equal", () => {
+      expectWithin(curveLength(result, "b_side"), curveLength(result, "f_side"), 1);
+    });
+
+    test("only the bust dart may cross the bust line", () => {
+      expect(point(result, "b_wdart_apex").y).toBeGreaterThan(bustLine);
+      expect(point(result, "f_wdart_apex").y).toBeGreaterThanOrEqual(bustLine - 1e-9);
+      expect(point(result, "b_sdart_apex").y).toBeLessThan(bustLine);
+    });
+
+    test("the bust dart opens toward the side seam", () => {
+      expect(point(result, "f_bdart_arm").x).toBeLessThan(point(result, "f_bdart_neck").x);
+      expect(result.values.bust_dart_angle).toBeGreaterThan(0);
+    });
+
+    test("armhole_length is the sum of the four armhole curves (AC3)", () => {
+      const sum = BODICE_ARMHOLES.reduce((total, name) => total + curveLength(result, name), 0);
+      const back = result.values.back_armhole_length!;
+      const front = result.values.front_armhole_length!;
+      expect(result.values.armhole_length).toBeCloseTo(sum, 6);
+      expect(back).toBeGreaterThan(0);
+      expect(front).toBeGreaterThan(0);
+      expect(back + front).toBeCloseTo(result.values.armhole_length!, 6);
+    });
+
+    test("the armholes end at the side and shoulder points", () => {
+      const backLower = result.curves.b_armhole_lower!;
+      const frontUpper = result.curves.f_armhole_upper!;
+      expect(backLower.to.x).toBeCloseTo(point(result, "b_side_top").x, 6);
+      expect(backLower.to.y).toBeCloseTo(point(result, "b_side_top").y, 6);
+      expect(frontUpper.to.x).toBeCloseTo(point(result, "f_shoulder").x, 6);
+      expect(frontUpper.to.y).toBeCloseTo(point(result, "f_shoulder").y, 6);
+    });
+
+    test("back and front exist and do not overlap", () => {
+      expect(Object.keys(result.pieces)).toEqual(["back", "front"]);
+      const backMax = Math.max(...outlineXs(piece(result, "back")));
+      const frontMin = Math.min(...outlineXs(piece(result, "front")));
+      expect(backMax).toBeLessThan(frontMin);
+    });
+
+    test("the front shoulder point is level with the back shoulder point", () => {
+      expect(point(result, "f_shoulder").y).toBeCloseTo(point(result, "b_shoulder").y, 6);
+    });
+
+    // Holds with the default, equal front and back shoulder drops; the closed form for any
+    // drops is pinned in "bodice: front neck point".
+    test("the front neck point lies no lower than the back neck point (equal shoulder drops)", () => {
+      expect(point(result, "f_neck").y).toBeLessThanOrEqual(point(result, "b_neck").y + 1e-9);
+    });
+
+    test("the front neckline runs down from the neck point to centre front", () => {
+      expect(point(result, "f_neck").y).toBeLessThan(point(result, "f_shoulder").y);
+      expect(point(result, "f_neck_cf").y).toBeGreaterThan(point(result, "f_neck").y);
+    });
+  });
+}
+
+test("bodice: the bust point lies below the bust line in set A and above it in set B", () => {
+  const compiled = compilePattern(bodice());
+  const a = expectOk(compiled.evaluate({ measurements: BODICE_A }));
+  const b = expectOk(compiled.evaluate({ measurements: BODICE_B }));
+  expect(point(a, "f_bp").y).toBeGreaterThan(point(a, "f_underarm_cf").y);
+  expect(a.values.bust_dart_at_underarm).toBeGreaterThan(0);
+  expect(point(b, "f_bp").y).toBeLessThan(point(b, "f_underarm_cf").y);
+  expect(b.values.bust_dart_at_underarm).toBe(0);
+});
+
+function dartWidth(result: ComputedPattern): number {
+  return between(result, "f_bdart_neck", "f_bdart_arm");
+}
+
+/** The bust excess of a measurement set: half the bust less the chest width (mm). */
+function bustExcess(measurements: Measurements): number {
+  return measurements.bust! / 2 - measurements.chest_width!;
+}
+
+/** The checks every bust dart must pass: AC4 and the front shoulder level with the back. */
+function expectBalanced(result: ComputedPattern, measurements: Measurements): void {
+  expectWithin(shoulderSeam(result, "back"), shoulderSeam(result, "front"), 1);
+  expectWithin(2 * bustLineWidths(result), measurements.bust! + BODICE_DEFAULTS.ease_bust, 2);
+  expectWithin(2 * bodiceWaistSeams(result), measurements.waist! + BODICE_DEFAULTS.ease_waist, 2);
+  expect(point(result, "f_shoulder").y).toBeCloseTo(point(result, "b_shoulder").y, 6);
+}
+
+describe("bodice: bust dart size", () => {
+  const compiled = compilePattern(bodice());
+  const evaluate = (measurements: Measurements, parameters = {}) =>
+    expectOk(compiled.evaluate({ measurements, parameters }));
+
+  test("the angle is bust_dart_rate times the bust excess over bust_dart_offset", () => {
+    for (const [, measurements] of BODICE_SETS) {
+      const result = evaluate(measurements);
+      expect(result.values.bust_excess).toBeCloseTo(bustExcess(measurements), 9);
+      expect(result.values.bust_dart_angle).toBeCloseTo(
+        BUST_DART.rate * (bustExcess(measurements) - BUST_DART.offset),
+        9,
+      );
+    }
+  });
+
+  test("the dart width is plausible from an average to a large figure", () => {
+    const a = dartWidth(evaluate(BODICE_A));
+    const b = dartWidth(evaluate(BODICE_B));
+    const large = dartWidth(evaluate(BODICE_LARGE));
+    expect(a).toBeGreaterThan(25);
+    expect(a).toBeLessThan(45);
+    expect(b).toBeGreaterThan(50);
+    expect(b).toBeLessThan(75);
+    expect(large).toBeGreaterThan(85);
+    expect(large).toBeLessThan(0.8 * BODICE_LARGE.shoulder_width!);
+  });
+
+  test("the dart width changes by under 0.8 mm per mm of chest_width and 0.4 mm per mm of bust", () => {
+    for (const [, measurements] of BODICE_SETS) {
+      const slope = (key: string) => {
+        const at = (delta: number) =>
+          dartWidth(evaluate({ ...measurements, [key]: measurements[key]! + delta }));
+        return Math.abs(at(5) - at(-5)) / 10;
+      };
+      expect(slope("chest_width")).toBeLessThan(0.8);
+      expect(slope("bust")).toBeLessThan(0.4);
+      expect(slope("bust_height")).toBeLessThan(0.5);
+    }
+  });
+
+  test("front_length does not change the pattern", () => {
+    const short = evaluate({ ...BODICE_A, front_length: 400 });
+    const long = evaluate({ ...BODICE_A, front_length: 520 });
+    expect(long.points).toEqual(short.points);
+    expect(long.values).toEqual(short.values);
+  });
+
+  test("the drafted front length of sets A and B is within 2 mm of their measured front length", () => {
+    for (const [measurements, frontLength] of [
+      [BODICE_A, 445],
+      [BODICE_B, 475],
+    ] as const) {
+      const result = evaluate(measurements);
+      const drafted =
+        between(result, "f_neck", "f_bp") + point(result, "f_waist_cf").y - point(result, "f_bp").y;
+      expectWithin(drafted, frontLength, 2);
+    }
+  });
+
+  test("max_bust_dart_angle caps the dart for an implausibly large bust excess", () => {
+    const measurements: Measurements = { ...BODICE_LARGE, chest_width: 340 };
+    const result = evaluate(measurements);
+    expect(BUST_DART.rate * (bustExcess(measurements) - BUST_DART.offset)).toBeGreaterThan(
+      BUST_DART.max,
+    );
+    expect(result.values.bust_dart_angle).toBeCloseTo(BUST_DART.max, 9);
+    expect(dartWidth(result)).toBeLessThan(0.8 * measurements.shoulder_width!);
+    expectBalanced(result, measurements);
+  });
+
+  test("the dart is zero and the front neck point level with the back one for a small bust excess", () => {
+    const measurements: Measurements = { ...BODICE_A, chest_width: 400 };
+    const result = evaluate(measurements);
+    expect(bustExcess(measurements)).toBeLessThan(BUST_DART.offset);
+    expect(result.values.bust_dart_angle).toBe(0);
+    expect(dartWidth(result)).toBeCloseTo(0, 9);
+    expect(point(result, "f_neck").y).toBeCloseTo(point(result, "b_neck").y, 6);
+    expectBalanced(result, measurements);
+  });
+
+  test("the dart parameters change the angle", () => {
+    expect(evaluate(BODICE_B, { max_bust_dart_angle: 10 }).values.bust_dart_angle).toBeCloseTo(10, 9);
+    expectBalanced(evaluate(BODICE_B, { max_bust_dart_angle: 10 }), BODICE_B);
+    expect(evaluate(BODICE_A, { bust_dart_rate: 0 }).values.bust_dart_angle).toBe(0);
+    expect(evaluate(BODICE_A, { bust_dart_offset: 0 }).values.bust_dart_angle).toBeCloseTo(
+      BUST_DART.rate * bustExcess(BODICE_A),
+      9,
+    );
+  });
+});
+
+/**
+ * How far the front neck point lies above the back one (mm), in closed form: the front neck
+ * point is placed so that the front shoulder point, rotated by the dart angle about the bust
+ * point, is level with the back shoulder point. With no dart this is the difference of the
+ * shoulder drops; the dart adds `r * (sin(phi - angle) - sin(phi))`, where `r` and `phi` are the
+ * distance and direction from the bust point to the closed front shoulder point.
+ */
+function frontNeckRise(
+  measurements: Measurements,
+  dartAngle: number,
+  drops = { back: 40, front: 40 },
+): number {
+  const neckWidth = measurements.neck! / 5 - 2;
+  const bpDx = measurements.bust_distance! / 2 - neckWidth;
+  const bpDrop = Math.sqrt(measurements.bust_height! ** 2 - bpDx ** 2);
+  const shoulderDx = Math.sqrt(measurements.shoulder_width! ** 2 - drops.front ** 2);
+  const r = Math.hypot(bpDx - shoulderDx, drops.front - bpDrop);
+  const phi = Math.atan2(drops.front - bpDrop, bpDx - shoulderDx);
+  const theta = (dartAngle * Math.PI) / 180;
+  return r * (Math.sin(phi - theta) - Math.sin(phi)) + drops.front - drops.back;
+}
+
+describe("bodice: front neck point", () => {
+  const compiled = compilePattern(bodice());
+  const evaluate = (measurements: Measurements, parameters = {}) =>
+    expectOk(compiled.evaluate({ measurements, parameters }));
+  const rise = (result: ComputedPattern) => point(result, "b_neck").y - point(result, "f_neck").y;
+
+  test("with no dart it is level with the back neck point when the shoulder drops are equal", () => {
+    for (const [, measurements] of BODICE_SETS) {
+      const result = evaluate(measurements, { bust_dart_rate: 0 });
+      expect(rise(result)).toBeCloseTo(0, 6);
+    }
+  });
+
+  test("with no dart it lies above the back one by the difference of the shoulder drops", () => {
+    const drops = { back: 30, front: 45 };
+    const result = evaluate(BODICE_A, {
+      bust_dart_rate: 0,
+      back_shoulder_drop: drops.back,
+      front_shoulder_drop: drops.front,
+    });
+    expect(rise(result)).toBeCloseTo(drops.front - drops.back, 6);
+    expect(rise(result)).toBeCloseTo(frontNeckRise(BODICE_A, 0, drops), 6);
+  });
+
+  test("it rises above the back one by the closed-form rise for the dart angle", () => {
+    for (const [, measurements] of BODICE_SETS) {
+      const result = evaluate(measurements);
+      const angle = result.values.bust_dart_angle!;
+      expect(angle).toBeGreaterThan(0);
+      expect(rise(result)).toBeCloseTo(frontNeckRise(measurements, angle), 6);
+    }
+  });
+
+  test("the rise grows with the dart angle", () => {
+    for (const [, measurements] of BODICE_SETS) {
+      let previous = -Infinity;
+      for (let angle = 0; angle <= BUST_DART.max; angle += 2) {
+        // A rate this steep puts every set at the cap, so the cap sets the angle.
+        const result = evaluate(measurements, {
+          bust_dart_offset: 0,
+          bust_dart_rate: 10,
+          max_bust_dart_angle: angle,
+        });
+        expect(result.values.bust_dart_angle).toBeCloseTo(angle, 9);
+        expect(rise(result)).toBeCloseTo(frontNeckRise(measurements, angle), 6);
+        expect(rise(result)).toBeGreaterThan(previous);
+        previous = rise(result);
+      }
+    }
+  });
+});
+
+describe("bodice: values for other blocks", () => {
+  // The sleeve (0007) reads these names. Renaming one means migrating the block copies stored in
+  // pattern projects (ADR 0006), so this test pins them.
+  test("exposes armhole_length, back_armhole_length and front_armhole_length", () => {
+    const formulas = bodice().formulas as Record<string, string>;
+    const result = expectOk(compilePattern(bodice()).evaluate({ measurements: BODICE_A }));
+    for (const name of ["armhole_length", "back_armhole_length", "front_armhole_length"]) {
+      expect(Object.keys(formulas)).toContain(name);
+      expect(result.values[name]).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("bodice: parameters", () => {
+  const compiled = compilePattern(bodice());
+  const base = expectOk(compiled.evaluate({ measurements: BODICE_A }));
+
+  test("ease_bust changes the bust line widths by exactly the change", () => {
+    const parameters = { ease_bust: 100 };
+    const wider = expectOk(compiled.evaluate({ measurements: BODICE_A, parameters }));
+    expect(2 * bustLineWidths(wider) - 2 * bustLineWidths(base)).toBeCloseTo(20, 6);
+  });
+
+  test("ease_waist changes the waist seams by exactly the change", () => {
+    const parameters = { ease_waist: 60 };
+    const wider = expectOk(compiled.evaluate({ measurements: BODICE_A, parameters }));
+    expect(2 * bodiceWaistSeams(wider) - 2 * bodiceWaistSeams(base)).toBeCloseTo(20, 6);
+  });
+
+  test("ease_armhole_depth lowers the underarm line by exactly the change", () => {
+    const parameters = { ease_armhole_depth: 30 };
+    const deeper = expectOk(compiled.evaluate({ measurements: BODICE_A, parameters }));
+    for (const name of ["b_underarm_cb", "f_side_top"]) {
+      expect(point(deeper, name).y - point(base, name).y).toBeCloseTo(20, 6);
+    }
+    expect(deeper.values.armhole_length).toBeGreaterThan(base.values.armhole_length!);
+  });
+
+  test("armhole_length follows a user offset on an armhole point", () => {
+    const moved = expectOk(
+      compiled.evaluate(
+        { measurements: BODICE_A },
+        { offsets: { b_width_pt: { dx: 15, dy: 0 } } },
+      ),
+    );
+    const sum = BODICE_ARMHOLES.reduce((total, name) => total + curveLength(moved, name), 0);
+    expect(moved.values.armhole_length).toBeCloseTo(sum, 6);
+    expect(moved.values.armhole_length).not.toBeCloseTo(base.values.armhole_length!, 3);
+  });
+});
+
+describe("bodice: missing measurements", () => {
+  test("a profile without armhole_depth gives a missing_measurement error for it", () => {
+    const { armhole_depth: _armholeDepth, ...withoutArmholeDepth } = BODICE_A;
+    const result = evaluatePattern(bodice(), { measurements: withoutArmholeDepth });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({ kind: "missing_measurement", name: "armhole_depth" }),
+    );
+  });
+});
+
+for (const [label, measurements] of BODICE_SETS) {
+  describe(`bodice: waist suppression, measurement set ${label}`, () => {
+    const result = expectOk(compilePattern(bodice()).evaluate({ measurements }));
+    const wedge =
+      point(result, "f_bp").y > point(result, "f_underarm_cf").y
+        ? xAtY(
+            point(result, "f_bp"),
+            point(result, "f_bdart_neck"),
+            point(result, "f_underarm_cf").y,
+          ) -
+          xAtY(
+            point(result, "f_bp"),
+            point(result, "f_bdart_arm"),
+            point(result, "f_underarm_cf").y,
+          )
+        : 0;
+
+    test("the back and front side seams have the same length and slant", () => {
+      expectWithin(curveLength(result, "b_side"), curveLength(result, "f_side"), 0.01);
+      const backSlant = point(result, "b_side_top").x - point(result, "b_waist_side").x;
+      const frontSlant = point(result, "f_waist_side").x - point(result, "f_side_top").x;
+      expectWithin(backSlant, frontSlant, 0.01);
+    });
+
+    test("the back waist dart takes as much as the side seam slant", () => {
+      const dart = point(result, "b_wdart_side").x - point(result, "b_wdart_cb").x;
+      const slant = point(result, "b_side_top").x - point(result, "b_waist_side").x;
+      expect(dart).toBeGreaterThan(0);
+      expectWithin(dart, slant, 0.01);
+    });
+
+    test("the front waist dart also takes the width of the bust dart on the bust line", () => {
+      const front = point(result, "f_wdart_cf").x - point(result, "f_wdart_side").x;
+      const back = point(result, "b_wdart_side").x - point(result, "b_wdart_cb").x;
+      expectWithin(front - back, wedge, 0.01);
+    });
+  });
+}
+
+/**
+ * The profile from the user report on a wobbly (S-shaped) armhole: its back width point lies
+ * almost straight below the back shoulder point. The report also gave hip 1080 and front_length
+ * 500, which the bodice does not use.
+ */
+const BODICE_REPORTED: Measurements = {
+  bust: 1060,
+  waist: 900,
+  neck: 355,
+  shoulder_width: 125,
+  back_width: 380,
+  chest_width: 390,
+  back_length: 420,
+  armhole_depth: 200,
+  bust_height: 340,
+  bust_distance: 210,
+};
+
+/** The two armholes, each as its cubics in drawing order: back from the shoulder, front to it. */
+const ARMHOLES = {
+  back: ["b_armhole_upper", "b_armhole_lower"],
+  front: ["f_armhole_lower", "f_armhole_upper"],
+} as const;
+
+const ARMHOLE_SAMPLES = 64;
+
+/** Allowed numerical noise in the sine of a turn or in a y step between samples. */
+const ARMHOLE_NOISE = 1e-9;
+
+type Cubic = { from: Point; c1: Point; c2: Point; to: Point };
+
+function cubic(result: ComputedPattern, name: string): Cubic {
+  const curve = result.curves[name];
+  if (curve === undefined || curve.type !== "cubic") throw new Error(`${name} is not a cubic`);
+  return curve;
+}
+
+/** Points along the cubics in order, each junction once. */
+function samples(result: ComputedPattern, names: readonly string[]): Point[] {
+  const points: Point[] = [];
+  for (const name of names) {
+    const { from, c1, c2, to } = cubic(result, name);
+    for (let i = points.length === 0 ? 0 : 1; i <= ARMHOLE_SAMPLES; i++) {
+      points.push(cubicAt(from, c1, c2, to, i / ARMHOLE_SAMPLES));
+    }
+  }
+  return points;
+}
+
+/**
+ * The sine of the turn at every inner sample: positive turns clockwise on screen (y down),
+ * negative counter-clockwise. A curve without inflection has one sign throughout.
+ */
+function turns(points: readonly Point[]): number[] {
+  const result: number[] = [];
+  for (let i = 1; i < points.length - 1; i++) {
+    const a = { x: points[i]!.x - points[i - 1]!.x, y: points[i]!.y - points[i - 1]!.y };
+    const b = { x: points[i + 1]!.x - points[i]!.x, y: points[i + 1]!.y - points[i]!.y };
+    result.push((a.x * b.y - a.y * b.x) / (Math.hypot(a.x, a.y) * Math.hypot(b.x, b.y)));
+  }
+  return result;
+}
+
+/** The sine of the angle from direction `a -> b` to direction `c -> d`. */
+function sineBetween(a: Point, b: Point, c: Point, d: Point): number {
+  const u = { x: b.x - a.x, y: b.y - a.y };
+  const v = { x: d.x - c.x, y: d.y - c.y };
+  return (u.x * v.y - u.y * v.x) / (Math.hypot(u.x, u.y) * Math.hypot(v.x, v.y));
+}
+
+/** The cosine of the angle between directions `a -> b` and `c -> d`. */
+function cosineBetween(a: Point, b: Point, c: Point, d: Point): number {
+  const u = { x: b.x - a.x, y: b.y - a.y };
+  const v = { x: d.x - c.x, y: d.y - c.y };
+  return (u.x * v.x + u.y * v.y) / (Math.hypot(u.x, u.y) * Math.hypot(v.x, v.y));
+}
+
+/** Both armholes turn counter-clockwise on screen at every sample, the junction included. */
+function expectArmholesTurnOneWay(result: ComputedPattern): void {
+  for (const names of Object.values(ARMHOLES)) {
+    const sines = turns(samples(result, names));
+    expect(Math.max(...sines)).toBeLessThan(ARMHOLE_NOISE);
+    expect(Math.min(...sines)).toBeLessThan(0);
+  }
+}
+
+for (const [label, measurements] of [...BODICE_SETS, ["reported", BODICE_REPORTED]] as const) {
+  describe(`bodice: armhole shape, measurement set ${label}`, () => {
+    const result = expectOk(compilePattern(bodice()).evaluate({ measurements }));
+
+    // The back armhole runs down from the shoulder and turns toward the side point, the front
+    // one runs from the side point and turns up to the shoulder: both counter-clockwise on
+    // screen. A turn the other way anywhere is the S-shape of the user report.
+    test("each armhole turns one way from end to end, without an S-shape", () => {
+      expectArmholesTurnOneWay(result);
+    });
+
+    test("the back armhole only runs down and the front one only up", () => {
+      const back = samples(result, ARMHOLES.back);
+      const front = samples(result, ARMHOLES.front);
+      for (let i = 1; i < back.length; i++) {
+        expect(back[i]!.y - back[i - 1]!.y).toBeGreaterThan(-ARMHOLE_NOISE);
+      }
+      for (let i = 1; i < front.length; i++) {
+        expect(front[i]!.y - front[i - 1]!.y).toBeLessThan(ARMHOLE_NOISE);
+      }
+    });
+
+    test("the curves meet with one tangent at the back width point and the chest point", () => {
+      const [backUpper, backLower] = ARMHOLES.back.map((name) => cubic(result, name));
+      const [frontLower, frontUpper] = ARMHOLES.front.map((name) => cubic(result, name));
+      for (const [incoming, outgoing] of [
+        [backUpper!, backLower!],
+        [frontLower!, frontUpper!],
+      ] as const) {
+        const join = outgoing.from;
+        expect(Math.abs(sineBetween(incoming.c2, join, join, outgoing.c1))).toBeLessThan(1e-9);
+        expect(cosineBetween(incoming.c2, join, join, outgoing.c1)).toBeGreaterThan(0);
+      }
+    });
+
+    test("each armhole leaves the shoulder seam at a right angle, within 1 degree", () => {
+      const backSeam = cosineBetween(
+        point(result, "b_sdart_arm"),
+        point(result, "b_shoulder"),
+        point(result, "b_shoulder"),
+        point(result, "b_arm_c1"),
+      );
+      const frontSeam = cosineBetween(
+        point(result, "f_bdart_arm"),
+        point(result, "f_shoulder"),
+        point(result, "f_shoulder"),
+        point(result, "f_arm_c4"),
+      );
+      expect(Math.abs(backSeam)).toBeLessThan(Math.sin((1 * Math.PI) / 180));
+      expect(Math.abs(frontSeam)).toBeLessThan(Math.sin((1 * Math.PI) / 180));
+    });
+
+    test("each armhole reaches the side point horizontally", () => {
+      expect(point(result, "b_arm_c4").y).toBeCloseTo(point(result, "b_side_top").y, 9);
+      expect(point(result, "b_arm_c4").x).toBeLessThan(point(result, "b_side_top").x);
+      expect(point(result, "f_arm_c1").y).toBeCloseTo(point(result, "f_side_top").y, 9);
+      expect(point(result, "f_arm_c1").x).toBeGreaterThan(point(result, "f_side_top").x);
+    });
+  });
+}
+
+/**
+ * How far (mm) each armhole may pass inside the vertical line through the back width point or
+ * the chest point, above that point. In the low-bust set the back shoulder point already lies
+ * inside the back width line, so the curve cannot stay outside it.
+ */
+const ARMHOLE_MAX_INSIDE: Record<(typeof BODICE_SETS)[number][0], number> = {
+  A: 3,
+  B: 3,
+  large: 3,
+  "low bust": 7,
+};
+
+/** The largest distance (mm) the cubic passes on the inner side of the vertical line at `x`. */
+function maxInside(curve: Cubic, x: number, side: "left" | "right"): number {
+  let inside = 0;
+  for (let i = 0; i <= ARMHOLE_SAMPLES; i++) {
+    const p = cubicAt(curve.from, curve.c1, curve.c2, curve.to, i / ARMHOLE_SAMPLES);
+    inside = Math.max(inside, side === "left" ? x - p.x : p.x - x);
+  }
+  return inside;
+}
+
+for (const [label, measurements] of BODICE_SETS) {
+  test(`bodice: set ${label}, each armhole passes at most ${ARMHOLE_MAX_INSIDE[label]} mm inside the back width or chest line`, () => {
+    const result = expectOk(compilePattern(bodice()).evaluate({ measurements }));
+    const limit = ARMHOLE_MAX_INSIDE[label];
+    // Back: centre back is on the left, so inside is left of the line; front: the other way.
+    const backUpper = cubic(result, "b_armhole_upper");
+    const frontUpper = cubic(result, "f_armhole_upper");
+    expect(maxInside(backUpper, point(result, "b_width_pt").x, "left")).toBeLessThan(limit);
+    expect(maxInside(frontUpper, point(result, "f_chest").x, "right")).toBeLessThan(limit);
+  });
+}
+
+describe("bodice: armhole shape over a range of widths", () => {
+  const compiled = compilePattern(bodice());
+
+  // Covers a back width point well inside the shoulder point (300 mm), almost straight below it
+  // (the user report) and outside it (400 mm), and chest widths on either side. A back width
+  // point outside the line from the shoulder point to the side point (set A from about 415 mm)
+  // leaves no curve without a turn the other way.
+  test("each armhole turns one way for back widths 300 to 400 mm and chest widths 280 to 400 mm", () => {
+    for (const base of [BODICE_A, BODICE_B, BODICE_REPORTED]) {
+      for (let backWidth = 300; backWidth <= 400; backWidth += 25) {
+        for (let chestWidth = 280; chestWidth <= 400; chestWidth += 20) {
+          const measurements = { ...base, back_width: backWidth, chest_width: chestWidth };
+          expectArmholesTurnOneWay(expectOk(compiled.evaluate({ measurements })));
+        }
+      }
+    }
+  });
+
+  test("each armhole turns one way after a user offset on the back width point or chest point", () => {
+    for (const [dx, dy] of [
+      [-20, 0],
+      [20, 0],
+      [0, -20],
+      [0, 20],
+    ] as const) {
+      const offsets = { b_width_pt: { dx, dy }, f_chest: { dx: -dx, dy } };
+      expectArmholesTurnOneWay(
+        expectOk(compiled.evaluate({ measurements: BODICE_A }, { offsets })),
+      );
+    }
+  });
+
+  // Raised far enough, the back shoulder point lies above the neck point, so the shoulder seam
+  // direction wraps past 360 degrees; the right angle to it must still be taken the short way.
+  test("each armhole turns one way after a user offset raising a shoulder point", () => {
+    const raised = { dx: 0, dy: -60 };
+    for (const offsets of [
+      { b_shoulder: raised },
+      { f_shoulder: raised },
+      { b_shoulder: raised, f_shoulder: raised },
+    ] as Record<string, UserOffset>[]) {
+      for (const [, measurements] of BODICE_SETS) {
+        expectArmholesTurnOneWay(expectOk(compiled.evaluate({ measurements }, { offsets })));
+      }
+    }
   });
 });

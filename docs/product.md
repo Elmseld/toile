@@ -21,24 +21,25 @@ Both groups use the same engine but get different amounts of it exposed.
 
 ## Core flows (MVP)
 1. **Measurements**: under "Mått" (`/measurements`) the user creates a measurement profile ("Jag",
-   "Kund Anna") and fills in a fixed list of 17 measurements with help texts. Input is in cm with
+   "Kund Anna") and fills in a fixed list of 18 measurements with help texts. Input is in cm with
    one decimal (`.` or `,`), stored in mm. A profile can be saved incomplete; the list shows how
    many measurements are missing and the profile page marks each missing one. Values of 0 or over
    300 cm are rejected. A user can have at most 100 profiles; the 101st shows a form error. The
    form is touch-friendly: one field per row, 44 px minimum height, numeric keyboard.
 2. **New pattern**: under "Mina mönster" (`/patterns`) the user clicks "Nytt mönster"
-   (`/patterns/new`), names the project and picks a block (first block: "Rak kjol", a straight
-   skirt) and one of their measurement profiles. The project page (`/patterns/:id`) calculates the
-   pattern in the browser and draws the front and back pieces to scale over a centimetre grid, with
-   zoom (wheel, pinch, zoom in/out buttons), pan (drag) and a "Fit to screen" ("Anpassa till
-   skärmen") button. With the keyboard, the arrow keys pan, + and - zoom and 0 fits the pattern. A
-   profile select on the page switches profile and redraws; if the switch is rejected, the page
-   reloads showing the stored profile with the error flash "Det gick inte att byta måttprofil". If the profile lacks measurements the block needs, the page lists
-   them (with a link to edit the profile; saving or cancelling there returns to the project)
-   instead of drawing. Projects can be renamed and deleted
-   from the list; a user can have at most 100. Deleting a profile keeps its projects, which then
-   ask for a new profile. A project stores a copy of the block definition, so later changes to a
-   block do not affect it.
+   (`/patterns/new`), names the project and picks a block ("Rak kjol", a straight skirt, or
+   "Liv", a bodice) from a select with the prompt "Välj ett grundmönster" (no preselection)
+   and one of their measurement profiles. The project page (`/patterns/:id`) calculates the pattern
+   in the browser and draws the front and back pieces to scale over a centimetre grid, with zoom
+   (wheel, pinch, zoom in/out buttons), pan (drag) and a "Fit to screen" ("Anpassa till skärmen")
+   button. With the keyboard, the arrow keys pan, + and - zoom and 0 fits the pattern. A profile
+   select on the page switches profile and redraws; if the switch is rejected, the page reloads
+   showing the stored profile with the error flash "Det gick inte att byta måttprofil". If the
+   profile lacks measurements the block needs, the page lists them (with a link to edit the profile;
+   saving or cancelling there returns to the project) instead of drawing. Projects can be renamed
+   and deleted from the list; a user can have at most 100. Deleting a profile keeps its projects,
+   which then ask for a new profile. A project stores a copy of the block definition, so later
+   changes to a block do not affect it.
 3. **Modify**: the user drags points, edits formulas or parameters (e.g. ease), and the pattern is
    recalculated immediately. Switching measurement profile recalculates the whole pattern.
 4. **Finish**: seam allowance is added per edge. Markings (grainline, notches, fold line) are shown.

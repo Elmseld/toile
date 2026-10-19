@@ -59,7 +59,7 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
       assert has_element?(
                view,
                "#measurement_profiles-#{partial.id}-status",
-               "17 measurements missing"
+               "18 measurements missing"
              )
 
       assert has_element?(view, "#measurement_profiles-#{complete.id}-status", "Complete")
@@ -101,6 +101,8 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
       {:ok, view, _html} = live(conn, ~p"/measurements/new")
 
       assert has_element?(view, "h1", "New measurement profile")
+      assert has_element?(view, "#measurement-field-armhole_depth input")
+      assert has_element?(view, "#measurement-field-armhole_depth", "Nape to underarm level")
 
       result =
         view

@@ -12,6 +12,20 @@ defmodule ToileWeb.PatternLive.FormTest do
   describe "New" do
     setup :register_and_log_in_user
 
+    test "lists the blocks by their label", %{conn: conn, scope: scope} do
+      measurement_profile_fixture(scope)
+      {:ok, view, _html} = live(conn, ~p"/patterns/new")
+
+      labels =
+        view
+        |> render()
+        |> LazyHTML.from_fragment()
+        |> LazyHTML.query(~s{select[name="pattern_project[block]"] option:not([value=""])})
+        |> Enum.map(&LazyHTML.text/1)
+
+      assert labels == ["Bodice", "Straight skirt"]
+    end
+
     test "creates a project from a block and a profile and shows it", %{
       conn: conn,
       scope: scope
@@ -21,8 +35,11 @@ defmodule ToileWeb.PatternLive.FormTest do
 
       assert has_element?(view, "h1", "New pattern")
       assert has_element?(view, ~s(#pattern-form select[name="pattern_project[block]"]))
-      # The only block starts selected.
-      assert has_element?(view, ~s(option[value="straight_skirt"][selected]), "Straight skirt")
+      assert has_element?(view, ~s(option[value="bodice"]), "Bodice")
+      assert has_element?(view, ~s(option[value="straight_skirt"]), "Straight skirt")
+      assert has_element?(view, ~s(option[value=""]), "Choose a block")
+      # With several blocks none is preselected; the user picks one.
+      refute has_element?(view, ~s(select[name="pattern_project[block]"] option[selected]))
       assert has_element?(view, ~s(option[value="#{profile.id}"]), "Me")
       assert has_element?(view, ~s(option[value=""]), "Choose a measurement profile")
 
@@ -46,6 +63,52 @@ defmodule ToileWeb.PatternLive.FormTest do
       {:ok, _show, html} = follow_redirect(result, conn, ~p"/patterns/#{project}")
       assert html =~ "Pattern created"
       assert html =~ "Summer skirt"
+    end
+
+    test "creates a bodice project", %{conn: conn, scope: scope} do
+      profile = measurement_profile_fixture(scope)
+      {:ok, view, _html} = live(conn, ~p"/patterns/new")
+
+      result =
+        view
+        |> form("#pattern-form",
+          pattern_project: %{
+            name: "First bodice",
+            block: "bodice",
+            measurement_profile_id: profile.id
+          }
+        )
+        |> render_submit()
+
+      assert [listed] = Patterns.list_pattern_projects(scope)
+      project = Patterns.get_pattern_project!(scope, listed.id)
+      assert project.block == "bodice"
+      assert project.definition == Blocks.definition("bodice")
+
+      {:ok, show, _html} = follow_redirect(result, conn, ~p"/patterns/#{project}")
+      assert has_element?(show, "header", "Bodice")
+    end
+
+    test "requires a block", %{conn: conn, scope: scope} do
+      profile = measurement_profile_fixture(scope)
+      {:ok, view, _html} = live(conn, ~p"/patterns/new")
+
+      html =
+        view
+        |> form("#pattern-form",
+          pattern_project: %{name: "No block", block: "", measurement_profile_id: profile.id}
+        )
+        |> render_submit()
+
+      assert html =~ "can&#39;t be blank"
+      assert has_element?(view, ~s(select.select-error[name="pattern_project[block]"]))
+
+      refute has_element?(
+               view,
+               ~s(select.select-error[name="pattern_project[measurement_profile_id]"])
+             )
+
+      assert Patterns.list_pattern_projects(scope) == []
     end
 
     test "shows validation errors", %{conn: conn, scope: scope} do

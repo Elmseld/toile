@@ -25,3 +25,10 @@ measurements and from the bodice armhole length, and is recomputed when the bodi
 ## Notes
 Requires that a project can contain several pattern pieces from different blocks.
 The planner decides how references between them are expressed in the pattern definition.
+The bodice (0006) exposes the armhole as three `values` keys: `armhole_length`,
+`back_armhole_length` and `front_armhole_length` (mm). Their names are a stable interface (pinned
+by an engine test; renaming one requires migrating stored project definitions, ADR 0006). How the
+sleeve consumes them is for this ticket to decide. The bodice's front and back shoulder points are
+always level, but its front armhole is about 10 to 17 mm longer than the back one in the test
+figures (shape of the front armhole curve), so the sleeve should not assume front and back
+armholes of equal length.

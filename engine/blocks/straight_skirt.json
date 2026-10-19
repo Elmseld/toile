@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "Straight skirt",
-  "source": "Based on Winifred Aldrich, Metric Pattern Cutting for Women's Wear, 6th ed. (Wiley-Blackwell, 2015), \"The close fitting skirt block\". Deviations: back and front are drafted in separate frames 50 mm apart instead of on a shared side line; the waist dart takes half the waist suppression and the side seam the other half; the ease and the draft constants (side_shift, side_rise, back_dart_length, front_dart_length) are parameters whose defaults are not yet checked against the book.",
+  "source": "Based on Winifred Aldrich, Metric Pattern Cutting for Women's Wear, 6th ed. (Wiley-Blackwell, 2015), \"The close fitting skirt block\". Deviations: back and front are drafted in separate frames 50 mm apart instead of on a shared side line; the waist dart takes half the waist suppression and the side seam the other half; the ease and the draft constants (side_shift, side_rise, back_dart_length, front_dart_length) are parameters whose defaults are our own starting values, set and pinned by the engine tests, to be adjusted after test fitting (a toile/provsömnad).",
   "measurements": ["waist", "hip", "hip_height", "skirt_length"],
   "parameters": {
     "ease_waist": 10,

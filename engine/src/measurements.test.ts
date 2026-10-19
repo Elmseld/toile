@@ -12,6 +12,7 @@ const EXPECTED = [
   "back_width",
   "chest_width",
   "back_length",
+  "armhole_depth",
   "front_length",
   "bust_height",
   "bust_distance",

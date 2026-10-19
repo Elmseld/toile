@@ -344,7 +344,7 @@ defmodule Toile.MeasurementsTest do
       assert Measurements.missing_measurements(measurement_profile) ==
                List.delete(Catalog.keys(), :waist)
 
-      assert length(Measurements.missing_measurements(measurement_profile)) == 16
+      assert length(Measurements.missing_measurements(measurement_profile)) == 17
     end
   end
 

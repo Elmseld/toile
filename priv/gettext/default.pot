@@ -522,11 +522,6 @@ msgstr[1] ""
 
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
-msgid "Across the back between the armhole creases, halfway between the neck bone and the underarm."
-msgstr ""
-
-#: lib/toile_web/measurement_texts.ex
-#, elixir-autogen, elixir-format
 msgid "Across the front between the armhole creases, above the bust."
 msgstr ""
 
@@ -925,4 +920,29 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgctxt "pattern piece"
 msgid "Front"
+msgstr ""
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Bodice"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Choose a block"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Nape to underarm level"
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Tie a band around the upper body, level and as high up under the arms as it goes. Measure from the neck bone straight down the spine to the band."
+msgstr ""
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "At the band at underarm level: across the back between the armhole creases."
 msgstr ""

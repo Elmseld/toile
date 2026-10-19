@@ -243,7 +243,7 @@ msgstr "Grundmönstren räknas fram ur dina mått och följer med när du byter 
 #: lib/toile_web/controllers/page_html/home.html.heex
 #, elixir-autogen, elixir-format
 msgid "Toile is a web app for drafting and developing sewing patterns. You start from basic blocks (bodice, skirt, sleeve) calculated from your own measurements, adapt them and print them at 1:1 scale."
-msgstr "Toile är en webbapp för att konstruera och utveckla sömnadsmönster. Du utgår från grundmönster (livstycke, kjol, ärm) som räknas fram ur dina egna mått, ändrar dem och skriver ut dem i skala 1:1."
+msgstr "Toile är en webbapp för att konstruera och utveckla sömnadsmönster. Du utgår från grundmönster (liv, kjol, ärm) som räknas fram ur dina egna mått, ändrar dem och skriver ut dem i skala 1:1."
 
 #: lib/toile_web/controllers/page_html/home.html.heex
 #, elixir-autogen, elixir-format
@@ -522,11 +522,6 @@ msgstr[1] "%{count} mått saknas"
 
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
-msgid "Across the back between the armhole creases, halfway between the neck bone and the underarm."
-msgstr "Tvärs över ryggen mellan armhålsvecken, halvvägs mellan nackkotan och armhålan."
-
-#: lib/toile_web/measurement_texts.ex
-#, elixir-autogen, elixir-format
 msgid "Across the front between the armhole creases, above the bust."
 msgstr "Tvärs över bröstet mellan armhålsvecken, ovanför bysten."
 
@@ -609,7 +604,7 @@ msgstr "Bysthöjd"
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
 msgid "Bust point distance"
-msgstr "Bystpunktsavstånd"
+msgstr "Bröstavstånd"
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
 #: lib/toile_web/live/pattern_live/form.ex
@@ -658,12 +653,12 @@ msgstr "Från den utstående nackkotan rakt ned längs ryggraden till midjan."
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
 msgid "From the side of the neck at the shoulder down to the bust point."
-msgstr "Från halsens sida vid axeln ned till bystpunkten."
+msgstr "Från halsens sida vid axeln ned till bröstvårtan."
 
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
 msgid "From the side of the neck at the shoulder, over the bust point, down to the waist."
-msgstr "Från halsens sida vid axeln, över bystpunkten, ned till midjan."
+msgstr "Från halsens sida vid axeln, över bröstvårtan, ned till midjan."
 
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
@@ -761,7 +756,7 @@ msgstr "Stående rak utan skor, från hjässan till golvet."
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
 msgid "Straight across between the two bust points."
-msgstr "Rakt över mellan de två bystpunkterna."
+msgstr "Rakt över mellan bröstvårtorna."
 
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
@@ -926,3 +921,28 @@ msgstr "Bakstycke"
 msgctxt "pattern piece"
 msgid "Front"
 msgstr "Framstycke"
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Bodice"
+msgstr "Liv"
+
+#: lib/toile_web/live/pattern_live/form.ex
+#, elixir-autogen, elixir-format
+msgid "Choose a block"
+msgstr "Välj ett grundmönster"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Nape to underarm level"
+msgstr "Nacke till armhålsnivå"
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Tie a band around the upper body, level and as high up under the arms as it goes. Measure from the neck bone straight down the spine to the band."
+msgstr "Knyt ett band runt överkroppen, vågrätt och så högt upp i armhålorna det går. Mät från den utstående nackkotan rakt ned längs ryggraden till bandet."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "At the band at underarm level: across the back between the armhole creases."
+msgstr "Vid bandet i armhålsnivå: tvärs över ryggen mellan armhålsvecken."

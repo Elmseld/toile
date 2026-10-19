@@ -153,6 +153,17 @@ defmodule Toile.PatternsTest do
       assert reloaded.parameters == %{}
     end
 
+    test "copies the bodice definition for a bodice project" do
+      scope = user_scope_fixture()
+
+      assert {:ok, %PatternProject{} = pattern_project} =
+               Patterns.create_pattern_project(scope, valid_attrs(scope, %{block: "bodice"}))
+
+      assert pattern_project.block == "bodice"
+      assert pattern_project.definition == Blocks.definition("bodice")
+      assert pattern_project.parameters == %{}
+    end
+
     test "requires name, block and profile" do
       scope = user_scope_fixture()
 
@@ -536,6 +547,18 @@ defmodule Toile.PatternsTest do
 
       assert Patterns.missing_measurements(pattern_project, profile) ==
                [:hip, :hip_height, :skirt_length]
+    end
+
+    test "lists armhole_depth for a bodice project whose profile lacks it" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope, block: "bodice")
+
+      profile =
+        measurement_profile_fixture(scope,
+          measurements: Map.delete(complete_measurements(), :armhole_depth)
+        )
+
+      assert Patterns.missing_measurements(pattern_project, profile) == [:armhole_depth]
     end
 
     test "is empty for a complete profile" do
