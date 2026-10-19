@@ -212,12 +212,17 @@ The engine has no block registry.
   `bust_dart_rate` degrees per mm above `bust_dart_offset`, at least 0 and at most
   `max_bust_dart_angle` (value `bust_dart_angle`). The bust point lies `bust_height` from the
   front neck point. The dart is a rotation about it, and the front neck point is placed so that
-  the front shoulder point (dart open) lies level with the back one. So the front neck point is
-  level with the back one when there is no dart, and higher by the extra length the dart gives
-  the front. The defaults are calibrated so that the size 12 test set and a larger set draft a
-  front length (neck point, bust point, waist) within 1 mm of their measured `front_length`. The
-  block itself does not use `front_length`. The dart width at the shoulder changes by under
-  0.8 mm per mm of `chest_width` and under 0.4 mm per mm of `bust` (tested). Test figures: about
+  the front shoulder point (dart open) lies level with the back one. With no dart the front neck
+  point therefore lies above the back one by `front_shoulder_drop - back_shoulder_drop` (level
+  with it for the equal default drops). The dart opens in the shoulder, so its neck side rises
+  further by `r * (sin(phi - bust_dart_angle) - sin(phi))`, where `r` and `phi` are the distance
+  and direction from the bust point to the closed front shoulder point; the rise grows with the
+  dart (tested: about 15, 27 and 45 mm in the test figures below). The defaults are calibrated
+  so that the size 12 test set and a larger set draft a front length (neck point, bust point,
+  waist) within 2 mm of their measured `front_length`. The block itself does not use
+  `front_length`. The dart width at the shoulder changes by under 0.8 mm per mm of
+  `chest_width`, under 0.4 mm per mm of `bust` and under 0.5 mm per mm of `bust_height`
+  (tested). Test figures: about
   34 mm (size 12), 61 mm (bust 1040 mm) and 100 mm (bust 1200 mm, chest width 390 mm). The cap
   only guards against implausible input such as a chest width measured far too narrow. The
   constants and ease are not yet checked against the book. A `back_width` much wider than the

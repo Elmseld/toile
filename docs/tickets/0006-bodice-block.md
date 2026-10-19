@@ -37,16 +37,26 @@ Builds on the engine (0002, 0003) and the project view (0005).
   times the amount by which `bust / 2 - chest_width` exceeds `bust_dart_offset` (50 mm),
   between 0 and `max_bust_dart_angle` (20 degrees). These are draft constants, not from the
   book. They are calibrated so that the size 12 test set and a larger set draft their measured
-  front length within 1 mm. The bust point lies `bust_height` from the front neck point. The
+  front length within 2 mm. The bust point lies `bust_height` from the front neck point. The
   front neck point is placed so that the front shoulder point, dart open, is level with the
-  back shoulder point. Needs `bust_height` and `bust_distance`. `front_length` is no longer a
-  bodice measurement; the catalogue key stays.
+  back shoulder point. Needs `bust_height` and `bust_distance`.
+- **Front neck point above the back one:** by design. With no dart the front neck point lies
+  above the back one by `front_shoulder_drop - back_shoulder_drop` (level for the equal
+  defaults). The bust dart opens in the shoulder, so the neck side of the front shoulder rises
+  with the dart while the shoulder points stay level: by `r * (sin(phi - bust_dart_angle) -
+  sin(phi))`, with `r` and `phi` the distance and direction from the bust point to the closed
+  front shoulder point. The rise grows with the dart (about 15 to 45 mm in the test figures).
+  An engine test pins the closed form and the monotonic growth.
+- **`front_length` stays in the catalogue:** no block uses it any more, but it is kept for later
+  use (e.g. a fit check of the drafted front length). Removing a measurement key is a separate
+  decision under ADR 0005.
 - **Why not `front_length`:** the first version placed the front neck point from
   `front_length` and took the dart as the rotation that levels the shoulders. The dart then
   grew by about 2 mm per mm of `front_length` (a small difference of two long measurements). A
   real profile got a capped 15 degree dart, a front shoulder 27 mm above the back one and a
   front armhole 42 mm longer than the back. The new dart moves under 0.8 mm per mm of
-  `chest_width` and under 0.4 mm per mm of `bust` (tested). The front always meets the back at
+  `chest_width`, under 0.4 mm per mm of `bust` and under 0.5 mm per mm of `bust_height`
+  (tested). The front always meets the back at
   the shoulder.
 - **Wide back width is not corrected:** a `back_width` that puts the back width point outside
   the shoulder point (e.g. 450 mm with a 125 mm shoulder and 355 mm neck) gives an S-shaped back

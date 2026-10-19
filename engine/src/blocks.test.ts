@@ -597,7 +597,9 @@ for (const [label, measurements] of BODICE_SETS) {
       expect(point(result, "f_shoulder").y).toBeCloseTo(point(result, "b_shoulder").y, 6);
     });
 
-    test("the front neck point lies no lower than the back neck point", () => {
+    // Holds with the default, equal front and back shoulder drops; the closed form for any
+    // drops is pinned in "bodice: front neck point".
+    test("the front neck point lies no lower than the back neck point (equal shoulder drops)", () => {
       expect(point(result, "f_neck").y).toBeLessThanOrEqual(point(result, "b_neck").y + 1e-9);
     });
 
@@ -683,7 +685,7 @@ describe("bodice: bust dart size", () => {
     expect(long.values).toEqual(short.values);
   });
 
-  test("the drafted front length of sets A and B is within 5 mm of their measured front length", () => {
+  test("the drafted front length of sets A and B is within 2 mm of their measured front length", () => {
     for (const [measurements, frontLength] of [
       [BODICE_A, 445],
       [BODICE_B, 475],
@@ -691,7 +693,7 @@ describe("bodice: bust dart size", () => {
       const result = evaluate(measurements);
       const drafted =
         between(result, "f_neck", "f_bp") + point(result, "f_waist_cf").y - point(result, "f_bp").y;
-      expectWithin(drafted, frontLength, 5);
+      expectWithin(drafted, frontLength, 2);
     }
   });
 
@@ -724,6 +726,80 @@ describe("bodice: bust dart size", () => {
       BUST_DART.rate * bustExcess(BODICE_A),
       9,
     );
+  });
+});
+
+/**
+ * How far the front neck point lies above the back one (mm), in closed form: the front neck
+ * point is placed so that the front shoulder point, rotated by the dart angle about the bust
+ * point, is level with the back shoulder point. With no dart this is the difference of the
+ * shoulder drops; the dart adds `r * (sin(phi - angle) - sin(phi))`, where `r` and `phi` are the
+ * distance and direction from the bust point to the closed front shoulder point.
+ */
+function frontNeckRise(
+  measurements: Measurements,
+  dartAngle: number,
+  drops = { back: 40, front: 40 },
+): number {
+  const neckWidth = measurements.neck! / 5 - 2;
+  const bpDx = measurements.bust_distance! / 2 - neckWidth;
+  const bpDrop = Math.sqrt(measurements.bust_height! ** 2 - bpDx ** 2);
+  const shoulderDx = Math.sqrt(measurements.shoulder_width! ** 2 - drops.front ** 2);
+  const r = Math.hypot(bpDx - shoulderDx, drops.front - bpDrop);
+  const phi = Math.atan2(drops.front - bpDrop, bpDx - shoulderDx);
+  const theta = (dartAngle * Math.PI) / 180;
+  return r * (Math.sin(phi - theta) - Math.sin(phi)) + drops.front - drops.back;
+}
+
+describe("bodice: front neck point", () => {
+  const compiled = compilePattern(bodice());
+  const evaluate = (measurements: Measurements, parameters = {}) =>
+    expectOk(compiled.evaluate({ measurements, parameters }));
+  const rise = (result: ComputedPattern) => point(result, "b_neck").y - point(result, "f_neck").y;
+
+  test("with no dart it is level with the back neck point when the shoulder drops are equal", () => {
+    for (const [, measurements] of BODICE_SETS) {
+      const result = evaluate(measurements, { bust_dart_rate: 0 });
+      expect(rise(result)).toBeCloseTo(0, 6);
+    }
+  });
+
+  test("with no dart it lies above the back one by the difference of the shoulder drops", () => {
+    const drops = { back: 30, front: 45 };
+    const result = evaluate(BODICE_A, {
+      bust_dart_rate: 0,
+      back_shoulder_drop: drops.back,
+      front_shoulder_drop: drops.front,
+    });
+    expect(rise(result)).toBeCloseTo(drops.front - drops.back, 6);
+    expect(rise(result)).toBeCloseTo(frontNeckRise(BODICE_A, 0, drops), 6);
+  });
+
+  test("it rises above the back one by the closed-form rise for the dart angle", () => {
+    for (const [, measurements] of BODICE_SETS) {
+      const result = evaluate(measurements);
+      const angle = result.values.bust_dart_angle!;
+      expect(angle).toBeGreaterThan(0);
+      expect(rise(result)).toBeCloseTo(frontNeckRise(measurements, angle), 6);
+    }
+  });
+
+  test("the rise grows with the dart angle", () => {
+    for (const [, measurements] of BODICE_SETS) {
+      let previous = -Infinity;
+      for (let angle = 0; angle <= BUST_DART.max; angle += 2) {
+        // A rate this steep puts every set at the cap, so the cap sets the angle.
+        const result = evaluate(measurements, {
+          bust_dart_offset: 0,
+          bust_dart_rate: 10,
+          max_bust_dart_angle: angle,
+        });
+        expect(result.values.bust_dart_angle).toBeCloseTo(angle, 9);
+        expect(rise(result)).toBeCloseTo(frontNeckRise(measurements, angle), 6);
+        expect(rise(result)).toBeGreaterThan(previous);
+        previous = rise(result);
+      }
+    }
   });
 });
 
