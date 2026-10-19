@@ -74,6 +74,8 @@ const MIN_AREA = 1e-6;
 /** Rounds of `outerBoundary` before a line that still crosses itself is given up. */
 const BOUNDARY_ROUNDS = 3;
 
+const SELF_CROSSING = "The outline crosses itself, so it has no cutting line";
+
 type ReadEdge = { edge: Edge; allowance: number };
 
 /**
@@ -119,11 +121,14 @@ function compute(piece: unknown, input: unknown): CuttingLineResult {
   const flat = outline.flatMap(({ edge }, i) => flattenEdge(edge, steps[i]!).slice(0, -1));
   const area = polygonArea(flat);
   if (!(Math.abs(area) >= MIN_AREA)) return degenerate("The outline encloses no area");
+  // Checked up front: whether a crossing outline still gives a line that passes the checks below
+  // depends on the allowance, and such a line is nonsense at any allowance.
+  if (findCrossings(flat).length > 0) return degenerate(SELF_CROSSING);
   const sign = Math.sign(area);
 
   const line =
     trace(outline, steps, sign, flat, "exact") ?? trace(outline, steps, sign, flat, "safe");
-  if (line === null) return degenerate("The outline crosses itself, so it has no cutting line");
+  if (line === null) return degenerate("No cutting line could be constructed for this outline");
   const start = leftmostIndex(line);
   return { ok: true, points: [...line.slice(start), ...line.slice(0, start)] };
 }

@@ -757,6 +757,21 @@ describe("input robustness (N)", () => {
     });
     // A figure eight: the outline crosses itself.
     degenerate(polygonPiece([p(0, 0), p(100, 100), p(100, 0), p(0, 100)]));
+    // A square with a small loop at its last corner, crossing the first edge: rejected at every
+    // allowance, not only where the line built around it happens to fail its checks.
+    const bowTie = polygonPiece([p(0, 0), p(100, 0), p(100, 100), p(0, 100), p(5, -5)]);
+    for (const allowance of [0, 1, 5, 10, 15, 40, MAX_SEAM_ALLOWANCE]) {
+      const result = cuttingLine(bowTie, { default: allowance });
+      expect(result).toEqual({
+        ok: false,
+        errors: [
+          {
+            kind: "degenerate_geometry",
+            message: "The outline crosses itself, so it has no cutting line",
+          },
+        ],
+      });
+    }
     // An outline whose getter throws.
     degenerate({
       get outline(): never {
