@@ -18,13 +18,19 @@ defmodule ToileWeb.Layouts do
   `@current_scope` holds a user, and "Logga in" and "Registrera" otherwise.
   Pass `current_scope` from every page so the header matches the session.
 
-  The content column is `max-w-2xl`, sized for forms and lists. Pass `wide` for pages that
-  need the screen width, such as the pattern drawing; it widens the column to `max-w-7xl`.
+  The content column is `max-w-2xl`, sized for forms. Pass `list` for pages with a table, such
+  as "Mina mönster", which need room for their columns and action buttons; it widens the column
+  to `max-w-5xl`. Pass `wide` for pages that need the screen width, such as the pattern drawing;
+  it widens the column to `max-w-7xl`.
 
   ## Examples
 
       <Layouts.app flash={@flash} current_scope={@current_scope}>
         <h1>Content</h1>
+      </Layouts.app>
+
+      <Layouts.app flash={@flash} current_scope={@current_scope} list>
+        <.table id="items" rows={@items}>...</.table>
       </Layouts.app>
 
       <Layouts.app flash={@flash} current_scope={@current_scope} wide>
@@ -38,6 +44,7 @@ defmodule ToileWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
 
+  attr :list, :boolean, default: false, doc: "widens the content column for tables"
   attr :wide, :boolean, default: false, doc: "widens the content column for drawings"
 
   slot :inner_block, required: true
@@ -109,7 +116,7 @@ defmodule ToileWeb.Layouts do
     </header>
 
     <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div id="main-content" class={["mx-auto space-y-4", (@wide && "max-w-7xl") || "max-w-2xl"]}>
+      <div id="main-content" class={["mx-auto space-y-4", content_width(@wide, @list)]}>
         {render_slot(@inner_block)}
       </div>
     </main>
@@ -117,6 +124,10 @@ defmodule ToileWeb.Layouts do
     <.flash_group flash={@flash} />
     """
   end
+
+  defp content_width(true = _wide, _list), do: "max-w-7xl"
+  defp content_width(false, true = _list), do: "max-w-5xl"
+  defp content_width(false, false), do: "max-w-2xl"
 
   @doc """
   Shows the flash group with standard titles and content.
