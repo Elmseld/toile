@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { FunctionSpec } from "../formula/functions";
 import { compilePattern, compileWithFunctions, evaluatePattern } from "./evaluate";
+import { insidePolygon, outlinePolygon } from "./label";
+import { NOTCH_LENGTH, NOTCH_PAIR_SPACING } from "./notches";
 import type {
   CompiledPattern,
+  ComputedPiece,
   PatternError,
   PatternInput,
   PatternResult,
@@ -846,5 +849,292 @@ describe("compilePattern", () => {
     const compiled = compilePattern(raw);
     (raw.points as Json[]).push(start("B", 3, 4));
     expect(compiled.evaluate(NO_INPUT).points).toEqual({ A: { x: 1, y: 2 } });
+  });
+});
+
+describe("imports", () => {
+  const definition = def({
+    measurements: ["waist"],
+    imports: { armhole: "bodice.armhole_length" },
+    parameters: { ease: 10 },
+    formulas: { cap: "armhole + ease" },
+    points: [start("A", "armhole", 0), start("B", "waist", "cap")],
+  });
+
+  test("an imported value is usable in formulas and point fields", () => {
+    const result = evaluatePattern(definition, {
+      measurements: { waist: 700 },
+      imports: { armhole: 420, other: 1 },
+    });
+    expect(result).toMatchObject({ ok: true, values: { waist: 700, armhole: 420, ease: 10, cap: 430 } });
+    expect(Object.keys(result.values)).toEqual(["waist", "armhole", "ease", "cap"]);
+    expect(result.points.A).toEqual({ x: 420, y: 0 });
+    expect(result.points.B).toEqual({ x: 700, y: 430 });
+  });
+
+  test("a missing import is missing_import with its reference; dependants fail", () => {
+    const result = evaluatePattern(definition, { measurements: { waist: 700 } });
+    expect(errorsOf(result)).toEqual([
+      {
+        kind: "missing_import",
+        name: "armhole",
+        reference: "bodice.armhole_length",
+        message: expect.any(String),
+      },
+      expect.objectContaining({ kind: "failed_dependency", name: "cap", dependency: "armhole" }),
+      expect.objectContaining({ kind: "failed_dependency", name: "A", field: "x" }),
+      expect.objectContaining({ kind: "failed_dependency", name: "B", field: "y" }),
+    ]);
+    expect(result.values.armhole).toBeUndefined();
+  });
+
+  test("a non-finite import is invalid_value with source import", () => {
+    for (const value of [Number.NaN, Number.POSITIVE_INFINITY, "420", null]) {
+      const result = evaluatePattern(definition, {
+        measurements: { waist: 700 },
+        imports: { armhole: value as number },
+      });
+      expect(errorsOf(result)[0]).toEqual({
+        kind: "invalid_value",
+        name: "armhole",
+        source: "import",
+        message: expect.any(String),
+      });
+      expect(summary(result).slice(1)).toEqual([
+        "failed_dependency:cap",
+        "failed_dependency:A:x",
+        "failed_dependency:B:y",
+      ]);
+    }
+  });
+
+  test("an import named like a parameter is duplicate_name", () => {
+    const result = evaluatePattern(
+      def({ imports: { ease: "bodice.ease" }, parameters: { ease: 10 } }),
+      { measurements: {}, imports: { ease: 5 } },
+    );
+    expect(errorsOf(result)).toEqual([
+      { kind: "duplicate_name", name: "ease", sources: ["import", "parameter"], message: expect.any(String) },
+    ]);
+  });
+
+  test("an import used as a point is wrong_reference_kind", () => {
+    const result = evaluatePattern(
+      def({ imports: { armhole: "bodice.armhole_length" }, points: [{ name: "B", op: "midpoint", from: "armhole", to: "armhole" }] }),
+      { measurements: {}, imports: { armhole: 5 } },
+    );
+    expect(errorsOf(result)).toEqual([
+      expect.objectContaining({
+        kind: "wrong_reference_kind",
+        name: "B",
+        field: "from",
+        reference: "armhole",
+        expected: "point",
+        actual: "value",
+      }),
+    ]);
+  });
+
+  test("value errors come in the order measurements, imports, parameters", () => {
+    const result = evaluatePattern(
+      def({ parameters: { ease: Number.NaN }, imports: { armhole: "bodice.armhole_length" }, measurements: ["waist"] }),
+      { measurements: {} },
+    );
+    expect(summary(result)).toEqual([
+      "missing_measurement:waist",
+      "missing_import:armhole",
+      "invalid_value:ease",
+    ]);
+  });
+
+  test("unreadable imports count as none", () => {
+    const hostile = {
+      measurements: { waist: 700 },
+      get imports(): never {
+        throw new Error("boom");
+      },
+    };
+    const result = evaluatePattern(definition, hostile as unknown as PatternInput);
+    expect(summary(result)[0]).toBe("missing_import:armhole");
+  });
+});
+
+describe("notches", () => {
+  // A 100 x 50 rectangle: clockwise on screen (right, down, left, up), or counter-clockwise.
+  const rectangle = (notches: unknown[], clockwise = true): Json => {
+    const corners = clockwise ? ["A", "B", "C", "D"] : ["A", "D", "C", "B"];
+    const curves = corners.map((from, i) => line(`e${i}`, from, corners[(i + 1) % 4]!));
+    return def({
+      points: [start("A", 0, 0), start("B", 100, 0), start("C", 100, 50), start("D", 0, 50)],
+      curves,
+      pieces: [{ ...piece("p", curves.map((c) => String(c.name)), "A", "C"), notches }],
+    });
+  };
+  const pieceOf = (definition: Json): ComputedPiece => {
+    const result = evaluatePattern(definition, NO_INPUT);
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    return result.pieces.p!;
+  };
+  const expectPoint = (actual: { x: number; y: number }, x: number, y: number, digits = 9) => {
+    expect(actual.x).toBeCloseTo(x, digits);
+    expect(actual.y).toBeCloseTo(y, digits);
+  };
+
+  test("a piece without notches gets notches: []", () => {
+    expect(pieceOf(rectangle([])).notches).toEqual([]);
+    const plain = evaluatePattern(
+      def({ points: [start("A", 0, 0), start("B", 1, 0)], curves: [line("ab", "A", "B"), line("ba", "B", "A")], pieces: [piece("p", ["ab", "ba"], "A", "B")] }),
+      NO_INPUT,
+    );
+    expect(plain.pieces.p?.notches).toEqual([]);
+  });
+
+  test("distance 0 is the start of the curve, which owns the corner", () => {
+    const [notch] = pieceOf(rectangle([{ curve: "e1", distance: "0" }])).notches;
+    expectPoint(notch!.point, 100, 0);
+    // On e1 (going down from B), so the mark points left into the piece.
+    expect(notch!.marks).toEqual([{ from: { x: 100, y: 0 }, to: { x: 100 - NOTCH_LENGTH, y: 0 } }]);
+  });
+
+  test("a distance exactly at a junction belongs to the following curve", () => {
+    const [notch] = pieceOf(rectangle([{ curve: "e0", distance: "100" }])).notches;
+    expectPoint(notch!.point, 100, 0);
+    expectPoint(notch!.marks[0]!.to, 100 - NOTCH_LENGTH, 0);
+  });
+
+  test("a distance runs on into the following curves, cyclically", () => {
+    const notches = pieceOf(
+      rectangle([
+        { curve: "e0", distance: "130" },
+        { curve: "e3", distance: "60" },
+      ]),
+    ).notches;
+    expectPoint(notches[0]!.point, 100, 30);
+    expectPoint(notches[1]!.point, 10, 0);
+  });
+
+  test("marks point into the piece for clockwise and counter-clockwise outlines", () => {
+    for (const clockwise of [true, false]) {
+      const definition = rectangle(
+        [0, 1, 2, 3].map((i) => ({ curve: `e${i}`, distance: "20" })),
+        clockwise,
+      );
+      const computed = pieceOf(definition);
+      const polygon = outlinePolygon(computed);
+      for (const notch of computed.notches) {
+        const [mark] = notch.marks;
+        expect(Math.hypot(mark!.to.x - mark!.from.x, mark!.to.y - mark!.from.y)).toBeCloseTo(NOTCH_LENGTH, 9);
+        expect(insidePolygon(polygon, mark!.to.x, mark!.to.y)).toBe(true);
+      }
+    }
+  });
+
+  test("a double notch has two marks NOTCH_PAIR_SPACING apart, centred on the point", () => {
+    const [notch] = pieceOf(rectangle([{ curve: "e0", distance: "50", marks: 2 }])).notches;
+    expectPoint(notch!.point, 50, 0);
+    expect(notch!.marks).toHaveLength(2);
+    const [a, b] = notch!.marks;
+    expectPoint(a!.from, 50 - NOTCH_PAIR_SPACING / 2, 0);
+    expectPoint(b!.from, 50 + NOTCH_PAIR_SPACING / 2, 0);
+    expectPoint(a!.to, 50 - NOTCH_PAIR_SPACING / 2, NOTCH_LENGTH);
+    expectPoint(b!.to, 50 + NOTCH_PAIR_SPACING / 2, NOTCH_LENGTH);
+  });
+
+  test("a curve of zero length is skipped", () => {
+    const definition = def({
+      points: [start("A", 0, 0), start("B", 100, 0), start("B2", 100, 0), start("C", 100, 50)],
+      curves: [line("ab", "A", "B"), line("bb", "B", "B2"), line("bc", "B2", "C"), line("ca", "C", "A")],
+      pieces: [{ ...piece("p", ["ab", "bb", "bc", "ca"], "A", "C"), notches: [{ curve: "bb", distance: "10" }, { curve: "ab", distance: "100" }] }],
+    });
+    const notches = pieceOf(definition).notches;
+    expectPoint(notches[0]!.point, 100, 10);
+    // At the junction the following curve with a length owns the notch: the mark points left.
+    expectPoint(notches[1]!.point, 100, 0);
+    expectPoint(notches[1]!.marks[0]!.to, 100 - NOTCH_LENGTH, 0);
+  });
+
+  const cubicPiece = (controls: [number, number][], distance: string): Json => {
+    const [p0, p1, p2, p3] = controls;
+    return def({
+      points: [start("P0", ...p0!), start("P1", ...p1!), start("P2", ...p2!), start("P3", ...p3!)],
+      curves: [
+        { name: "arc", type: "cubic", from: "P0", c1: "P1", c2: "P2", to: "P3" },
+        line("back", "P3", "P0"),
+      ],
+      pieces: [{ ...piece("p", ["arc", "back"], "P0", "P3"), notches: [{ curve: "arc", distance }] }],
+    });
+  };
+
+  test("a notch on a straight cubic with evenly spaced controls lies at the exact arc length", () => {
+    const [notch] = pieceOf(cubicPiece([[0, 0], [30, 0], [60, 0], [90, 10]], "0")).notches;
+    expectPoint(notch!.point, 0, 0);
+    const straight = pieceOf(
+      def({
+        points: [start("P0", 0, 0), start("P1", 30, 0), start("P2", 60, 0), start("P3", 90, 0), start("Q", 45, 40)],
+        curves: [{ name: "arc", type: "cubic", from: "P0", c1: "P1", c2: "P2", to: "P3" }, line("a", "P3", "Q"), line("b", "Q", "P0")],
+        pieces: [{ ...piece("p", ["arc", "a", "b"], "P0", "P3"), notches: [{ curve: "arc", distance: "37.5" }] }],
+      }),
+    );
+    expectPoint(straight.notches[0]!.point, 37.5, 0, 3);
+  });
+
+  test("a notch on a quarter-circle cubic lies at the arc length within 0.01 mm", () => {
+    const k = 0.5522847498 * 100;
+    const computed = pieceOf(cubicPiece([[100, 0], [100, k], [k, 100], [0, 100]], "length(arc) / 2"));
+    // Half way along the symmetric arc is on the diagonal, at radius ~100.
+    const { point } = computed.notches[0]!;
+    expect(Math.abs(point.x - point.y)).toBeLessThan(0.01);
+    expect(Math.hypot(point.x, point.y)).toBeCloseTo(100, 1);
+    const polygon = outlinePolygon(computed);
+    const mark = computed.notches[0]!.marks[0]!;
+    expect(insidePolygon(polygon, mark.to.x, mark.to.y)).toBe(true);
+  });
+
+  test("a notch distance may use length() and other values", () => {
+    const definition = rectangle([{ curve: "e0", distance: "length(e0) - length(e1) / 5" }]);
+    expectPoint(pieceOf(definition).notches[0]!.point, 90, 0);
+  });
+
+  test("a notch curve that is not in the outline is invalid_notch when compiling, whatever the input", () => {
+    const definition = def({
+      measurements: ["w"],
+      points: [start("A", 0, 0), start("B", "w", 0), start("C", 0, 30)],
+      curves: [line("ab", "A", "B"), line("bc", "B", "C"), line("ca", "C", "A"), line("other", "A", "C")],
+      pieces: [{ ...piece("p", ["ab", "bc", "ca"], "A", "C"), notches: [{ curve: "ab", distance: "0" }, { curve: "other", distance: "0" }] }],
+    });
+    for (const input of [{ measurements: { w: 100 } }, NO_INPUT]) {
+      const errors = errorsOf(evaluatePattern(definition, input));
+      expect(errors).toContainEqual({ kind: "invalid_notch", name: "p", field: "notches/1/curve", message: expect.any(String) });
+    }
+    expect(evaluatePattern(definition, { measurements: { w: 100 } }).pieces.p).toBeUndefined();
+  });
+
+  test("a negative distance or one of the outline length or more is invalid_notch on the distance", () => {
+    expect(pieceOf(rectangle([{ curve: "e0", distance: "299.99" }])).notches).toHaveLength(1);
+    for (const distance of ["-0.001", "-1", "300", "301"]) {
+      const result = evaluatePattern(rectangle([{ curve: "e0", distance }]), NO_INPUT);
+      expect(summary(result)).toEqual(["invalid_notch:p:notches/0/distance"]);
+      expect(result.pieces.p).toBeUndefined();
+    }
+  });
+
+  test("errors in a notch distance carry its field", () => {
+    expect(summary(evaluatePattern(rectangle([{ curve: "e0", distance: "1 +" }]), NO_INPUT))).toEqual([
+      "syntax:p:notches/0/distance",
+    ]);
+    expect(summary(evaluatePattern(rectangle([{ curve: "e0", distance: "nope" }]), NO_INPUT))).toEqual([
+      "unknown_reference:p:notches/0/distance",
+    ]);
+    expect(summary(evaluatePattern(rectangle([{ curve: "e0", distance: "length(A)" }]), NO_INPUT))).toEqual([
+      "wrong_reference_kind:p:notches/0/distance",
+    ]);
+  });
+
+  test("a notch distance that depends on a failed value fails the piece", () => {
+    const definition = { ...rectangle([{ curve: "e0", distance: "m" }]), measurements: ["m"] };
+    expect(summary(evaluatePattern(definition, NO_INPUT))).toEqual([
+      "missing_measurement:m",
+      "failed_dependency:p:notches/0/distance",
+    ]);
   });
 });

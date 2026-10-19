@@ -4,6 +4,7 @@
 export type {
   CompiledPattern,
   ComputedCurve,
+  ComputedNotch,
   ComputedPattern,
   ComputedPiece,
   CurveDefinition,
@@ -11,6 +12,8 @@ export type {
   ElementError,
   ElementSource,
   EvaluateOptions,
+  NotchDefinition,
+  NotchMark,
   OutlineEntry,
   PatternDefinition,
   PatternError,
@@ -29,6 +32,7 @@ export {
   type LabelPlacement,
   placeLabel,
 } from "./label";
+export { NOTCH_LENGTH, NOTCH_PAIR_SPACING } from "./notches";
 export { type Bounds, curvePathData, formatNumber, patternBounds, piecePathData } from "./svg";
 export {
   MAX_OUTLINE_ENTRIES,
