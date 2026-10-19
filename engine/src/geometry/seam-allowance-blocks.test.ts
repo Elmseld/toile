@@ -122,17 +122,18 @@ describe("cutting line of the blocks over the whole line", () => {
   });
 });
 
-describe("known visual defects of the dart peak", () => {
-  // The skirt back's waist is untrued: the closed dart leaves a 25 degree bend next to the
-  // dart leg, 0.1 x allowance before the crossing with the leg. The flap reflects that bend into
-  // a jog (about 0.02 x allowance deep) next to the peak. These tests document that; when the
-  // jog is removed they start passing and `test.failing` makes them fail: change them to `test`.
+describe("no jog next to the dart peak", () => {
+  // The skirt back's waist is untrued: the closed dart leaves a 25 degree bend next to the dart
+  // leg, 0.1 x allowance before the crossing with the leg. Reflected with the flap, that bend
+  // would make a jog next to the peak; the construction moves it onto the fold (DART_BEND_SNAP).
   for (const [profile, measurements] of Object.entries(PROFILES)) {
-    test.failing(`the skirt back cutting line has no jog next to the dart peak at ${profile}`, () => {
-      const piece = piecesOf("straight_skirt", measurements).find(([n]) => n === "back")![1];
-      const sign = Math.sign(polygonArea(piece.outline.map((edge) => edge.from)));
-      expect(jogs(lineOf(piece, { default: 15 }), sign, 15)).toEqual([]);
-    });
+    for (const a of [...ALLOWANCES, 40]) {
+      test(`the skirt back at ${profile}, allowance ${a}: no jog next to the dart peak`, () => {
+        const piece = piecesOf("straight_skirt", measurements).find(([n]) => n === "back")![1];
+        const sign = Math.sign(polygonArea(piece.outline.map((edge) => edge.from)));
+        expect(jogs(lineOf(piece, { default: a }), sign, a)).toEqual([]);
+      });
+    }
   }
 
   test("the jog detector finds nothing on the other block pieces", () => {

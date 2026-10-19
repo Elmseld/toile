@@ -16,6 +16,7 @@ import {
   joinStrands,
   offsetEdge,
   reverseEdge,
+  SMOOTH_JOIN_ANGLE,
 } from "./offset";
 import {
   add,
@@ -35,6 +36,11 @@ import {
 export const MAX_DART_ANGLE = 60;
 /** Dart legs must be equal within the larger of `mm` and `ratio` times the longer leg. */
 export const DART_LEG_TOLERANCE = { mm: 1, ratio: 0.02 } as const;
+/**
+ * A bend of the closed cutting line on S1's side of the fold, within this ratio of the larger
+ * allowance of the fold, is moved onto the fold (see dartCuttingLine).
+ */
+export const DART_BEND_SNAP = 0.25;
 
 /** A dart found in an outline; indices are outline positions. */
 export type Dart = {
@@ -99,7 +105,13 @@ export function findDarts(outline: readonly Edge[], sign: number): Dart[] {
  * the flattening step counts of the two seams. When the seam before the dart is too short to
  * reach the flap's far edge, it is extended straight backwards along its start tangent to find
  * that edge (an approximation; the line still starts at the seam's offset start). Legs of unequal
- * length (within DART_LEG_TOLERANCE) are matched at their top ends X and Y. `null` when the
+ * length (within DART_LEG_TOLERANCE) are matched at their top ends X and Y. When the closed seam
+ * bends at X (an untrued seam) and the bend of the closed cutting line lies on S1's side of the
+ * fold, within DART_BEND_SNAP times the larger allowance of it, the layer at leg A-X would carry
+ * the bend twice (once, then mirrored) as a jog of about 1 mm segments. There the cut of that
+ * layer runs straight from the bend to the mirrored flap beyond the mirrored bend, as if the bend
+ * were on the fold; this cuts the allowance short by a few hundredths of it at most. The layer at
+ * leg A-Y and the seam after the dart keep the exact closed cut. `null` when the
  * construction fails (no crossing of the closed cutting line with the dart's leg line or flap
  * edge); the caller then treats the dart's edges as ordinary edges.
  */
@@ -174,7 +186,8 @@ function pressedBefore(
 
   const off1 = offsetEdge(dart.s1, a1, sign, segments.s1);
   const off2 = offsetEdge(dart.s2, a2, sign, segments.s2).map(close);
-  const joined = joinStrands(off1, off2, x, end1, a1, turn(start2), a2, sign);
+  const closedStart2 = turn(start2);
+  const joined = joinStrands(off1, off2, x, end1, a1, closedStart2, a2, sign);
   const frame = [...joined.a, ...joined.b];
 
   const p = nearestLineCrossing(frame, apex, x);
@@ -185,12 +198,27 @@ function pressedBefore(
   // The flap's far edge: the ray from A half the dart angle beyond A -> X, on S1's side.
   const bisector = unit(add(toX, toY)) ?? toX;
   const edge = turn(bisector);
-  const flap = flapCut(before, apex, edge, start1);
-  if (flap === null) return null;
+  const cut = flapCut(before, apex, edge, start1);
+  if (cut === null) return null;
+  const flap = [cut.hit, ...before.slice(cut.from)];
+
+  // The bend of the closed cutting line: the first point of the corner join (the end of S1's
+  // offset, or the concave join point that replaced it).
+  const bend = Math.min(off1.length - 1, joined.a.length - 1);
+  const bent =
+    Math.atan2(Math.abs(cross(end1, closedStart2)), dot(end1, closedStart2)) >
+    (SMOOTH_JOIN_ANGLE * Math.PI) / 180;
+  const snap =
+    bent &&
+    p.segment >= joined.a.length - 1 &&
+    distance(frame[bend]!, p.point) <= DART_BEND_SNAP * Math.max(a1, a2);
+  // Snapped, the layer at leg A-X runs from the bend straight to the mirrored flap beyond it.
+  const layer1 = snap ? before.slice(0, bend + 1) : before;
+  const mirrored = snap ? [cut.hit, ...before.slice(cut.from, Math.max(cut.from, bend))] : flap;
 
   return [
-    ...before,
-    ...[...flap].reverse().map((point) => reflectAcross(point, apex, x)),
+    ...layer1,
+    ...[...mirrored].reverse().map((point) => reflectAcross(point, apex, x)),
     ...flap.map(open),
     ...after.map(open),
   ];
@@ -220,14 +248,14 @@ function nearestLineCrossing(
 }
 
 // The part of `before` (the closed cutting line up to P) over the flap: from its last crossing
-// with the ray from `apex` along `direction` to its end. When it does not reach the ray, its
-// start is extended backwards along `startTangent` to meet it.
+// `hit` with the ray from `apex` along `direction`, then `before` from index `from` on. When it
+// does not reach the ray, its start is extended backwards along `startTangent` to meet it.
 function flapCut(
   before: readonly Point[],
   apex: Point,
   direction: Point,
   startTangent: Point,
-): Point[] | null {
+): { hit: Point; from: number } | null {
   const far = add(apex, direction);
   for (let k = before.length - 2; k >= 0; k--) {
     const p = before[k]!;
@@ -236,11 +264,11 @@ function flapCut(
     if (hit === null) continue;
     const along = dot(sub(hit, p), sub(q, p)) / dot(sub(q, p), sub(q, p));
     if (along < 0 || along > 1 || dot(sub(hit, apex), direction) < 0) continue;
-    return [hit, ...before.slice(k + 1)];
+    return { hit, from: k + 1 };
   }
   const first = before[0]!;
   const hit = intersectLines(first, add(first, startTangent), apex, far);
   if (hit === null) return null;
   if (dot(sub(hit, first), startTangent) > 0 || dot(sub(hit, apex), direction) < 0) return null;
-  return [hit, ...before];
+  return { hit, from: 0 };
 }

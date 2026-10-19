@@ -168,6 +168,60 @@ describe("dartCuttingLine on an asymmetric dart (F)", () => {
   });
 });
 
+describe("dartCuttingLine next to an untrued seam", () => {
+  // S2 rises away from the dart: closed, the seam bends at X, and the bend of the closed cutting
+  // line lies on S1's side of the fold, just before it.
+  const outline = polygon([
+    p(-200, 0),
+    p(-W, 0),
+    p(0, H),
+    p(W, 0),
+    p(200, -40),
+    p(200, 300),
+    p(-200, 300),
+  ]);
+  const [dart] = findDarts(outline, 1);
+
+  /** The turn (degrees) at each inner point of an open polyline, merging repeated points. */
+  function turns(points: readonly Point[]): { at: Point; turn: number; next: number }[] {
+    const line = points.filter((point, i) => i === 0 || distance(point, points[i - 1]!) > 1e-9);
+    const result: { at: Point; turn: number; next: number }[] = [];
+    for (let i = 1; i + 1 < line.length; i++) {
+      const u = sub(line[i]!, line[i - 1]!);
+      const v = sub(line[i + 1]!, line[i]!);
+      const turn = (Math.atan2(cross(u, v), u.x * v.x + u.y * v.y) * 180) / Math.PI;
+      result.push({ at: line[i]!, turn, next: distance(line[i]!, line[i + 1]!) });
+    }
+    return result;
+  }
+
+  for (const press of ["before", "after"] as const) {
+    for (const a of [5, 10, 25, 40]) {
+      test(`pressed ${press} at allowance ${a}: no jog next to the peak`, () => {
+        const line = dartCuttingLine(dart!, a, a, 1, press)!;
+        expect(line).not.toBeNull();
+        const found = turns(line);
+        found.forEach((current, i) => {
+          const next = found[i + 1];
+          if (next === undefined || current.next >= 0.15 * a) return;
+          const opposite = current.turn * next.turn < 0;
+          expect(opposite && Math.abs(current.turn) > 10 && Math.abs(next.turn) > 10).toBe(false);
+        });
+      });
+    }
+  }
+
+  test("pressed before, the layer at leg A-X runs straight from S1's offset to the peak", () => {
+    const line = dartCuttingLine(dart!, A, A, 1)!;
+    const peak = line.findIndex((point) => Math.abs(point.x) < 1e-9);
+    expect(peak).toBe(2);
+    // The bend on S1's offset line, before the fold.
+    expect(Math.abs(line[1]!.y + A)).toBeLessThan(1e-9);
+    expect(lineDistance(line[1]!, dart!.apex, dart!.x)).toBeGreaterThan(0);
+    expect(line[1]!.x).toBeLessThan(dart!.x.x - (A * W) / H);
+  });
+});
+
 describe("findDarts (G)", () => {
   test("finds a dart in both outline directions and at the wrap-around", () => {
     const outline = dartedRectangle();
