@@ -929,6 +929,33 @@ describe("input robustness (N)", () => {
     });
   });
 
+  test("inherited default and edges are not read", () => {
+    const inheritedDefault = call(Object.create({ default: 10 }));
+    expect(inheritedDefault.ok ? null : inheritedDefault.errors).toEqual([
+      {
+        kind: "invalid_seam_allowance",
+        message: `The default seam allowance must be a number from 0 to ${MAX_SEAM_ALLOWANCE} mm`,
+      },
+    ]);
+    const inheritedEdges = Object.create({ edges: { e0: 50 } });
+    inheritedEdges.default = 10;
+    expect(points(call(inheritedEdges))).toEqual(points(call({ default: 10 })));
+    const inheritedBadEdges = Object.create({ edges: { e0: -1 } });
+    inheritedBadEdges.default = 10;
+    expect(call(inheritedBadEdges).ok).toBe(true);
+    const inheritedEntry = { default: 10, edges: Object.create({ e0: -1 }) };
+    expect(call(inheritedEntry).ok).toBe(true);
+    const hasOwnThrows = new Proxy(
+      { default: 10 },
+      {
+        getOwnPropertyDescriptor: () => {
+          throw new Error("no");
+        },
+      },
+    );
+    expect(call(hasOwnThrows).ok).toBe(false);
+  });
+
   test("getters that throw are reported, not thrown", () => {
     const throwingDefault = Object.defineProperty({}, "default", {
       enumerable: true,

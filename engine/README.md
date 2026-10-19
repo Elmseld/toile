@@ -206,7 +206,8 @@ cuttingLine(piece, { default: 10, edges: { b_hem: 40, b_cb: 0 } })
 
 - **Input.** `allowances.default` applies to every outline edge not listed in `edges`, which is
   keyed by curve name. Values are mm, finite, `0` to `MAX_SEAM_ALLOWANCE` (100). `0` puts the line
-  on the edge (a fold). Names not in the piece are ignored. Every invalid value is its own
+  on the edge (a fold). Names not in the piece are ignored. Only own properties are read (an
+  inherited `default` or `edges` counts as missing). Every invalid value is its own
   `invalid_seam_allowance` error (`edge` names the curve; none for the default) and no line is
   returned. Allowances are not part of the pattern definition; the caller stores them.
 - **Result.** `points` is a closed, simple polygon in mm (SVG coordinates, last point not

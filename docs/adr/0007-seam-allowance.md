@@ -13,7 +13,8 @@ Block definitions have no allowances (ADR 0004) and are frozen for this ticket.
   definition and not part of `evaluatePattern`, so the drag path is unchanged. 0015 stores them.
 - **Input.** `{ default, edges? }` in mm, each value finite and `0 <= v <= MAX_SEAM_ALLOWANCE`
   (100). Edges are keyed by curve name (stable identifiers, ADR 0004). `0` puts the cutting line on
-  the edge (a fold). Names not in the piece are ignored, so one map serves every piece. Every
+  the edge (a fold). Names not in the piece are ignored, so one map serves every piece. Only own
+  properties are read (an inherited `default` or `edges` counts as missing). Every
   invalid value gets its own `invalid_seam_allowance` error, and no line is returned. Errors are
   capped: a map with more than `MAX_SECTION_ENTRIES` (20 000) edges is one error, at most
   `MAX_ALLOWANCE_ERRORS` (100) errors are returned, and curve names are cut to 80 characters in

@@ -462,7 +462,7 @@ type ReadAllowances =
   | { ok: true; default: number; edges: Map<string, number> }
   | { ok: false; errors: CuttingLineError[] };
 
-// The allowances, read without trusting their shape: own enumerable keys only, every read in a
+// The allowances, read without trusting their shape: own properties only, every read in a
 // try block, values looked up through a Map (no prototype access).
 function readAllowances(input: unknown): ReadAllowances {
   if (typeof input !== "object" || input === null) {
@@ -525,8 +525,11 @@ function shortName(name: string): string {
   return name.length > MAX_NAME_IN_MESSAGE ? `${name.slice(0, MAX_NAME_IN_MESSAGE)}...` : name;
 }
 
+// An own property only: an inherited `default` or `edges` (a prototype chain, a polluted
+// Object.prototype) reads as missing. Object.hasOwn can throw on a Proxy, hence the try block.
 function readField(source: unknown, key: string): { ok: boolean; value: unknown } {
   try {
+    if (!Object.hasOwn(source as object, key)) return { ok: true, value: undefined };
     return { ok: true, value: (source as Record<string, unknown>)[key] };
   } catch {
     return { ok: false, value: undefined };
