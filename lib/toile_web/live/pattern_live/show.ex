@@ -40,10 +40,13 @@ defmodule ToileWeb.PatternLive.Show do
   may add up to, in bytes of encoded JSON, and the server rejects a larger save. Saves from two
   tabs replace each other: the last one wins.
 
-  Choosing another profile in `#profile-form` saves it on the project. The hook element stays
-  (there is no wrapper keyed by the profile any more), so the edit history survives; its
-  `updated()` callback redraws when `data-key` or `data-input` changes (LiveView still patches
-  the attributes of a `phx-update="ignore"` element). A rejected profile (not the user's own)
+  Choosing another profile in `#profile-form` saves it on the project. Between profiles that have
+  every measurement the pattern needs, the hook element stays (there is no wrapper keyed by the
+  profile any more), so the edit history survives; its `updated()` callback redraws when
+  `data-key` or `data-input` changes (LiveView still patches the attributes of a
+  `phx-update="ignore"` element). A profile with missing measurements replaces the canvas with
+  `#missing-measurements`, which removes the hook and its history; the hook sends a commit that is
+  not stored yet once more as it goes. A rejected profile (not the user's own)
   reloads the page with an error, so the select shows the stored profile again. Another user's
   project id raises `Ecto.NoResultsError` (404) through the scoped context.
   """

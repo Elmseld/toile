@@ -10,10 +10,20 @@
 //     the drawing always shows the last good state and every saved state draws.
 //   * During a drag each pointer move does one evaluation with the dragged offset, in a
 //     requestAnimationFrame, and the labels keep their place. Nothing is sent to the server.
+//   * Typing in a formula or parameter field works the same way: the keystrokes of a frame are
+//     evaluated once, in a requestAnimationFrame, and drawn with the labels where they are. The
+//     labels (placeLabel, several ms per piece) are placed again once typing pauses for
+//     LABEL_DELAY_MS, or at once on the field's `change`. A drag cancels a pending placement and
+//     places the labels at its end.
 //   * A commit (drag end, a field's `change`, offset reset, undo, redo) pushes the working state
-//     onto the history and saves it with the `save_pattern` hook event. Replies come back in
-//     order; `revision`/`savedRevision` tell whether the last commit is stored, and
-//     `resendIfUnsaved()` (called on reconnect) saves it again if not.
+//     onto the history and saves it with the `save_pattern` hook event. One save is in flight at
+//     a time: commits made meanwhile only bump `revision`, and the reply sends the history's
+//     present state if it is newer, so holding down undo sends a few saves, not one per step.
+//     `revision`/`savedRevision` tell whether the last commit is stored. `resendIfUnsaved()`
+//     (called on reconnect) saves it again if not, at most MAX_RESENDS times in a row with a
+//     growing delay, so a save that keeps failing does not loop. A save larger than the hook's
+//     `data-max-save-bytes` is not sent (the server would drop the connection) and shows as
+//     failed. When the editor is destroyed with a commit not stored, it is sent once more.
 
 import {
   canRedo,
@@ -32,19 +42,18 @@ import {
   setUserOffset,
   undo,
 } from "../../../engine/src/index"
+import {encodedBytes, parseJSON} from "../json"
 import {Handles, hitRadius} from "./handles"
 import {Panels, errorText} from "./panels"
 
 /** A press that moves less than this many pixels only selects the point. */
 const DRAG_THRESHOLD_PX = 3
-
-function parseJSON(text, fallback) {
-  try {
-    return JSON.parse(text ?? "")
-  } catch {
-    return fallback
-  }
-}
+/** How long typing must pause before the labels are placed again. */
+const LABEL_DELAY_MS = 150
+/** Resends of an unsaved commit after reconnects before giving up until the next commit. */
+const MAX_RESENDS = 3
+/** The delay before the first resend after a reconnect; it doubles with each further one. */
+const RESEND_DELAY_MS = 500
 
 function isObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -96,13 +105,16 @@ export class PatternEditor {
     const parsed = parseJSON(hook.el.dataset.texts, {})
     const texts = isObject(parsed) ? parsed : {}
     const parameters = isObject(input?.parameters) ? input.parameters : {}
-    return new PatternEditor({hook, aside, texts, definition, parameters})
+    const cap = Number(hook.el.dataset.maxSaveBytes)
+    const maxSaveBytes = Number.isFinite(cap) && cap > 0 ? cap : Infinity
+    return new PatternEditor({hook, aside, texts, definition, parameters, maxSaveBytes})
   }
 
-  constructor({hook, aside, texts, definition, parameters}) {
+  constructor({hook, aside, texts, definition, parameters, maxSaveBytes = Infinity}) {
     this.hook = hook
     this.aside = aside
     this.texts = texts
+    this.maxSaveBytes = maxSaveBytes
     this.panels = new Panels(aside, texts)
     this.handles = new Handles(definition, controlPoints(definition))
 
@@ -117,6 +129,16 @@ export class PatternEditor {
     this.drag = null
     this.revision = 0
     this.savedRevision = 0
+    // Saves sent and not answered yet, resends since the last stored save, a scheduled resend.
+    this.inFlight = 0
+    this.resends = 0
+    this.resendTimer = null
+    // The field typed in since the last evaluation, and the frame that will evaluate it.
+    this.pendingInput = null
+    this.inputFrame = null
+    // Whether the drawn labels belong to an earlier result, and the timer that places them again.
+    this.labelsStale = false
+    this.labelTimer = null
     this.destroyed = false
 
     this.onClick = event => this.click(event)
@@ -129,10 +151,20 @@ export class PatternEditor {
     window.addEventListener("keydown", this.onKeyDown)
   }
 
+  /**
+   * Stops the editor. Typing not evaluated yet is evaluated and committed, and a commit that is
+   * not stored is sent once more (unless a save is still in flight: its reply sends it).
+   */
   destroy() {
-    this.destroyed = true
+    this.flushInput()
     if (this.drag?.frame != null) cancelAnimationFrame(this.drag.frame)
     this.drag = null
+    this.commit()
+    this.destroyed = true
+    if (this.resendTimer !== null) clearTimeout(this.resendTimer)
+    this.resendTimer = null
+    this.cancelLabels()
+    if (this.savedRevision < this.revision && this.inFlight === 0) this.send()
     this.aside.removeEventListener("click", this.onClick)
     this.aside.removeEventListener("input", this.onInput)
     this.aside.removeEventListener("change", this.onChange)
@@ -148,6 +180,10 @@ export class PatternEditor {
    */
   load(input) {
     this.cancelDrag()
+    this.flushInput()
+    // The hook draws the result anew, labels included.
+    this.cancelLabels()
+    this.labelsStale = false
     if (!isObject(input)) return null
     this.measurements = isObject(input.measurements) ? input.measurements : {}
     const result = this.evaluate(this.state)
@@ -165,23 +201,49 @@ export class PatternEditor {
     return offsets ? this.compiled.evaluate(input, {offsets}) : this.compiled.evaluate(input)
   }
 
+  /** Draws `result`; with labels "keep" the labels stay where they are until placeLabels(). */
   show(result, labels = "place") {
     this.result = result
+    if (labels === "place") this.cancelLabels()
+    this.labelsStale = labels !== "place"
     this.hook.update(result, {labels})
   }
 
   /**
-   * Makes `state` the working state if it evaluates without errors, and redraws. Returns the
-   * result either way; on errors nothing changes.
+   * Makes `state` the working state if it evaluates without errors, and redraws (with labels
+   * "keep" the labels are placed again after a pause). Returns the result either way; on errors
+   * nothing changes.
    */
-  accept(state) {
+  accept(state, labels = "place") {
     const result = this.evaluate(state)
     if (result.ok) {
       this.state = state
-      this.show(result)
+      this.show(result, labels)
+      if (labels !== "place") this.scheduleLabels()
       this.panels.setAlert(null)
     }
     return result
+  }
+
+  /** Places the labels again after LABEL_DELAY_MS, unless something places them before. */
+  scheduleLabels() {
+    this.cancelLabels()
+    this.labelTimer = setTimeout(() => {
+      this.labelTimer = null
+      this.placeLabels()
+    }, LABEL_DELAY_MS)
+  }
+
+  cancelLabels() {
+    if (this.labelTimer !== null) clearTimeout(this.labelTimer)
+    this.labelTimer = null
+  }
+
+  /** Places the labels for the drawn result now, if they belong to an earlier one. */
+  placeLabels() {
+    this.cancelLabels()
+    if (this.destroyed || this.drag || !this.labelsStale || !this.result) return
+    this.show(this.result)
   }
 
   // Called by the hook while it builds, moves and scales the drawing.
@@ -201,6 +263,7 @@ export class PatternEditor {
 
   /** Pushes the working state onto the history and saves it, if it changed. */
   commit() {
+    this.flushInput()
     if (this.state === this.history.present) return
     this.history = push(this.history, this.state)
     this.historyChanged()
@@ -241,11 +304,25 @@ export class PatternEditor {
     this.save()
   }
 
+  /** Saves the history's present state: now, or when the save in flight is answered. */
   save() {
     if (this.destroyed) return
-    const revision = ++this.revision
-    const {definition, parameters} = this.history.present
+    this.revision++
+    this.resends = 0
     this.panels.setStatus("saving")
+    if (this.inFlight === 0) this.send()
+  }
+
+  // Sends the history's present state as the current revision. A save over the size cap is not
+  // sent: it shows as failed and stays unsaved.
+  send() {
+    const revision = this.revision
+    const {definition, parameters} = this.history.present
+    if (encodedBytes(definition) + encodedBytes(parameters) > this.maxSaveBytes) {
+      if (!this.destroyed) this.panels.setStatus("failed")
+      return
+    }
+    this.inFlight++
     this.hook.pushEvent("save_pattern", {definition, parameters}).then(
       reply => this.saved(revision, reply?.ok === true),
       () => this.saved(revision, false),
@@ -253,15 +330,37 @@ export class PatternEditor {
   }
 
   saved(revision, ok) {
+    this.inFlight--
+    if (ok) {
+      this.savedRevision = Math.max(this.savedRevision, revision)
+      this.resends = 0
+    }
+    // Commits made while this save was in flight: send the newest state, once.
+    if (this.inFlight === 0 && revision < this.revision && this.savedRevision < this.revision) {
+      this.send()
+      return
+    }
     if (this.destroyed) return
-    if (ok) this.savedRevision = Math.max(this.savedRevision, revision)
     if (this.savedRevision >= this.revision) this.panels.setStatus("saved")
     else if (!ok && revision === this.revision) this.panels.setStatus("failed")
   }
 
-  /** Saves the present state again if the last save did not succeed (after a reconnect). */
+  /**
+   * Saves the present state again if the last commit is not stored (after a reconnect), after a
+   * delay that doubles with each resend. Gives up after MAX_RESENDS in a row without a stored
+   * save, until the next commit.
+   */
   resendIfUnsaved() {
-    if (this.savedRevision < this.revision) this.save()
+    if (this.destroyed || this.resendTimer !== null) return
+    if (this.savedRevision >= this.revision || this.resends >= MAX_RESENDS) return
+    const delay = RESEND_DELAY_MS * 2 ** this.resends
+    this.resends++
+    this.resendTimer = setTimeout(() => {
+      this.resendTimer = null
+      if (this.destroyed || this.savedRevision >= this.revision) return
+      this.panels.setStatus("saving")
+      this.send()
+    }, delay)
   }
 
   // ---- Selection ----
@@ -301,12 +400,15 @@ export class PatternEditor {
     if (name === null) return false
     this.cancelDrag()
     this.select(name)
+    // The labels are placed at the drag's end instead.
+    this.cancelLabels()
     this.drag = {
       name,
       start: offsetOf(this.selectedPoint()),
       grab: this.hook.toUser(event.clientX, event.clientY),
       client: {x: event.clientX, y: event.clientY},
       moved: false,
+      // The client position of the last move not evaluated yet.
       pending: null,
       offset: null,
       frame: null,
@@ -322,11 +424,7 @@ export class PatternEditor {
       if (distance < DRAG_THRESHOLD_PX) return
       drag.moved = true
     }
-    const at = this.hook.toUser(event.clientX, event.clientY)
-    drag.pending = roundOffset({
-      dx: drag.start.dx + at.x - drag.grab.x,
-      dy: drag.start.dy + at.y - drag.grab.y,
-    })
+    drag.pending = {x: event.clientX, y: event.clientY}
     if (drag.frame === null) {
       drag.frame = requestAnimationFrame(() => {
         drag.frame = null
@@ -338,9 +436,14 @@ export class PatternEditor {
   // One evaluation with the dragged offset. A position the pattern cannot be drawn with is
   // skipped: the drawing (and the offset that will be committed) stays the last good one.
   flushDrag(drag) {
-    const offset = drag.pending
-    if (!offset || drag !== this.drag) return
+    const client = drag.pending
+    if (!client || drag !== this.drag) return
     drag.pending = null
+    const at = this.hook.toUser(client.x, client.y)
+    const offset = roundOffset({
+      dx: drag.start.dx + at.x - drag.grab.x,
+      dy: drag.start.dy + at.y - drag.grab.y,
+    })
     const result = this.evaluate(this.state, {[drag.name]: offset})
     if (!result.ok) return
     drag.offset = offset
@@ -355,7 +458,10 @@ export class PatternEditor {
     drag.frame = null
     this.flushDrag(drag)
     this.drag = null
-    if (!drag.moved) return
+    if (!drag.moved) {
+      this.placeLabels()
+      return
+    }
 
     const state = drag.offset
       ? withDefinition(this.state, this.offsetDefinition(drag))
@@ -388,6 +494,7 @@ export class PatternEditor {
     this.drag = null
     if (drag.frame !== null) cancelAnimationFrame(drag.frame)
     if (drag.offset) this.restore("keep")
+    if (this.labelsStale) this.scheduleLabels()
   }
 
   // Draws the working state again, if it draws.
@@ -405,9 +512,28 @@ export class PatternEditor {
     else if (target?.closest("#reset-offset")) this.resetOffset()
   }
 
+  // Keystrokes are evaluated once per frame (flushInput); typing in another field first
+  // evaluates the one before.
   input(event) {
     const target = event.target
     if (!(target instanceof HTMLInputElement)) return
+    if (this.pendingInput && this.pendingInput !== target) this.flushInput()
+    this.pendingInput = target
+    if (this.inputFrame === null) {
+      this.inputFrame = requestAnimationFrame(() => {
+        this.inputFrame = null
+        this.flushInput()
+      })
+    }
+  }
+
+  /** Evaluates the field typed in since the last evaluation, if any. */
+  flushInput() {
+    if (this.inputFrame !== null) cancelAnimationFrame(this.inputFrame)
+    this.inputFrame = null
+    const target = this.pendingInput
+    this.pendingInput = null
+    if (!target?.isConnected || this.destroyed) return
     if (target.dataset.field) this.formulaInput(target.dataset.field, target.value)
     else {
       const row = this.parameterRow(target)
@@ -421,11 +547,13 @@ export class PatternEditor {
       this.select(target.value || null)
     } else if (target instanceof HTMLInputElement && target.dataset.field) {
       this.commit()
+      this.placeLabels()
       this.markIfNotSaved(target)
     } else if (target instanceof HTMLInputElement) {
       const row = this.parameterRow(target)
       if (!row) return
       this.commit()
+      this.placeLabels()
       // A value that was taken is shown the way the panel writes it ("4.50" as "4,5", an empty
       // field as the default).
       if (!this.markIfNotSaved(target)) this.panels.renderParameter(row, this.state.parameters)
@@ -450,7 +578,7 @@ export class PatternEditor {
       this.panels.setFieldError(field, null)
       return
     }
-    const result = this.accept(state)
+    const result = this.accept(state, "keep")
     this.panels.setFieldError(field, result.ok ? null : this.fieldErrorText(result.errors, field))
   }
 
@@ -488,7 +616,7 @@ export class PatternEditor {
       this.panels.setParameterError(row.name, null)
       return
     }
-    const result = this.accept(state)
+    const result = this.accept(state, "keep")
     const own = result.ok ? [] : result.errors.filter(error => error.name === row.name)
     const error = result.ok ? null : errorText(this.texts, own[0] ?? null)
     this.panels.setParameterError(row.name, error)

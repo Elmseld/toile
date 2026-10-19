@@ -29,11 +29,16 @@ sleeve block, ticket 0007).
 - **Autosave on commit.** Nothing is saved during a drag or while typing. A commit (drag end, a
   field's `change`, offset reset, undo, redo) saves. The client commits only states whose evaluation
   is `ok`, so every saved state draws; an invalid formula shows an error and the last good drawing
-  stays.
+  stays. One save is in flight at a time: commits made meanwhile are sent as one save of the
+  newest state when the reply comes, so a held-down undo key does not send a save per step. After
+  a reconnect an unsaved commit is sent again, at most three times in a row with a growing delay.
 - **Drag hot path.** One compiled pattern per definition; each pointer move does one
   `evaluate(input, { offsets })` and updates existing SVG elements in `requestAnimationFrame`.
   `placeLabel` (7 to 14 ms per piece) is not called during a drag: labels keep their place and are
-  recomputed at drag end through a cache keyed by outline, text and grainline.
+  recomputed at drag end through a cache keyed by outline, text and grainline. Typing in a formula
+  or parameter field is coalesced the same way: one evaluation per animation frame, drawn with the
+  labels in place, and the labels are placed again after a 150 ms pause in typing or on the
+  field's `change`.
 - **Unit conversion lives in the engine only.** The server renders parameter values raw (mm,
   degrees) in data attributes and leaves the inputs and "Default" hints empty; the hook fills
   them with `engine/src/editor/units.ts`. The server's bounds on parameter overrides and user
@@ -47,9 +52,12 @@ sleeve block, ticket 0007).
 - **Edit saves are not broadcast** on the user's project topic: the editor saves on every
   commit, and the project list shows nothing an edit changes. A rejected save is logged at info
   level with the failing fields and the JSON pointer of the first difference, never values.
-- The hook element no longer sits in a profile-keyed wrapper, so switching profile keeps it and the
-  undo history. It reads `data-definition` on mount only and redraws when `data-key` or
-  `data-input` change (amends the "Client" paragraph of ADR 0006).
+- The hook element no longer sits in a profile-keyed wrapper, so switching between profiles that
+  have every measurement the pattern needs keeps it and the undo history. It reads
+  `data-definition` on mount only and redraws when `data-key` or `data-input` change (amends the
+  "Client" paragraph of ADR 0006). A profile with missing measurements replaces the drawing with
+  a list of them, which removes the hook: the history is lost, and a commit not stored yet is sent
+  once more as the editor goes.
 
 ## Alternatives rejected
 - Server-owned edit state: a round trip per edit, and formula validation needs the engine.
@@ -62,7 +70,8 @@ sleeve block, ticket 0007).
 - A new op goes into `point_ops.json`; the app and the editor pick it up, and tests ask for UI texts
   for it.
 - Named formulas (the `formulas` section), curves and pieces cannot be edited yet.
-- Undo history does not survive a reload; the saved state does.
+- Undo history does not survive a reload, nor a switch to a profile with missing measurements;
+  the saved state does.
 - Last write wins. A save is checked against the project as this page loaded it and replaces the
   stored definition and parameters whole, with no version check: with the same project open in
   two tabs, each save silently overwrites the other tab's work. An optimistic lock is left for

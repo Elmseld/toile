@@ -9,6 +9,7 @@
 //   data-error-text    shown instead of a drawing when the pattern cannot be computed
 //   data-editor        the id of the editor aside (optional); with it the pattern is editable
 //   data-texts         the editor's UI texts (JSON, ToileWeb.EditorTexts)
+//   data-max-save-bytes  the most a save's definition and parameters may encode to (JSON bytes)
 // The element's aria-label also names the SVG.
 //
 // With an editor (assets/js/editor/pattern_editor.js, docs/adr/0008-pattern-editor.md) the
@@ -43,6 +44,7 @@ import {
   placeLabel,
 } from "../../../engine/src/index"
 import {PatternEditor} from "../editor/pattern_editor"
+import {parseJSON} from "../json"
 import {center, fit, gridPathData, panBy, toAttribute, visibleArea, zoomAt} from "./viewport"
 
 const SVG_NS = "http://www.w3.org/2000/svg"
@@ -59,14 +61,6 @@ function svgElement(name, attributes = {}) {
   const element = document.createElementNS(SVG_NS, name)
   for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, String(value))
   return element
-}
-
-function parseJSON(text, fallback) {
-  try {
-    return JSON.parse(text ?? "")
-  } catch {
-    return fallback
-  }
 }
 
 const PatternView = {
@@ -125,6 +119,8 @@ const PatternView = {
     this.editor?.resendIfUnsaved()
   },
 
+  // The editor sends a commit that is not stored yet once more before it goes (e.g. when another
+  // profile lacks measurements and the drawing makes way for a message).
   destroyed() {
     this.editor?.destroy()
     this.resizeObserver?.disconnect()

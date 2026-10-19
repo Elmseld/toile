@@ -4,6 +4,10 @@
 // alert, the point select with an empty #point-details, and one row per parameter. This module
 // fills and updates it; PatternEditor decides what to show. All text comes from the hook's
 // `data-texts` (ToileWeb.EditorTexts), never from here.
+//
+// A parameter row carries stored values only (`data-unit`, `data-default`, `data-value`); its
+// input and "Default" hint render empty and are filled here in the display unit with the engine's
+// units, so the conversion has one source.
 
 import {formatDisplay, pointFields, toDisplay} from "../../../engine/src/index"
 
@@ -32,9 +36,21 @@ function element(name, attributes = {}, text = null) {
   return node
 }
 
+/** A stored value as text in `unit`'s display unit with the locale's decimal separator. */
+function displayText(value, unit, texts) {
+  return formatDisplay(toDisplay(value, unit), texts.decimal_separator ?? ".")
+}
+
 /** A length in mm as cm text with the locale's decimal separator. */
 function centimetres(mm, texts) {
-  return formatDisplay(toDisplay(mm, "length"), texts.decimal_separator ?? ".")
+  return displayText(mm, "length", texts)
+}
+
+/** A number from a data attribute, or null when it is missing or not a finite number. */
+function numberAttribute(text) {
+  if (text === undefined || text.trim() === "") return null
+  const value = Number(text)
+  return Number.isFinite(value) ? value : null
 }
 
 function referenceText(value, kind, texts) {
@@ -53,6 +69,32 @@ export class Panels {
     this.alert = aside.querySelector("#editor-alert")
     this.pointSelect = aside.querySelector("#point-select")
     this.details = aside.querySelector("#point-details")
+    // HEEx renders the rows once and never patches them (phx-update="ignore").
+    this.rows = [...aside.querySelectorAll("[data-parameter]")].map(row => ({
+      name: row.dataset.parameter,
+      unit: row.dataset.unit,
+      default: Number(row.dataset.default),
+      value: numberAttribute(row.dataset.value),
+      input: row.querySelector("input"),
+      hint: row.querySelector(`#parameter-${CSS.escape(row.dataset.parameter ?? "")}-hint`),
+    }))
+    this.fillParameters()
+  }
+
+  // Writes each row's stored value into its input (empty when the stored override is not a
+  // number) and its default with the unit text into its hint.
+  fillParameters() {
+    const texts = this.texts
+    for (const row of this.rows) {
+      if (row.input) {
+        row.input.value = row.value === null ? "" : displayText(row.value, row.unit, texts)
+      }
+      if (row.hint && Number.isFinite(row.default)) {
+        const unit = texts.units?.[row.unit] ?? ""
+        const value = `${displayText(row.default, row.unit, texts)} ${unit}`.trim()
+        row.hint.textContent = fill(texts.default, {value})
+      }
+    }
   }
 
   setHistory(canUndo, canRedo) {
@@ -160,14 +202,9 @@ export class Panels {
     this.setError(this.details?.querySelector(`#point-field-${CSS.escape(field)}`), text)
   }
 
-  /** The parameter rows: [{name, unit, default, input}], from the rows HEEx rendered. */
+  /** The parameter rows: [{name, unit, default, value, input, hint}], read once on creation. */
   parameterRows() {
-    return [...this.aside.querySelectorAll("[data-parameter]")].map(row => ({
-      name: row.dataset.parameter,
-      unit: row.dataset.unit,
-      default: Number(row.dataset.default),
-      input: row.querySelector("input"),
-    }))
+    return this.rows
   }
 
   /** Writes the values of `parameters` (defaults where there is none) and clears the errors. */
@@ -178,9 +215,7 @@ export class Panels {
   renderParameter(row, parameters) {
     if (!row.input) return
     const value = Object.hasOwn(parameters, row.name) ? parameters[row.name] : row.default
-    row.input.value = Number.isFinite(value)
-      ? formatDisplay(toDisplay(value, row.unit), this.texts.decimal_separator ?? ".")
-      : ""
+    row.input.value = Number.isFinite(value) ? displayText(value, row.unit, this.texts) : ""
     this.setError(row.input, null)
   }
 
