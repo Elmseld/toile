@@ -59,7 +59,7 @@ defmodule ToileWeb.MeasurementTexts do
     do: gettext("Along one shoulder, from the side of the neck to the shoulder point.")
 
   def help(:back_width),
-    do: gettext("Across the back between the armhole creases, about 10 cm below the neck bone.")
+    do: gettext("At the band at underarm level: across the back between the armhole creases.")
 
   def help(:chest_width),
     do: gettext("Across the front between the armhole creases, above the bust.")

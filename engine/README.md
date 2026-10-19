@@ -225,7 +225,9 @@ The engine has no block registry.
   (tested). Test figures: about
   34 mm (size 12), 61 mm (bust 1040 mm) and 100 mm (bust 1200 mm, chest width 390 mm). The cap
   only guards against implausible input such as a chest width measured far too narrow. The
-  constants and ease are not yet checked against the book. A `back_width` much wider than the
+  constants and ease are not yet checked against the book. The `back_width` is measured at
+  underarm level, and the block draws it as a vertical line from there up to half the armhole
+  depth. A `back_width` much wider than the
   shoulders (back width point outside the shoulder point) gives an S-shaped back armhole. The
   block does not correct it: it points to a measuring error. The front armhole is 10 to 25 mm
   longer than the back one in the test figures (shape of the front armhole curve). By

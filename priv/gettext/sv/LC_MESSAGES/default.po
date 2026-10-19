@@ -934,11 +934,6 @@ msgstr "Välj ett grundmönster"
 
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
-msgid "Across the back between the armhole creases, about 10 cm below the neck bone."
-msgstr "Tvärs över ryggen mellan armhålsvecken, ungefär 10 cm nedanför nackkotan."
-
-#: lib/toile_web/measurement_texts.ex
-#, elixir-autogen, elixir-format
 msgid "Nape to underarm level"
 msgstr "Nacke till armhålsnivå"
 
@@ -946,3 +941,8 @@ msgstr "Nacke till armhålsnivå"
 #, elixir-autogen, elixir-format
 msgid "Tie a band around the upper body, level and as high up under the arms as it goes. Measure from the neck bone straight down the spine to the band."
 msgstr "Knyt ett band runt överkroppen, vågrätt och så högt upp i armhålorna det går. Mät från den utstående nackkotan rakt ned längs ryggraden till bandet."
+
+#: lib/toile_web/measurement_texts.ex
+#, elixir-autogen, elixir-format
+msgid "At the band at underarm level: across the back between the armhole creases."
+msgstr "Vid bandet i armhålsnivå: tvärs över ryggen mellan armhålsvecken."
