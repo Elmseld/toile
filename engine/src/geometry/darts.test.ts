@@ -307,7 +307,7 @@ describe("findDarts (G)", () => {
     expect(findDarts(limit, 1).length).toBe(1);
   });
 
-  test("a second dart sharing a seam with the first is not a dart", () => {
+  test("a dart may start on the seam after the dart before it, but not on its leg", () => {
     const outline = polygon([
       p(-200, 0),
       p(-60, 0),
@@ -323,7 +323,8 @@ describe("findDarts (G)", () => {
     ]);
     // Seams: e0 | legs e1, e2 | e3 | e4 | legs e5, e6 | e7. Separate seams: both are darts.
     expect(findDarts(outline, 1).map((dart) => dart.legIndex)).toEqual([1, 5]);
-    // Without the vertex in between, both darts would need e3: the second is rejected.
+    // Without the vertex in between, e3 is the seam after the first dart and before the second:
+    // the darts are chained, both are found.
     const sharing = polygon([
       p(-200, 0),
       p(-60, 0),
@@ -336,7 +337,32 @@ describe("findDarts (G)", () => {
       p(200, 300),
       p(-200, 300),
     ]);
-    expect(findDarts(sharing, 1).map((dart) => dart.legIndex)).toEqual([1]);
+    expect(
+      findDarts(sharing, 1).map((dart) => [dart.s1Index, dart.legIndex, dart.s2Index]),
+    ).toEqual([
+      [0, 1, 3],
+      [3, 4, 6],
+    ]);
+    // The same outline started at the first dart's leg: the chain runs across the outline's end
+    // (the seam between the darts is the last entry) and is found whole.
+    const rotated = polygon([
+      p(-60, 0),
+      p(-50, H),
+      p(-40, 0),
+      p(40, 0),
+      p(50, H),
+      p(60, 0),
+      p(200, 0),
+      p(200, 300),
+      p(-200, 300),
+      p(-200, 0),
+    ]).map((_, i, edges) => edges[(i + 3) % edges.length]!);
+    expect(
+      findDarts(rotated, 1).map((dart) => [dart.s1Index, dart.legIndex, dart.s2Index]),
+    ).toEqual([
+      [9, 0, 2],
+      [6, 7, 9],
+    ]);
     const shared = polygon([
       p(-200, 0),
       p(-60, 0),

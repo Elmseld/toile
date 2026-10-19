@@ -23,7 +23,7 @@
 // are refused. A view should still compute it once per drawn input rather than on every pointer
 // move.
 
-import { dartCuttingLine, type Dart, findDarts } from "./darts";
+import { type Dart, type DartPeak, dartPeak, findDarts } from "./darts";
 import { insidePolygon } from "./label";
 import {
   cleanLoop,
@@ -40,6 +40,7 @@ import {
   cubicSegments,
   type Edge,
   edgeTangent,
+  FLATTEN_TOLERANCE,
   flattenEdge,
   MAX_CUTTING_LINE_SEGMENTS,
   MERGE_TOLERANCE,
@@ -47,7 +48,14 @@ import {
   polygonArea,
 } from "./offset";
 import { MAX_OUTLINE_ENTRIES, MAX_SECTION_ENTRIES } from "./validate";
-import { distance, MAX_COORDINATE, type Point, pointSegmentDistance } from "./vector";
+import {
+  cross,
+  distance,
+  MAX_COORDINATE,
+  type Point,
+  pointSegmentDistance,
+  sub,
+} from "./vector";
 
 type CuttingPoint = Readonly<Point>;
 
@@ -252,10 +260,10 @@ function buildUnits(
     const i = (first + k) % n;
     const dart = dartAt.get(i);
     if (dart !== undefined) {
-      const unit = dartUnit(dart, outline, steps, sign);
-      if (unit !== null) {
-        units.push(unit);
-        k += 4;
+      const chain = dartUnit(dart, dartAt, outline, steps, sign);
+      if (chain !== null) {
+        units.push(chain.unit);
+        k += chain.edges;
         continue;
       }
     }
@@ -279,30 +287,79 @@ function buildUnits(
   return units;
 }
 
+// The unit of `dart` and of the darts chained after it (each one's S1 is the previous one's S2),
+// with the number of outline edges it covers; null when `dart` itself gets no peak. A chained dart
+// whose peak fails ends the chain; its edges become ordinary edges.
 function dartUnit(
   dart: Dart,
+  dartAt: ReadonlyMap<number, Dart>,
   outline: readonly ReadEdge[],
   steps: readonly number[],
   sign: number,
-): Unit | null {
-  const a1 = outline[dart.s1Index]!.allowance;
-  const a2 = outline[dart.s2Index]!.allowance;
+): { unit: Unit; edges: number } | null {
   const startTangent = edgeTangent(dart.s1, 0);
-  const endTangent = edgeTangent(dart.s2, 1);
-  if (startTangent === null || endTangent === null) return null;
-  const segments = { s1: steps[dart.s1Index]!, s2: steps[dart.s2Index]! };
-  const points = dartCuttingLine(dart, a1, a2, sign, "before", segments);
-  if (points === null) return null;
-  return {
-    points,
-    startOutline: flattenEdge(dart.s1, segments.s1),
-    endOutline: flattenEdge(dart.s2, segments.s2),
-    endVertex: dart.s2.to,
-    startTangent,
-    endTangent,
-    startAllowance: a1,
-    endAllowance: a2,
+  if (startTangent === null) return null;
+  const peakOf = (of: Dart, seam1?: Point[]): DartPeak | null => {
+    if (edgeTangent(of.s2, 1) === null) return null;
+    const segments = { s1: steps[of.s1Index]!, s2: steps[of.s2Index]! };
+    const a1 = outline[of.s1Index]!.allowance;
+    return dartPeak(of, a1, outline[of.s2Index]!.allowance, sign, segments, seam1);
   };
+  let peak = peakOf(dart);
+  if (peak === null) return null;
+  let last = dart;
+  let edges = 4;
+  for (let next = dartAt.get(last.s2Index); next !== undefined; next = dartAt.get(last.s2Index)) {
+    if (next === dart) break;
+    const seam = peak.points.slice(peak.tail);
+    // The line after the first fold must start on the offset of the seam between the darts and
+    // before the next fold. It does not when that seam is too short for the allowance: then the
+    // first peak's own line runs through the outline there, or the folds cross within the
+    // allowance, and pressing both darts the same way would cut into the allowance.
+    const between = outline[next.s1Index]!;
+    const start = seam[0]!;
+    const onOffset =
+      distanceToPolyline(start, flattenEdge(between.edge, steps[next.s1Index]!)) >=
+      between.allowance - 2 * FLATTEN_TOLERANCE;
+    if (!onOffset || !beforeFold(start, next)) break;
+    const chained = peakOf(next, seam);
+    if (chained === null) break;
+    peak = {
+      points: [...peak.points.slice(0, peak.tail), ...chained.points],
+      tail: peak.tail + chained.tail,
+    };
+    last = next;
+    edges += 3;
+  }
+  return {
+    unit: {
+      points: peak.points,
+      startOutline: flattenEdge(dart.s1, steps[dart.s1Index]!),
+      endOutline: flattenEdge(last.s2, steps[last.s2Index]!),
+      endVertex: last.s2.to,
+      startTangent,
+      endTangent: edgeTangent(last.s2, 1)!,
+      startAllowance: outline[dart.s1Index]!.allowance,
+      endAllowance: outline[last.s2Index]!.allowance,
+    },
+    edges,
+  };
+}
+
+function distanceToPolyline(point: Point, polyline: readonly Point[]): number {
+  let best = Infinity;
+  for (let k = 0; k + 1 < polyline.length; k++) {
+    best = Math.min(best, pointSegmentDistance(point, polyline[k]!, polyline[k + 1]!));
+  }
+  return best;
+}
+
+// Whether `point` lies clearly on the side of the fold A -> X of `dart` away from its other leg.
+function beforeFold(point: Point, { apex, x, y }: Dart): boolean {
+  const fold = sub(x, apex);
+  const side = cross(fold, sub(point, apex));
+  const other = cross(fold, sub(y, apex));
+  return side * Math.sign(other) < -MERGE_TOLERANCE * Math.hypot(fold.x, fold.y);
 }
 
 // Joins each unit to the next at their shared outline vertex, trimming or extending them in place.

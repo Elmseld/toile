@@ -393,6 +393,63 @@ describe("darts through cuttingLine (K)", () => {
     }
   });
 
+  // Two darts of half-width 10 and depth 90 in the top edge, `between` mm apart: the seam
+  // between them is the seam after the first dart and the seam before the second.
+  function twoDarts(between: number): Point[] {
+    const x1 = -between / 2 - 20;
+    const y2 = between / 2 + 20;
+    return [
+      p(-200, 0),
+      p(x1, 0),
+      p(x1 + 10, 90),
+      p(-between / 2, 0),
+      p(between / 2, 0),
+      p(y2 - 10, 90),
+      p(y2, 0),
+      p(200, 0),
+      p(200, 300),
+      p(-200, 300),
+    ];
+  }
+
+  for (const [between, allowances] of [
+    [40, [5, 10, 15, 25]],
+    [4, [5, 10, 15]],
+  ] as const) {
+    test(`two darts ${between} mm apart both get their peak`, () => {
+      const corners = twoDarts(between);
+      for (const allowance of allowances) {
+        for (const piece of [polygonPiece(corners), reversePiece(polygonPiece(corners))]) {
+          const line = points(cuttingLine(piece, { default: allowance }));
+          expect(selfIntersects(line)).toBe(false);
+          // Each peak is on its dart's centre line, beyond the waist's cutting line.
+          for (const centre of [-between / 2 - 10, between / 2 + 10]) {
+            const peak = Math.min(
+              ...line.filter((point) => Math.abs(point.x - centre) < 1e-9).map((point) => point.y),
+            );
+            expect(peak).toBeLessThan(-allowance - 1);
+          }
+          // Nowhere does the line come closer to the outline than the allowance (the old notch
+          // at the second dart came within a millimetre of the waist).
+          for (const corner of corners) {
+            expect(polygonDistance(line, corner)).toBeGreaterThan(allowance - TOLERANCE);
+          }
+        }
+      }
+    });
+  }
+
+  test("two darts too close for both peaks keep the allowance; the second is a plain notch", () => {
+    const corners = twoDarts(0.5);
+    for (const allowance of [10, 25]) {
+      const line = points(cuttingLine(polygonPiece(corners), { default: allowance }));
+      expect(selfIntersects(line)).toBe(false);
+      for (const corner of corners) {
+        expect(polygonDistance(line, corner)).toBeGreaterThan(allowance - TOLERANCE);
+      }
+    }
+  });
+
   test("dart leg allowances are validated but not used", () => {
     const piece = polygonPiece([
       p(-200, 0),

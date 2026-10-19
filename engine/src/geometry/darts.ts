@@ -56,26 +56,40 @@ export type Dart = {
 export type DartPress = "before" | "after";
 
 /**
- * The darts of `outline` (`sign` is the sign of its area): outline entries `i` (X -> A) and
- * `i + 1` (A -> Y), cyclically, when the outline has at least four entries, both are lines, the
- * apex A is not convex, the wedge between A -> X and A -> Y is at most MAX_DART_ANGLE, the legs
- * are equal within DART_LEG_TOLERANCE, and none of the four entries (the seam before, the legs,
- * the seam after) belongs to a dart found earlier in outline order.
+ * The darts of `outline` (`sign` is the sign of its area), ordered by `legIndex`: outline entries
+ * `i` (X -> A) and `i + 1` (A -> Y), cyclically, when the outline has at least four entries, both
+ * are lines, the apex A is not convex, the wedge between A -> X and A -> Y is at most
+ * MAX_DART_ANGLE and the legs are equal within DART_LEG_TOLERANCE. The four entries of a dart (the
+ * seam before, the legs, the seam after) belong to no other dart, with one exception that chains
+ * darts: the seam before a dart may be the seam after the dart just before it (two waist darts
+ * with one seam between them). Where candidates overlap otherwise, the earlier one in outline
+ * order wins, counting from the start of a chain (so a chain across the end of the outline is
+ * found whole).
  */
 export function findDarts(outline: readonly Edge[], sign: number): Dart[] {
   const n = outline.length;
+  if (n < 4) return [];
+  const candidate = outline.map((leg1, i) => {
+    const leg2 = outline[(i + 1) % n]!;
+    return leg1.type === "line" && leg2.type === "line" && isDart(leg1.from, leg1.to, leg2.to, sign);
+  });
+  // Start at a candidate with no candidate three entries before it, whose seam after could be
+  // this one's seam before.
+  let offset = candidate.findIndex((is, i) => is && !candidate[(i + n - 3) % n]);
+  if (offset < 0) offset = Math.max(0, candidate.indexOf(true));
+
   const darts: Dart[] = [];
-  if (n < 4) return darts;
   const used = new Set<number>();
-  for (let i = 0; i < n; i++) {
+  for (let k = 0; k < n; k++) {
+    const i = (offset + k) % n;
+    if (!candidate[i]) continue;
     const indices = [(i + n - 1) % n, i, (i + 1) % n, (i + 2) % n] as const;
-    if (indices.some((index) => used.has(index))) continue;
     const [s1Index, , legIndex2, s2Index] = indices;
+    const chained = darts.length > 0 && darts[darts.length - 1]!.s2Index === s1Index;
+    if (indices.some((index) => used.has(index) && !(chained && index === s1Index))) continue;
+    for (const index of indices) used.add(index);
     const leg1 = outline[i]!;
     const leg2 = outline[legIndex2]!;
-    if (leg1.type !== "line" || leg2.type !== "line") continue;
-    if (!isDart(leg1.from, leg1.to, leg2.to, sign)) continue;
-    for (const index of indices) used.add(index);
     darts.push({
       s1: outline[s1Index]!,
       s1Index,
@@ -89,7 +103,7 @@ export function findDarts(outline: readonly Edge[], sign: number): Dart[] {
       y: leg2.to,
     });
   }
-  return darts;
+  return darts.sort((d1, d2) => d1.legIndex - d2.legIndex);
 }
 
 /**
@@ -119,7 +133,7 @@ export function dartCuttingLine(
     s2: cubicSegments(dart.s2, a2),
   },
 ): Point[] | null {
-  if (press === "before") return pressedBefore(dart, a1, a2, sign, segments);
+  if (press === "before") return pressedBefore(dart, a1, a2, sign, segments)?.points ?? null;
   const mirrored: Dart = {
     s1: reverseEdge(dart.s2),
     s1Index: dart.s2Index,
@@ -133,7 +147,32 @@ export function dartCuttingLine(
     y: dart.x,
   };
   const line = pressedBefore(mirrored, a2, a1, -sign, { s1: segments.s2, s2: segments.s1 });
-  return line === null ? null : line.reverse();
+  return line === null ? null : line.points.reverse();
+}
+
+/** A dart peak pressed toward S1, and the index in `points` where its last part starts. */
+export type DartPeak = {
+  readonly points: Point[];
+  /** From here on, `points` is the offset seam after the dart, from where the fold crosses it. */
+  readonly tail: number;
+};
+
+/**
+ * The cutting line across `dart` pressed toward the seam before it, as `dartCuttingLine` with
+ * `"before"`, also telling where its part along the seam after the dart starts. `seam1` replaces
+ * the offset of the seam before the dart: pass the `tail` of the peak of the previous dart when
+ * that seam lies between two darts (`findDarts` chains them), so that both darts get their peak
+ * and the line runs on from one into the next.
+ */
+export function dartPeak(
+  dart: Dart,
+  a1: number,
+  a2: number,
+  sign: number,
+  segments: { s1: number; s2: number },
+  seam1?: Point[],
+): DartPeak | null {
+  return pressedBefore(dart, a1, a2, sign, segments, seam1);
 }
 
 // Whether X -> A -> Y is a dart (see findDarts).
@@ -158,7 +197,8 @@ function pressedBefore(
   a2: number,
   sign: number,
   segments: { s1: number; s2: number },
-): Point[] | null {
+  seam1?: Point[],
+): DartPeak | null {
   const { apex, x, y } = dart;
   const toY = unit(sub(y, apex));
   const toX = unit(sub(x, apex));
@@ -177,7 +217,7 @@ function pressedBefore(
   const close = (p: Point): Point => add(rotateAbout(p, apex, cos, sin), shift);
   const open = (p: Point): Point => rotateAbout(sub(p, shift), apex, cos, -sin);
 
-  const off1 = offsetEdge(dart.s1, a1, sign, segments.s1);
+  const off1 = seam1 ?? offsetEdge(dart.s1, a1, sign, segments.s1);
   const off2 = offsetEdge(dart.s2, a2, sign, segments.s2).map(close);
   const closedStart2 = turn(start2);
   const joined = joinStrands(off1, off2, { vertex: x, t1: end1, a1, t2: closedStart2, a2, sign });
@@ -209,12 +249,14 @@ function pressedBefore(
   const layer1 = snap ? before.slice(0, bend + 1) : before;
   const mirrored = snap ? [cut.hit, ...before.slice(cut.from, Math.max(cut.from, bend))] : flap;
 
-  return [
+  const points = [
     ...layer1,
     ...[...mirrored].reverse().map((point) => reflectAcross(point, apex, x)),
     ...flap.map(open),
-    ...after.map(open),
   ];
+  const tail = points.length;
+  points.push(...after.map(open));
+  return { points, tail };
 }
 
 // The crossing of the polyline with the infinite line a-b that is nearest to b, with the index of
