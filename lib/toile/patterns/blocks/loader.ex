@@ -32,7 +32,7 @@ defmodule Toile.Patterns.Blocks.Loader do
 
     definition = path |> File.read!() |> JSON.decode!()
 
-    if not valid_shape?(definition) do
+    if invalid_shape?(definition) do
       raise CompileError,
         description:
           "#{path} must be a JSON object with an integer \"version\" and a " <>
@@ -54,11 +54,11 @@ defmodule Toile.Patterns.Blocks.Loader do
     {key, definition}
   end
 
-  defp valid_shape?(%{"version" => version, "measurements" => measurements})
+  defp invalid_shape?(%{"version" => version, "measurements" => measurements})
        when is_integer(version) and is_list(measurements),
-       do: Enum.all?(measurements, &is_binary/1)
+       do: not Enum.all?(measurements, &is_binary/1)
 
-  defp valid_shape?(_definition), do: false
+  defp invalid_shape?(_definition), do: true
 
   defp invalid_imports?(%{"imports" => imports}) when is_map(imports) do
     Enum.any?(imports, fn {_name, reference} ->
