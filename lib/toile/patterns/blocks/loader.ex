@@ -39,7 +39,7 @@ defmodule Toile.Patterns.Blocks.Loader do
             "\"measurements\" list of strings"
     end
 
-    if not valid_imports?(definition) do
+    if invalid_imports?(definition) do
       raise CompileError,
         description: "#{path}: \"imports\" must be a JSON object of references \"<part>.<value>\""
     end
@@ -60,12 +60,12 @@ defmodule Toile.Patterns.Blocks.Loader do
 
   defp valid_shape?(_definition), do: false
 
-  defp valid_imports?(%{"imports" => imports}) when is_map(imports) do
-    Enum.all?(imports, fn {_name, reference} ->
-      is_binary(reference) and Regex.match?(@import_reference, reference)
+  defp invalid_imports?(%{"imports" => imports}) when is_map(imports) do
+    Enum.any?(imports, fn {_name, reference} ->
+      not (is_binary(reference) and Regex.match?(@import_reference, reference))
     end)
   end
 
-  defp valid_imports?(%{"imports" => _imports}), do: false
-  defp valid_imports?(_definition), do: true
+  defp invalid_imports?(%{"imports" => _imports}), do: true
+  defp invalid_imports?(_definition), do: false
 end
