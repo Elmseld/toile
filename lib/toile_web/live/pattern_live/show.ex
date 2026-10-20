@@ -2,25 +2,37 @@ defmodule ToileWeb.PatternLive.Show do
   @moduledoc """
   One pattern project of the current user, drawn to scale.
 
-  The server never computes geometry: it hands the stored definition and the engine input
-  (`Toile.Patterns.engine_input/2`) to the `PatternView` hook (`assets/js/hooks/pattern_view.js`)
-  in data attributes, and the hook runs the engine in the browser and draws the pieces in SVG
-  over a centimetre grid, with zoom and pan.
+  The server never computes geometry: it hands the project's parts (`Toile.Patterns.engine_parts/1`:
+  the main part from the block the project was created from, then any added parts such as a
+  sleeve) and the engine input (`Toile.Patterns.engine_input/2`, parameter overrides by part name)
+  to the `PatternView` hook (`assets/js/hooks/pattern_view.js`) in data attributes. The hook
+  evaluates all parts together in the browser (`compileProject`), so a part that imports values
+  from another (the sleeve from the bodice armhole, ADR 0007) is recomputed with it on every
+  draw, lays them out side by side and draws the pieces and their notches in SVG over a
+  centimetre grid, with zoom and pan.
 
   Exactly one of three states is rendered:
 
     * `#no-profile`: the project has no measurement profile (it was deleted); the user picks one.
-    * `#missing-measurements`: the profile lacks measurements the definition declares; they are
+    * `#missing-measurements`: the profile lacks measurements that any part declares; they are
       listed with a link to edit the profile, and nothing is drawn. The link passes
       `return_to=pattern` and the project id, so saving or cancelling comes back to this page.
     * `#pattern`: the drawing. The hook computes the pattern once per input: when a profile
-      switch changes `data-key`, `data-definition` or `data-input`, its `updated()` callback
-      redraws (LiveView still patches the attributes of a `phx-update="ignore"` element). The
-      wrapper keyed by the profile id is only an extra measure; LiveView may keep and move the
-      hook element by its id rather than mount it again.
+      switch or an added part changes `data-key`, `data-parts` or `data-input`, its `updated()`
+      callback redraws (LiveView still patches the attributes of a `phx-update="ignore"`
+      element). The wrapper keyed by the profile id is only an extra measure; LiveView may keep
+      and move the hook element by its id rather than mount it again.
 
-  Choosing another profile in `#profile-form` saves it on the project. A rejected profile (not
+  Choosing another profile in `#profile-form` saves it on the project and reads the project
+  again, so parts added in another tab meanwhile are drawn and counted. A rejected profile (not
   the user's own) reloads the page with an error, so the select shows the stored profile again.
+
+  `#add-parts` ("Add to the pattern") offers a button per block that can be added to the project
+  (`Toile.Patterns.addable_blocks/1`), in every state. The block key sent by the button is only
+  accepted by `Toile.Patterns.add_part/3` if it is still addable; any refusal (e.g. the part was
+  added in another tab meanwhile) reloads the page with an error. After an add, the new part's
+  measurements count toward the missing-measurement list like the main part's.
+
   Another user's project id raises `Ecto.NoResultsError` (404) through the scoped context.
   """
   use ToileWeb, :live_view
@@ -65,6 +77,28 @@ defmodule ToileWeb.PatternLive.Show do
           class="w-full select select-lg min-h-11"
         />
       </.form>
+
+      <section
+        :if={@addable != []}
+        id="add-parts"
+        aria-labelledby="add-parts-heading"
+        class="space-y-2"
+      >
+        <h2 id="add-parts-heading" class="font-semibold">{gettext("Add to the pattern")}</h2>
+        <div class="flex flex-wrap gap-2">
+          <button
+            :for={key <- @addable}
+            type="button"
+            id={"add-part-#{key}"}
+            class="btn min-h-11"
+            phx-click="add_part"
+            phx-value-block={key}
+            phx-disable-with={gettext("Saving...")}
+          >
+            <.icon name="hero-plus" /> {BlockTexts.label(key)}
+          </button>
+        </div>
+      </section>
 
       <div :if={@state == :no_profile} id="no-profile" role="status">
         <p>{gettext("Choose a measurement profile to draw this pattern.")}</p>
@@ -123,7 +157,7 @@ defmodule ToileWeb.PatternLive.Show do
             phx-hook="PatternView"
             phx-update="ignore"
             data-key={@profile.id}
-            data-definition={JSON.encode!(@project.definition)}
+            data-parts={JSON.encode!(@engine_parts)}
             data-input={JSON.encode!(@engine_input)}
             data-piece-labels={JSON.encode!(@piece_labels)}
             data-error-text={gettext("The pattern could not be computed with these measurements.")}
@@ -172,8 +206,10 @@ defmodule ToileWeb.PatternLive.Show do
     project = socket.assigns.project
 
     case Patterns.update_pattern_project(scope, project, %{"measurement_profile_id" => id}) do
-      {:ok, project} ->
-        {:noreply, assign_project(socket, project)}
+      {:ok, updated} ->
+        # The assigned project may be stale (e.g. a part was added in another tab); read it
+        # again so the drawing and the missing measurements cover every stored part.
+        {:noreply, assign_project(socket, Patterns.get_pattern_project!(scope, updated.id))}
 
       {:error, %Ecto.Changeset{}} ->
         # Reload so the select shows the stored profile again, not the rejected choice.
@@ -184,6 +220,34 @@ defmodule ToileWeb.PatternLive.Show do
     end
   end
 
+  def handle_event("add_part", %{"block" => key}, socket) when is_binary(key) do
+    scope = socket.assigns.current_scope
+    project = socket.assigns.project
+
+    case Patterns.add_part(scope, project, key) do
+      {:ok, project} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, gettext("%{block} added", block: BlockTexts.label(key)))
+         |> assign_project(project)}
+
+      {:error, _reason} ->
+        add_part_failed(socket, project)
+    end
+  end
+
+  def handle_event("add_part", _params, socket) do
+    add_part_failed(socket, socket.assigns.project)
+  end
+
+  # Reload so the page shows the project as stored (e.g. with the part another tab added).
+  defp add_part_failed(socket, project) do
+    {:noreply,
+     socket
+     |> put_flash(:error, gettext("Could not add to the pattern"))
+     |> push_navigate(to: ~p"/patterns/#{project}")}
+  end
+
   defp assign_project(socket, project) do
     profile = project.measurement_profile
 
@@ -191,6 +255,7 @@ defmodule ToileWeb.PatternLive.Show do
     |> assign(:page_title, project.name)
     |> assign(:project, project)
     |> assign(:profile, profile)
+    |> assign(:addable, Patterns.addable_blocks(project))
     |> assign_state(project, profile)
   end
 
@@ -199,10 +264,13 @@ defmodule ToileWeb.PatternLive.Show do
   defp assign_state(socket, project, profile) do
     case Patterns.missing_measurements(project, profile) do
       [] ->
+        parts = Patterns.engine_parts(project)
+
         socket
         |> assign(:state, :ready)
         |> assign(:engine_input, Patterns.engine_input(project, profile))
-        |> assign(:piece_labels, piece_labels(project.definition))
+        |> assign(:engine_parts, parts)
+        |> assign(:piece_labels, piece_labels(parts))
 
       missing ->
         socket
@@ -211,13 +279,18 @@ defmodule ToileWeb.PatternLive.Show do
     end
   end
 
-  # The definition is untrusted data: only well-formed piece names get a label; the engine
-  # reports anything else.
-  defp piece_labels(%{"pieces" => pieces}) when is_list(pieces) do
-    for %{"name" => name} when is_binary(name) <- pieces,
-        into: %{},
-        do: {name, BlockTexts.piece_label(name)}
+  # The labels of the pieces of every part, by part name and then piece name, so pieces of the
+  # same name in different parts cannot overwrite each other's label. Definitions are untrusted
+  # data: only well-formed piece names get a label; the engine reports anything else.
+  defp piece_labels(parts) do
+    for %{"name" => part, "definition" => definition} <- parts, into: %{} do
+      {part, Map.new(piece_names(definition), &{&1, BlockTexts.piece_label(&1)})}
+    end
   end
 
-  defp piece_labels(_definition), do: %{}
+  defp piece_names(%{"pieces" => pieces}) when is_list(pieces) do
+    for %{"name" => name} when is_binary(name) <- pieces, do: name
+  end
+
+  defp piece_names(_definition), do: []
 end

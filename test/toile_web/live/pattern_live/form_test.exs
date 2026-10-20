@@ -24,6 +24,8 @@ defmodule ToileWeb.PatternLive.FormTest do
         |> Enum.map(&LazyHTML.text/1)
 
       assert labels == ["Bodice", "Straight skirt"]
+      # A block with imports (the sleeve) is added to a project, never chosen here.
+      refute has_element?(view, ~s(option[value="straight_sleeve"]))
     end
 
     test "creates a project from a block and a profile and shows it", %{

@@ -32,7 +32,7 @@ defmodule ToileWeb.PatternLive.ShowTest do
   describe "Show" do
     setup :register_and_log_in_user
 
-    test "hands the definition and engine input to the PatternView hook", %{
+    test "hands the parts and engine input to the PatternView hook", %{
       conn: conn,
       scope: scope
     } do
@@ -60,17 +60,24 @@ defmodule ToileWeb.PatternLive.ShowTest do
              )
 
       stored = Patterns.get_pattern_project!(scope, project.id)
-      assert canvas_data(view, "definition") == stored.definition
+
+      assert canvas_data(view, "parts") == [
+               %{"name" => "straight_skirt", "definition" => stored.definition}
+             ]
 
       assert canvas_data(view, "input") == %{
                "measurements" => Map.new(@skirt, fn {k, v} -> {Atom.to_string(k), v} end),
-               "parameters" => %{}
+               "parameters" => %{"straight_skirt" => %{}}
              }
 
-      assert canvas_data(view, "piece-labels") == %{"back" => "Back", "front" => "Front"}
+      assert canvas_data(view, "piece-labels") == %{
+               "straight_skirt" => %{"back" => "Back", "front" => "Front"}
+             }
 
       refute has_element?(view, "#missing-measurements")
       refute has_element?(view, "#no-profile")
+      # Nothing can be added to a skirt.
+      refute has_element?(view, "#add-parts")
     end
 
     test "uses the wide layout", %{conn: conn, scope: scope} do
@@ -157,7 +164,10 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       assert has_element?(view, "header", "Bodice")
       assert has_element?(view, "#pattern-view-#{project.measurement_profile_id} #pattern-canvas")
-      assert canvas_data(view, "definition") == Blocks.definition("bodice")
+
+      assert canvas_data(view, "parts") == [
+               %{"name" => "bodice", "definition" => Blocks.definition("bodice")}
+             ]
 
       measurements = canvas_data(view, "input")["measurements"]
 
@@ -257,6 +267,187 @@ defmodule ToileWeb.PatternLive.ShowTest do
         |> follow_redirect(conn, ~p"/patterns/#{project}")
 
       assert html =~ "Could not change the measurement profile"
+    end
+
+    test "adds the sleeve to a bodice project and draws it with the bodice", %{
+      conn: conn,
+      scope: scope
+    } do
+      project = pattern_project_fixture(scope, block: "bodice")
+      Patterns.subscribe_pattern_projects(scope)
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      assert has_element?(view, "#add-parts h2", "Add to the pattern")
+      assert has_element?(view, ~s(#add-part-straight_sleeve[phx-value-block="straight_sleeve"]))
+      assert has_element?(view, "#add-part-straight_sleeve", "Straight sleeve")
+
+      html = view |> element("#add-part-straight_sleeve") |> render_click()
+
+      assert html =~ "Straight sleeve added"
+      assert_receive {:updated, %{id: id}} when id == project.id
+
+      assert [
+               %{"name" => "bodice", "definition" => bodice},
+               %{"name" => "straight_sleeve", "definition" => sleeve}
+             ] = canvas_data(view, "parts")
+
+      assert bodice == Blocks.definition("bodice")
+      assert sleeve == Blocks.definition("straight_sleeve")
+
+      assert canvas_data(view, "input")["parameters"] == %{
+               "bodice" => %{},
+               "straight_sleeve" => %{}
+             }
+
+      # Keyed by part, then piece, so equal piece names in two parts cannot clash.
+      assert canvas_data(view, "piece-labels") == %{
+               "bodice" => %{"back" => "Back", "front" => "Front"},
+               "straight_sleeve" => %{"sleeve" => "Sleeve"}
+             }
+
+      # The sleeve cannot be added twice.
+      refute has_element?(view, "#add-parts")
+      assert [%{name: "straight_sleeve"}] = Patterns.get_pattern_project!(scope, project.id).parts
+    end
+
+    test "lists the sleeve's measurements as missing once it is added", %{
+      conn: conn,
+      scope: scope
+    } do
+      profile =
+        measurement_profile_fixture(scope, %{
+          name: "No upper arm",
+          measurements: Map.delete(complete_measurements(), :upper_arm)
+        })
+
+      project =
+        pattern_project_fixture(scope, block: "bodice", measurement_profile_id: profile.id)
+
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      # The bodice does not need the upper arm.
+      assert has_element?(view, "#pattern-canvas")
+
+      view |> element("#add-part-straight_sleeve") |> render_click()
+
+      assert has_element?(view, "#missing-measurement-upper_arm", "Upper arm circumference")
+      refute has_element?(view, "#pattern-canvas")
+    end
+
+    test "a profile switch draws a sleeve that was added in another tab", %{
+      conn: conn,
+      scope: scope
+    } do
+      first =
+        measurement_profile_fixture(scope, %{name: "First", measurements: complete_measurements()})
+
+      second =
+        measurement_profile_fixture(scope, %{
+          name: "Second",
+          measurements: complete_measurements()
+        })
+
+      project =
+        pattern_project_fixture(scope, block: "bodice", measurement_profile_id: first.id)
+
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+      assert [%{"name" => "bodice"}] = canvas_data(view, "parts")
+
+      # Added in another tab: this page still holds the project without the sleeve.
+      pattern_part_fixture(scope, project)
+
+      view
+      |> form("#profile-form", %{"measurement_profile_id" => second.id})
+      |> render_change()
+
+      assert has_element?(view, ~s(#pattern-canvas[data-key="#{second.id}"]))
+      assert [%{"name" => "bodice"}, %{"name" => "straight_sleeve"}] = canvas_data(view, "parts")
+      assert Map.keys(canvas_data(view, "input")["parameters"]) == ["bodice", "straight_sleeve"]
+      assert Map.keys(canvas_data(view, "piece-labels")) == ["bodice", "straight_sleeve"]
+      refute has_element?(view, "#add-parts")
+    end
+
+    test "a profile switch lists the measurements of a sleeve added in another tab", %{
+      conn: conn,
+      scope: scope
+    } do
+      first =
+        measurement_profile_fixture(scope, %{name: "First", measurements: complete_measurements()})
+
+      second =
+        measurement_profile_fixture(scope, %{
+          name: "No upper arm",
+          measurements: Map.delete(complete_measurements(), :upper_arm)
+        })
+
+      project =
+        pattern_project_fixture(scope, block: "bodice", measurement_profile_id: first.id)
+
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      pattern_part_fixture(scope, project)
+
+      view
+      |> form("#profile-form", %{"measurement_profile_id" => second.id})
+      |> render_change()
+
+      # The bodice alone does not need the upper arm; the sleeve does.
+      assert has_element?(view, "#missing-measurement-upper_arm", "Upper arm circumference")
+      refute has_element?(view, "#pattern-canvas")
+    end
+
+    test "flashes an error when the sleeve was added meanwhile", %{conn: conn, scope: scope} do
+      project = pattern_project_fixture(scope, block: "bodice")
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      # Added in another tab: the button is still on this page.
+      pattern_part_fixture(scope, project)
+
+      {:ok, reloaded, html} =
+        view
+        |> element("#add-part-straight_sleeve")
+        |> render_click()
+        |> follow_redirect(conn, ~p"/patterns/#{project}")
+
+      assert html =~ "Could not add to the pattern"
+      refute has_element?(reloaded, "#add-parts")
+      assert [_sleeve] = Patterns.get_pattern_project!(scope, project.id).parts
+    end
+
+    test "rejects blocks that cannot be added", %{conn: conn, scope: scope} do
+      # A skirt project offers nothing; a client may still send any key.
+      project = pattern_project_fixture(scope)
+
+      for params <- [
+            %{"block" => "straight_sleeve"},
+            %{"block" => "bodice"},
+            %{"block" => "unknown"},
+            %{"block" => ["straight_sleeve"]},
+            %{}
+          ] do
+        {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+        refute has_element?(view, "#add-parts")
+
+        {:ok, _reloaded, html} =
+          view
+          |> render_click("add_part", params)
+          |> follow_redirect(conn, ~p"/patterns/#{project}")
+
+        assert html =~ "Could not add to the pattern"
+      end
+
+      assert Patterns.get_pattern_project!(scope, project.id).parts == []
+    end
+
+    test "cannot add to another user's project", %{conn: conn} do
+      other_scope = user_scope_fixture()
+      other = pattern_project_fixture(other_scope, block: "bodice")
+
+      assert_raise Ecto.NoResultsError, fn ->
+        live(conn, ~p"/patterns/#{other}")
+      end
+
+      assert Patterns.get_pattern_project!(other_scope, other.id).parts == []
     end
 
     test "raises for another user's project", %{conn: conn} do

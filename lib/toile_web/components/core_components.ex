@@ -379,7 +379,9 @@ defmodule ToileWeb.CoreComponents do
             {render_slot(col, @row_item.(row))}
           </td>
           <td :if={@action != []} class="w-0 font-semibold">
-            <div class="flex gap-4">
+            <%!-- `w-max` sizes the row to its buttons; without it the cell measures the labels as
+                 wrappable and the buttons overflow it. --%>
+            <div class="flex w-max gap-4">
               <%= for action <- @action do %>
                 {render_slot(action, @row_item.(row))}
               <% end %>

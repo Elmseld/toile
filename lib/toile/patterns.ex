@@ -4,9 +4,12 @@ defmodule Toile.Patterns do
 
   Every function that reads or writes projects takes a `%Toile.Accounts.Scope{}` first and only
   touches that user's projects (`docs/adr/0001-per-user-scope.md`). A project starts as a copy of
-  a block from `Toile.Patterns.Blocks` and is drafted for one of the user's measurement profiles
-  (`docs/adr/0006-pattern-projects-and-blocks.md`). This context stores and checks definitions
-  but never computes geometry: `engine_input/2` builds what the engine in the browser needs.
+  a base block from `Toile.Patterns.Blocks` and is drafted for one of the user's measurement
+  profiles (`docs/adr/0006-pattern-projects-and-blocks.md`). Blocks with imports, such as the
+  sleeve, can then be added to it as parts (`addable_blocks/1`, `add_part/3`,
+  `docs/adr/0007-project-parts-and-imports.md`). This context stores and checks definitions but
+  never computes geometry: `engine_parts/1` and `engine_input/2` build what the engine in the
+  browser needs.
   """
 
   use Gettext, backend: ToileWeb.Gettext
@@ -17,12 +20,14 @@ defmodule Toile.Patterns do
   alias Toile.Accounts.Scope
   alias Toile.Measurements
   alias Toile.Measurements.MeasurementProfile
+  alias Toile.Patterns.Blocks
   alias Toile.Patterns.PatternProject
 
   @max_projects_per_user 100
 
-  # Every field except the jsonb `definition` and `parameters`, which the list does not need.
-  @list_fields PatternProject.__schema__(:fields) -- [:definition, :parameters]
+  # Every field except the jsonb `definition`, `parameters` and `parts`, which the list does not
+  # need.
+  @list_fields PatternProject.__schema__(:fields) -- [:definition, :parameters, :parts]
 
   @doc """
   Subscribes to scoped notifications about any pattern_project changes.
@@ -50,9 +55,9 @@ defmodule Toile.Patterns do
   Returns the scope's pattern projects, ordered by name (then creation time), with the
   measurement profile preloaded (only its `id` and `name`).
 
-  `definition` and `parameters` are not loaded, so listing does not read up to
-  #{@max_projects_per_user} definitions: `definition` is `nil` and `parameters` is the schema
-  default `%{}`, whatever is stored. Use `get_pattern_project!/2` for a whole project.
+  `definition`, `parameters` and `parts` are not loaded, so listing does not read up to
+  #{@max_projects_per_user} definitions: `definition` is `nil`, and `parameters` and `parts` are
+  the schema defaults `%{}` and `[]`, whatever is stored. Use `get_pattern_project!/2` for a whole project.
 
   ## Examples
 
@@ -297,8 +302,9 @@ defmodule Toile.Patterns do
   end
 
   @doc """
-  Returns the measurements the project's definition declares that `profile` has no value for, as
-  catalogue keys (atoms) in catalogue order.
+  Returns the measurements the project's definitions declare that `profile` has no value for, as
+  catalogue keys (atoms) in catalogue order: those of the main definition and of every added
+  part, so adding a sleeve adds its arm measurements.
 
   Only names are compared, no geometry. Declared names that are not catalogue keys are ignored
   here; the engine reports them. Takes a project and profile that were already fetched through
@@ -311,10 +317,14 @@ defmodule Toile.Patterns do
 
   """
   def missing_measurements(
-        %PatternProject{definition: definition},
+        %PatternProject{definition: definition, parts: parts},
         %MeasurementProfile{} = profile
       ) do
-    declared = declared_measurements(definition)
+    declared =
+      [definition | Enum.map(parts, & &1.definition)]
+      |> Enum.flat_map(&declared_measurements/1)
+      |> MapSet.new()
+
     missing = Measurements.missing_measurements(profile)
 
     Enum.filter(missing, &(Atom.to_string(&1) in declared))
@@ -326,8 +336,30 @@ defmodule Toile.Patterns do
   defp declared_measurements(_definition), do: []
 
   @doc """
-  Returns the input the pattern engine evaluates the project's definition with:
-  `%{"measurements" => %{key => mm}, "parameters" => overrides}`.
+  Returns the parts of the project as the engine's `compileProject` takes them: the main part
+  (named by the project's `block`, with its `definition`) first, then every added part in the
+  order it was added, each `%{"name" => name, "definition" => definition}`.
+
+  Takes a project that was already fetched through a scoped function, so it needs no scope.
+
+  ## Examples
+
+      iex> engine_parts(bodice_project_with_sleeve)
+      [%{"name" => "bodice", "definition" => %{...}},
+       %{"name" => "straight_sleeve", "definition" => %{...}}]
+
+  """
+  def engine_parts(%PatternProject{block: block, definition: definition, parts: parts}) do
+    [
+      %{"name" => block, "definition" => definition}
+      | Enum.map(parts, &%{"name" => &1.name, "definition" => &1.definition})
+    ]
+  end
+
+  @doc """
+  Returns the input the pattern engine evaluates the project's parts with (`compileProject`):
+  `%{"measurements" => %{key => mm}, "parameters" => %{part name => overrides}}`, with the main
+  part's overrides under its `block` and each added part's under its name.
 
   Measurements without a value are left out (`Toile.Measurements.measurement_values/1`). Takes a
   project and profile that were already fetched through scoped functions, so it needs no scope.
@@ -335,14 +367,119 @@ defmodule Toile.Patterns do
   ## Examples
 
       iex> engine_input(pattern_project, profile)
-      %{"measurements" => %{"waist" => 680, ...}, "parameters" => %{}}
+      %{"measurements" => %{"waist" => 680, ...}, "parameters" => %{"straight_skirt" => %{}}}
 
   """
-  def engine_input(%PatternProject{parameters: parameters}, %MeasurementProfile{} = profile)
+  def engine_input(
+        %PatternProject{block: block, parameters: parameters, parts: parts},
+        %MeasurementProfile{} = profile
+      )
       when is_map(parameters) do
     %{
       "measurements" => Measurements.measurement_values(profile),
-      "parameters" => parameters
+      "parameters" => Map.new([{block, parameters} | Enum.map(parts, &{&1.name, &1.parameters})])
     }
+  end
+
+  @doc """
+  Returns the keys of the blocks that can be added to the project, sorted.
+
+  A block can be added when it has imports (base blocks only start projects), is not a part of
+  the project yet (the main part is named by the project's `block`), and every import
+  `"<part>.<value>"` names a part of the project whose stored definition declares `value` as a
+  formula, parameter, measurement or import of its own (the engine's result values include
+  resolved imports, so a part can pass a value on). Only names are compared, no geometry: a bodice project
+  created before the bodice exposed the values the sleeve imports keeps its own copy (ADR 0006)
+  and is not offered the sleeve. Takes a project that was already fetched through a scoped
+  function, so it needs no scope.
+
+  ## Examples
+
+      iex> addable_blocks(bodice_project)
+      ["straight_sleeve"]
+
+      iex> addable_blocks(skirt_project)
+      []
+
+  """
+  def addable_blocks(%PatternProject{} = pattern_project) do
+    definitions = Map.new(engine_parts(pattern_project), &{&1["name"], &1["definition"]})
+
+    Enum.filter(Blocks.keys(), fn key ->
+      imports = Blocks.imports(key)
+
+      imports != %{} and not Map.has_key?(definitions, key) and
+        Enum.all?(imports, fn {_name, reference} -> import_available?(reference, definitions) end)
+    end)
+  end
+
+  defp import_available?(reference, definitions) do
+    [part, value] = String.split(reference, ".", parts: 2)
+
+    case Map.fetch(definitions, part) do
+      {:ok, definition} -> declares?(definition, value)
+      :error -> false
+    end
+  end
+
+  defp declares?(%{} = definition, value) do
+    has_key?(definition["formulas"], value) or has_key?(definition["parameters"], value) or
+      has_key?(definition["imports"], value) or value in declared_measurements(definition)
+  end
+
+  defp declares?(_definition, _value), do: false
+
+  defp has_key?(%{} = map, key), do: Map.has_key?(map, key)
+  defp has_key?(_other, _key), do: false
+
+  @doc """
+  Adds the block `block_key` to the project as a part: a copy of its definition with no
+  parameter overrides (ADR 0007).
+
+  `block_key` usually comes from the client, so it is only accepted when it is one of
+  `addable_blocks/1` for the project as stored now: the project row is locked and re-read in the
+  transaction, so a block that is not addable, an unknown key, or a second add of the same block
+  (a double click, another tab) gives `{:error, :not_addable}`. The key is never turned into an
+  atom. Returns the updated project with its profile preloaded and broadcasts `{:updated,
+  project}`.
+
+  Raises if the project belongs to another user, or (`Ecto.NoResultsError`) if it no longer
+  exists.
+
+  ## Examples
+
+      iex> add_part(scope, bodice_project, "straight_sleeve")
+      {:ok, %PatternProject{parts: [%PatternPart{name: "straight_sleeve"}]}}
+
+      iex> add_part(scope, bodice_project_with_sleeve, "straight_sleeve")
+      {:error, :not_addable}
+
+  """
+  def add_part(%Scope{} = scope, %PatternProject{} = pattern_project, block_key) do
+    true = pattern_project.user_id == scope.user.id
+
+    result =
+      Repo.transact(fn ->
+        locked =
+          Repo.one!(
+            from p in PatternProject,
+              where: p.id == ^pattern_project.id and p.user_id == ^scope.user.id,
+              lock: "FOR UPDATE"
+          )
+
+        if is_binary(block_key) and block_key in addable_blocks(locked) do
+          locked
+          |> PatternProject.add_part_changeset(block_key, scope)
+          |> Repo.update()
+        else
+          {:error, :not_addable}
+        end
+      end)
+
+    with {:ok, pattern_project = %PatternProject{}} <- result do
+      pattern_project = preload_profile(pattern_project, scope)
+      broadcast_pattern_project(scope, {:updated, pattern_project})
+      {:ok, pattern_project}
+    end
   end
 end

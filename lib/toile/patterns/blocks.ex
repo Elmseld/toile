@@ -1,6 +1,11 @@
 defmodule Toile.Patterns.Blocks do
   @moduledoc """
-  The block catalogue: the pattern definitions a new pattern project can start from.
+  The block catalogue: the pattern definitions a pattern project can start from, or add.
+
+  A block without `"imports"` is a base block: a new project starts from it (`base_keys/0`). A
+  block with imports takes values from another part of the project (the sleeve from the bodice,
+  `docs/adr/0007-project-parts-and-imports.md`), so it can only be added to a project that has
+  that part (`Toile.Patterns.addable_blocks/1`).
 
   Blocks are data in `engine/blocks/<key>.json`, read here at compile time
   (`docs/adr/0006-pattern-projects-and-blocks.md`). Editing a file recompiles this module, and so
@@ -29,6 +34,10 @@ defmodule Toile.Patterns.Blocks do
 
   @keys @blocks |> Map.keys() |> Enum.sort()
 
+  @imports Map.new(@blocks, fn {key, definition} -> {key, Map.get(definition, "imports", %{})} end)
+
+  @base_keys Enum.filter(@keys, &(@imports[&1] == %{}))
+
   @doc false
   # Recompile when a block file is added or removed (`@external_resource` only covers edits).
   def __mix_recompile__? do
@@ -43,6 +52,36 @@ defmodule Toile.Patterns.Blocks do
   """
   @spec keys() :: [String.t()]
   def keys, do: @keys
+
+  @doc """
+  Returns the keys of the base blocks, those without imports, sorted: the blocks a new project
+  can start from.
+
+      iex> Toile.Patterns.Blocks.base_keys()
+      ["bodice", "straight_skirt"]
+  """
+  @spec base_keys() :: [String.t()]
+  def base_keys, do: @base_keys
+
+  @doc """
+  Returns the imports of the block `key`: `%{local name => "<part>.<value>"}`, `%{}` for a base
+  block.
+
+  Raises `ArgumentError` for an unknown key, like `definition/1`.
+
+      iex> Toile.Patterns.Blocks.imports("straight_sleeve")["back_armhole_length"]
+      "bodice.back_armhole_length"
+
+      iex> Toile.Patterns.Blocks.imports("bodice")
+      %{}
+  """
+  @spec imports(String.t()) :: %{String.t() => String.t()}
+  def imports(key) do
+    case Map.fetch(@imports, key) do
+      {:ok, imports} -> imports
+      :error -> raise ArgumentError, "unknown block #{inspect(key)}"
+    end
+  end
 
   @doc """
   Returns whether `key` names a block.

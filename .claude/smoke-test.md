@@ -65,3 +65,9 @@ Expected: (2) the project page with "Bakstycke" and "Framstycke" drawn over a cm
 3. On the project page, click "Redigera måttprofil", enter a value for Nacke till armhålsnivå and save.
 4. Check the project page again.
 Expected: (2) the project page lists "Nacke till armhålsnivå" under "Mått som saknas för det här mönstret" with nothing drawn; (3) saving returns to the project; (4) "Bakstycke" and "Framstycke" are drawn over the cm grid.
+
+### Sleeve project
+1. On a "Liv" project with a complete profile, click "Rak ärm" under "Lägg till i mönstret".
+2. Open `/patterns/new` and look at the block select.
+3. Back on the project, switch to a profile without arm measurements.
+Expected: (1) the flash "Rak ärm har lagts till", the sleeve drawn next to the bodice with notches, and the "Rak ärm" button gone; (2) the select offers only "Liv" and "Rak kjol"; (3) "Mått som saknas för det här mönstret" lists "Ärmlängd", "Överarmsvidd" and "Handledsvidd" with nothing drawn.

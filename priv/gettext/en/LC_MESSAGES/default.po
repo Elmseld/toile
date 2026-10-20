@@ -374,6 +374,7 @@ msgstr ""
 
 #: lib/toile_web/live/measurement_profile_live/form.ex
 #: lib/toile_web/live/pattern_live/form.ex
+#: lib/toile_web/live/pattern_live/show.ex
 #: lib/toile_web/live/user_live/settings.ex
 #, elixir-autogen, elixir-format
 msgid "Saving..."
@@ -945,4 +946,30 @@ msgstr ""
 #: lib/toile_web/measurement_texts.ex
 #, elixir-autogen, elixir-format
 msgid "At the band at underarm level: across the back between the armhole creases."
+msgstr ""
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Straight sleeve"
+msgstr ""
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgctxt "pattern piece"
+msgid "Sleeve"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "%{block} added"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Add to the pattern"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Could not add to the pattern"
 msgstr ""

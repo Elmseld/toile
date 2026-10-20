@@ -83,8 +83,9 @@ A complete example (a rectangle with a dart, tested against two measurement sets
 
 - **Top level.** `version` (required, integer, must be `1`), optional `name` and `source`
   (strings), and optional `measurements` (names the pattern uses; other profile entries are
-  ignored), `parameters` (`{ name: default number }`), `formulas` (`{ name: formula }`), `points`,
-  `curves` and `pieces` (arrays in declaration order). Unknown fields are rejected, and formula
+  ignored), `imports` (`{ local name: "<part>.<value>" }`, see Imports below), `parameters`
+  (`{ name: default number }`), `formulas` (`{ name: formula }`), `points`, `curves` and `pieces`
+  (arrays in declaration order). Unknown fields are rejected, and formula
   fields must be strings (`"distance": "50"`, not `50`). A point or curve with a missing or
   unknown `op` or `type` still has its fields checked: those no op or type knows are reported too.
 - **Versions.** The version is bumped only when the meaning of existing fields changes or a field
@@ -96,8 +97,9 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   `unsupported_version` (path `/version`) for any version other than `1`. `evaluatePattern` runs
   it first.
 - **Limits.** At most `MAX_SECTION_ENTRIES` (20 000) entries per section and
-  `MAX_OUTLINE_ENTRIES` (1 000) per outline, else `invalid_definition` at that path, and at most
-  `MAX_SECTION_ENTRIES` outline entries across all pieces, else `invalid_definition` at `/pieces`;
+  `MAX_OUTLINE_ENTRIES` (1 000) per outline and per notch list, else `invalid_definition` at that
+  path, and at most `MAX_SECTION_ENTRIES` outline entries and notches across all pieces, else
+  `invalid_definition` at `/pieces`;
   formulas keep their own limits (see Formulas). Storage limits are up to the app (ADR 0006).
 - **Points.** `name`, `op`, the op's fields and an optional `user_offset: { dx, dy }`. Name fields
   hold point names; formula fields hold formulas (ADR 0003) that may also call the geometry
@@ -134,13 +136,33 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   cyclically), else `open_outline` on the next entry (`field: "outline/i/curve"`). Closure is
   checked before any geometry is computed, so it does not depend on the measurements. Curves are
   traversed in their defined direction.
+- **Notches** (ADR 0004 decision 17) are an optional piece field:
+  `"notches": [{ "curve": "<outline curve>", "distance": "<formula>", "marks": 1 | 2 }]`. A notch
+  lies `distance` mm along the outline, walking forward in outline order from the start of `curve`
+  and on into the following curves, cyclically. A distance exactly at a junction belongs to the
+  following curve, and curves of zero length are skipped. `marks` defaults to 1; 2 is the
+  conventional double (back) notch. The computed piece has `notches: [{ point, marks: [{ from, to
+  }] }]` (always present, `[]` without notches): each mark is `NOTCH_LENGTH` (6 mm) long from the
+  outline into the piece (inside follows from the outline's orientation), and a double notch has
+  two marks `NOTCH_PAIR_SPACING` (4 mm) apart along the outline, centred on the point. A `curve`
+  that is not in the outline is `invalid_notch` (field `notches/i/curve`) for every profile; a
+  distance that is not finite or outside `[0, outline length)` is `invalid_notch` (field
+  `notches/i/distance`). Either fails the piece. The distance formula may use `length(curve)` and
+  any value, like other formula fields.
+- **Imports** (ADR 0007) are values taken from another part of the same project:
+  `"imports": { "back_armhole_length": "bodice.back_armhole_length" }`. The reference is
+  `<part>.<value>`, two identifiers (else `invalid_definition` at `/imports/<name>`). The local
+  name is a value in the definition's namespace, like a measurement, and is read from
+  `input.imports` (`evaluatePattern(definition, { measurements, imports })`); `evaluateProject`
+  fills it from the other part's result `values`. A missing one is `missing_import` (with the
+  `reference`), a non-finite one `invalid_value` (`source: "import"`); dependants get
+  `failed_dependency`. Formulas stay unchanged: there are no dotted names in them.
 - **Geometry functions** in formulas: `distance(A, B)` (mm), `angle(A, B)` (degrees; coincident
   points give `invalid_result`) and `length(curve)` (mm). They take bare names and see final
   positions, user offsets included. They only see the same definition: to use e.g. an armhole
-  length in another pattern, the caller evaluates pattern 1, reads `curves.<name>.length` (or a
-  formula value) from the result and passes it as a measurement to pattern 2. References between
-  patterns are ticket 0007. Order follows dependencies, not declaration order; cycles give
-  `circular_dependency`, dependants `failed_dependency` (as in Formulas).
+  length in another part of a project, the other part exposes it as a formula and this one
+  declares it under `imports` (see Projects). Order follows dependencies, not declaration order;
+  cycles give `circular_dependency`, dependants `failed_dependency` (as in Formulas).
 - **User offsets.** `user_offset` is added after the operation and is the point's position
   everywhere downstream (dependent points, curves, `distance`/`angle`, pieces).
 - **Result.** `{ ok: true, values, points, basePoints, curves, pieces }` or the same plus
@@ -164,14 +186,15 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   0.4 ms, `evaluatePattern` about 2.5 ms.
 - **Errors** are values, never thrown, for any input. Structural errors have `path`; the others
   have `kind`, `name` (the element) and optionally `field` (e.g. `distance`, `line1/0`,
-  `outline/2/curve`) and `span` into that field. Kinds are those of Formulas plus
-  `invalid_definition`, `unsupported_version`, `missing_measurement`, `unknown_parameter`,
-  `wrong_reference_kind`, `degenerate_geometry`, `no_intersection` and `open_outline`. Coincident
+  `outline/2/curve`, `notches/0/distance`) and `span` into that field. Kinds are those of Formulas
+  plus `invalid_definition`, `unsupported_version`, `missing_measurement`, `missing_import`,
+  `unknown_parameter`, `wrong_reference_kind`, `degenerate_geometry`, `no_intersection`,
+  `open_outline` and `invalid_notch`. Coincident
   points are reported where they are used: in `angle(A, B)` inside a formula they are
   `invalid_result` on the span of the call (like any function without a finite result); in a point
   operation that needs a direction they are `degenerate_geometry` with the operation's `field`.
-  Errors are sorted by declaration order (measurements, parameters, formulas, points, curves,
-  pieces), with `unknown_parameter` for undeclared overrides last; an override never fails the
+  Errors are sorted by declaration order (measurements, imports, parameters, formulas, points,
+  curves, pieces), with `unknown_parameter` for undeclared overrides last; an override never fails the
   element that has its name.
 - **SVG.** `curvePathData(curve)` and `piecePathData(piece)` return path `d` strings (`M`, `L`, `C`,
   `Z`, single spaces, numbers rounded to 0.01 mm, no `-0`) in mm user units. The caller chooses the
@@ -185,11 +208,39 @@ A complete example (a rectangle with a dart, tested against two measurement sets
 - **Labels.** `placeLabel(piece, text, size)` returns `{ x, y, size, clearance }`: the centre
   (for `text-anchor="middle"` and `dominant-baseline="middle"`) and font size (mm) at which the
   estimated text box lies inside the piece, farthest from the outline (darts included), the
-  grainline and its arrowheads, shrinking the size down to 40 % for a narrow piece; `null` when
+  grainline and its arrowheads and the notch marks, shrinking the size down to 40 % for a narrow piece; `null` when
   nothing fits (a sliver, or a degenerate outline), and the caller places the label itself.
   Views draw the grainline arrowheads `GRAINLINE_ARROW_SIZE` (8 mm) long and wide, tip on the end
   point, as placement assumes. It costs about 7 to 14 ms per bodice piece, so a view should not
   call it on every pointer move (`engine/src/geometry/label.ts`).
+
+## Projects
+
+A pattern project has one or more parts, each a pattern definition with a name (ADR 0007): the
+block it was created from (say `bodice`) and blocks added to it (say `straight_sleeve`). In
+`src/geometry/project.ts`:
+
+- `compileProject(parts)` takes `[{ name, definition }]` (untrusted), compiles every part once and
+  returns `{ evaluate(input) }`; `evaluateProject(parts, input)` is the same in one call. The input
+  is `{ measurements, parameters?: { [part name]: overrides } }`: one profile for all parts,
+  parameter overrides per part (overrides for names that are not parts are ignored).
+- Parts are evaluated in the order their `imports` need (a part importing from another comes after
+  it), and each import is fed from the source part's result `values`. Parts in a cycle (a part
+  importing from itself included) come last, in the given order. An import whose part is missing,
+  whose value the part's result lacks or whose part has any error stays unresolved, so the
+  importing part reports `missing_import` on it: a drawing or an error, never a wrong drawing.
+- The result is `{ ok, parts: { [name]: PatternResult }, errors }` with the parts in the given
+  order; `ok` is true when there are no project errors and every part is ok. `parts` that is not
+  an array is one `invalid_project` error; an entry that is not an object with a string `name` is
+  `invalid_project` with its `index`, a repeated name `duplicate_part`; such entries are skipped.
+  A part with an invalid definition is in `parts` with its errors. Never throws.
+- `layoutParts(bounds, gap = PART_GAP)` places parts side by side for drawing: given each part's
+  `patternBounds` (or `null`), it returns `{ offsets: [{ dx, dy }], bounds }`, each part `gap`
+  (`PART_GAP`, 50 mm) right of the previous ones with its top level with the first part's, and the
+  union box after moving (for the `viewBox`). A part without bounds gets `{ dx: 0, dy: 0 }`.
+
+The project page evaluates all parts in one call, so a redraw (a profile switch, later the
+editor's drag) recomputes the sleeve with the bodice.
 
 ## Blocks
 
@@ -274,11 +325,72 @@ The engine has no block registry.
   figures (shape of the front armhole curve). By
   construction (tested within 2 mm) the bust line through the underarm points, net of darts,
   equals `bust` + `ease_bust`, the waist seam segments equal `waist` + `ease_waist`, and the
-  front and back shoulder seams (dart closed) are equal. The bodice exposes three `values` keys
-  (mm): `armhole_length`, `back_armhole_length` and `front_armhole_length`. How the sleeve (0007)
-  consumes them is 0007's decision. The three names are a stable interface: renaming one requires
-  migrating the block copies stored in pattern projects (ADR 0006); a test pins them. It uses
+  front and back shoulder seams (dart closed) are equal. The back armhole has a double notch at
+  the back width point and the front armhole a single notch at the chest point, where the sleeve
+  is matched. The bodice exposes five `values` keys (mm) for other blocks: `armhole_length`,
+  `back_armhole_length`, `front_armhole_length`, and `back_armhole_to_notch` and
+  `front_armhole_to_notch`, the arc lengths from the side points to the notches (the lower
+  armhole curves; about 139 and 137 mm in the size 12 test set). The sleeve imports four of them.
+  The five names are a stable interface: renaming one requires migrating the block copies stored
+  in pattern projects (ADR 0006, ADR 0007); a test pins them. It uses
   angle-dependent ops (`along_angle`, `perpendicular`, `angle()`), so it relies on the confirmed
   angle convention (ADR 0004 decision 6). Implausible profiles (e.g. a `bust_height` shorter than
   the sideways distance from the neck point to the bust point) make the engine return errors,
   shown as the hook's generic error.
+- **`straight_sleeve.json`** ("Rak ärm"): a one-piece sleeve, piece `sleeve`, added to a bodice
+  project (it is not a base block: its `imports` need the bodice). Measurements `upper_arm`,
+  `arm_length`, `wrist`; imports `back_armhole_length`, `front_armhole_length`,
+  `back_armhole_to_notch` and `front_armhole_to_notch` from part `bodice`. Parameters:
+  `ease_upper_arm` (50 mm), `ease_wrist` (80 mm), `length_adjustment` (0 mm), `cap_ease` (30 mm)
+  and the shape constants `cap_convex_share` (0.6) and `cap_inflection_tilt` (15 degrees). The
+  `source` names Aldrich, the one-piece sleeve block, and the deviations; the ease and constants
+  are our own starting values, set and pinned by the engine tests, to be adjusted after test
+  fitting (a toile/provsömnad).
+  The crown is at the origin; the bicep line `upper_arm + ease_upper_arm` wide lies `cap_height`
+  below it, and the underarm seams taper straight to a hem `wrist + ease_wrist` wide, centred under
+  the bicep line, `arm_length + length_adjustment` below the crown; the grainline runs down through
+  the crown. Each cap half runs diagonally from the crown (horizontal) to its underarm point
+  (horizontal): a convex circular arc turning `t`, a straight piece of length `s` sloping down at
+  `t`, and a concave circular arc turning back by `t`. The arcs' radii add up to `R`, split
+  `cap_convex_share` (from the crown) to the rest. For a half of width `w` and height `h`, with the
+  guide line from the crown to the underarm point at `a = atan(h / w)`, the inflection tangent is
+  `t = min(a + min(a, cap_inflection_tilt), 90)`: `cap_inflection_tilt` steeper than the guide line,
+  so the convex crown rises above the guide line and the concave part hollows below it, the straight
+  piece crossing it. Then `R * sin(t) + s * cos(t) = w` and `R * (1 - cos(t)) + s * sin(t) = h` give
+  `R = (w sin t - h cos t) / (1 - cos t)` and `s = h / tan(t / 2) - w`, and the half's length is
+  `R * t + s` (`t` in radians), whatever the convex share. `t` lies between `a` and `2a`, so `R` and
+  `s` are never negative; where the tilt reaches the guide angle (a very wide sleeve or a large
+  tilt) `t = 2a`, `s = 0` and the half is two arcs; `t` never exceeds 90 degrees, so the cap never
+  overhangs. The length's derivative with respect to `t` is zero when `s = 0`, so the length is
+  smooth across that switch. The Newton solve below uses the analytic derivative in `h` (the width
+  derivative follows from the length being homogeneous of degree 1); its term for the turn's change
+  with `h` is multiplied by `(90 - t) / max(90 - t, 0.000001)`, which is 0 at the 90 degree cap,
+  where `t` no longer changes with `h`. Out-of-range shape constants (a share outside 0 to 1, a
+  tilt of 0 or less) make the guard value `cap_constants_ok` fail, and a solve that leaves either
+  half more than 0.1 mm from its target (in closed form, `back_cap_solved` and
+  `front_cap_solved`), a half width of 0 or less, or a cap height of 0 or less makes `cap_fit_ok`
+  fail; every cap arc depends on both, so an implausible input (for example a far too narrow
+  `upper_arm`, such as 60 mm on armhole halves of 220 and 240 mm) gives `invalid_result` instead
+  of a looped cap or one of the wrong length. With a non-default, larger `cap_inflection_tilt` (for
+  example 30) some tall caps can trip this fit guard and give an error rather than a drawing. The cap height and the crown
+  shift `cap_split` (front half `bicep / 2 + cap_split` wide, back `bicep / 2 - cap_split`) are
+  solved so that each half equals its armhole half plus `cap_ease / 2`: a chord estimate, then
+  Newton steps on the height, the shift and the height again, unrolled as formulas (values `cap_h_0`
+  to `cap_h_4`, `cap_split_0`, `cap_split_1`; ADR 0007 decision 7). The arcs are cubics with the
+  circular-arc handles. Tested: the cap halves are within 0.05 mm of their targets for the four test
+  figures with upper arms 240 to 380 mm (under 0.01 mm; under 0.045 mm with `cap_inflection_tilt`
+  90, two arcs or the 90 degree cap, where the cubic stands in for a 90 degree arc), so the cap
+  equals the bodice armhole plus `cap_ease` (tested within 2 mm, under 0.01 mm), also after a
+  deeper armhole or a user offset on the back width point. The cap height changes by about 0.6 to 0.7 mm per mm of armhole length
+  (tested under 1) and -0.36 to -0.53 mm per mm of `upper_arm` (tested under 0.75 in size);
+  `cap_convex_share` 0.5 or 0.7 leaves the cap length unchanged (tested within 0.2 mm). Shape,
+  tested for the four test figures with upper arms within 20 mm of theirs: the inflection tangent
+  lies between 35 and 70 degrees (about 52 to 66 with their own upper arms), the convex crown rises
+  10 to 35 mm above the guide line and the hollow below it is shallower. Size 12 test figure: cap
+  height about 174 mm, inflection about 64 (back) and 59 (front) degrees, crown shifted 13 mm toward
+  the back. Values `back_cap_length`, `front_cap_length` and `cap_length` are the drawn cap.
+  Notches: a double one on the back half and a single one on the front half, at the same arc
+  distance from the underarm points as the bodice notches from the side points (tested within 0.5
+  mm), and one at the crown, matching the shoulder seam; so all the cap ease lies between the
+  notches. A sleeve wider than its armhole halves (an implausible `upper_arm`) gives
+  `invalid_result` on `cap_h_0`, shown as the hook's generic error.

@@ -38,6 +38,36 @@ defmodule Toile.Patterns.Blocks.LoaderTest do
     end
   end
 
+  test "loads imports of <part>.<value> references", %{tmp_dir: dir} do
+    content =
+      ~s({"version": 1, "measurements": [], "imports": {"armhole": "bodice.armhole_length"}})
+
+    path = write!(dir, "sleeve.json", content)
+
+    assert {"sleeve", %{"imports" => %{"armhole" => "bodice.armhole_length"}}} =
+             Loader.load!(path)
+  end
+
+  test "raises for malformed imports", %{tmp_dir: dir} do
+    for imports <- [
+          ~s([]),
+          ~s("bodice.armhole_length"),
+          ~s({"armhole": 5}),
+          ~s({"armhole": "armhole_length"}),
+          ~s({"armhole": "bodice.armhole.length"}),
+          ~s({"armhole": "1bodice.armhole"}),
+          ~s({"armhole": "bodice.arm-hole"}),
+          ~s({"armhole": "bodice.armhole\\n"})
+        ] do
+      path =
+        write!(dir, "block.json", ~s({"version": 1, "measurements": [], "imports": #{imports}}))
+
+      assert_raise CompileError, ~r/"imports" must be a JSON object of references/, fn ->
+        Loader.load!(path)
+      end
+    end
+  end
+
   test "raises for a definition larger than a project may store", %{tmp_dir: dir} do
     source = String.duplicate("a", DefinitionSize.max_bytes())
     content = JSON.encode!(%{"version" => 1, "measurements" => [], "source" => source})
