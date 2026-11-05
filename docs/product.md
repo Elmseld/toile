@@ -13,7 +13,7 @@ Both groups use the same engine but get different amounts of it exposed.
   changes only their own. Registers with email, confirms via a link, and logs in with an email
   link or a password. Forgotten password: log in with an email link and choose a new password
   under "Inställningar" (Settings). Registration and email change never reveal whether an address
-  already has an account (the owner gets an email instead). Settings require a recent login.
+  already has an account (the owner gets an email instead). Emails are rate limited per address and per IP; over the limit the response looks the same but nothing is sent (`docs/adr/0010-email-rate-limiting.md`). Settings require a recent login.
   Logged-in users land on "Mina mönster" (My patterns, `/patterns`); logged-out users see a short
   description of Toile.
 - Modes (after the MVP): **hobby mode** (sliders and guided adjustment) and **pro mode** (free

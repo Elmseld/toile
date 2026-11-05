@@ -1,7 +1,7 @@
 ---
 id: 0011
 title: Rate limiting for outgoing email
-status: todo
+status: in-progress
 type: feature
 ---
 
