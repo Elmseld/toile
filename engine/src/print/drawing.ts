@@ -1,6 +1,8 @@
-// The laid-out pieces of a project, ready to print (docs/adr/0012-pdf-printing.md): the same
-// sequence of engine calls the project page's view makes (assets/js/hooks/pattern_view.js), so
-// the PDF shows what the page draws. Every coordinate is moved to its place in the drawing (mm).
+// The laid-out pieces of a project, ready to print (docs/adr/0012-pdf-printing.md). The layout is
+// `layoutProject`, which the project page's view (assets/js/hooks/pattern_view.js) also calls when
+// it draws anew. The PDF always lays the result out afresh, while the view keeps its last layout
+// during point edits, so after one the PDF may place a piece where the page's next layout would.
+// Every coordinate is moved to its place in the drawing (mm).
 
 import type { ProjectSeamAllowances } from "../editor/edges";
 import {
@@ -9,10 +11,10 @@ import {
   outlinePolygon,
   placeLabel,
 } from "../geometry/label";
-import { layoutParts, layoutPieces, type Offset, shiftCurve } from "../geometry/layout";
+import { type Offset, shiftCurve } from "../geometry/layout";
 import { cuttingLineNotches } from "../geometry/notches";
-import { cuttingLine, pieceSeamAllowances } from "../geometry/seam-allowance";
-import { type Bounds, patternBounds } from "../geometry/svg";
+import { layoutProject, type ProjectLayout } from "../geometry/project-layout";
+import type { Bounds } from "../geometry/svg";
 import type { ComputedCurve, ComputedPattern, ComputedPiece, NotchMark } from "../geometry/types";
 import type { Point } from "../geometry/vector";
 
@@ -55,47 +57,39 @@ export type PrintDrawing = { pieces: PrintPiece[]; bounds: Bounds | null };
 export const PRINT_LABEL_SIZE = 10;
 
 /**
- * The pieces of `parts` (an ok `ProjectResult`'s parts, in order) laid out and moved to their
- * place, with their cutting lines for `allowances` and their labels: `labels[part][piece]` (own
- * keys only, lines split on `"\n"`), else the piece name.
- *
- * The cutting line of each piece uses `pieceSeamAllowances` with the part's own edge values, the
- * pieces of a part are moved apart by `layoutPieces` over their boxes with the cutting line, and
- * the parts placed side by side by `layoutParts` over the parts' boxes, exactly as the project
- * page's view does: a change to that layout must change both. Pure; never throws for a computed
- * result.
+ * The pieces of `parts` (an ok `ProjectResult`'s parts, in order) laid out by `layoutProject` for
+ * `allowances`, with their labels: `layoutDrawing(layoutProject(parts, allowances), labels)`.
  */
 export function printDrawing(
   parts: Readonly<Record<string, Pick<ComputedPattern, "pieces">>>,
   allowances: ProjectSeamAllowances,
   labels: Readonly<Record<string, Readonly<Record<string, string>>>>,
 ): PrintDrawing {
-  const prepared = Object.entries(parts).map(([part, result]) => {
-    const pieces = Object.values(result.pieces).map((piece) => {
-      const line = cuttingLine(
-        piece,
-        pieceSeamAllowances(piece, allowances.default, own(allowances.edges, part)),
-      );
-      return { piece, cutting: line.ok ? line.points : null };
-    });
-    const layout = layoutPieces(
-      pieces.map(({ piece, cutting }) =>
-        patternBounds({ pieces: { [piece.name]: piece } }, cutting === null ? [] : [cutting]),
-      ),
-    );
-    return { part, pieces, layout };
-  });
-  const layout = layoutParts(prepared.map(({ layout }) => layout.bounds));
+  return layoutDrawing(layoutProject(parts, allowances), labels);
+}
 
-  const printed = prepared.flatMap(({ part, pieces, layout: local }, i) =>
-    pieces.map(({ piece, cutting }, j) => {
-      const partOffset = layout.offsets[i]!;
-      const pieceOffset = local.offsets[j]!;
-      const offset = { dx: partOffset.dx + pieceOffset.dx, dy: partOffset.dy + pieceOffset.dy };
-      return printPiece(part, piece, cutting, labelText(labels, part, piece.name), offset);
-    }),
+/**
+ * The pieces of `layout` moved to their place, with their cutting lines and their labels:
+ * `labels[part][piece]` (own keys only, lines split on `"\n"`), else the piece name. The labels
+ * are placed here, so a caller can check `layout.bounds` (e.g. the tile cap) before this work.
+ * Pure; never throws for a computed result.
+ */
+export function layoutDrawing(
+  layout: ProjectLayout,
+  labels: Readonly<Record<string, Readonly<Record<string, string>>>>,
+): PrintDrawing {
+  const pieces = layout.parts.flatMap(({ name: part, pieces }) =>
+    pieces.map(({ piece, cutting, offset }) =>
+      printPiece(
+        part,
+        piece,
+        cutting.ok ? cutting.points : null,
+        labelText(labels, part, piece.name),
+        offset,
+      ),
+    ),
   );
-  return { pieces: printed, bounds: layout.bounds };
+  return { pieces, bounds: layout.bounds };
 }
 
 function printPiece(

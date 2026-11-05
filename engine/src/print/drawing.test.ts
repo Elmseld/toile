@@ -8,7 +8,8 @@ import {
   DEFAULT_SEAM_ALLOWANCE,
   pieceSeamAllowances,
 } from "../geometry/seam-allowance";
-import { PRINT_LABEL_SIZE, type PrintPiece, printDrawing } from "./drawing";
+import { layoutProject } from "../geometry/project-layout";
+import { layoutDrawing, PRINT_LABEL_SIZE, type PrintPiece, printDrawing } from "./drawing";
 import { boxOf } from "./tiles";
 
 const DEFAULTS: ProjectSeamAllowances = { default: DEFAULT_SEAM_ALLOWANCE, edges: {} };
@@ -149,5 +150,31 @@ describe("printDrawing edge cases", () => {
 
   test("has no pieces and no bounds for no parts", () => {
     expect(printDrawing({}, DEFAULTS, {})).toEqual({ pieces: [], bounds: null });
+  });
+});
+
+describe("layoutDrawing", () => {
+  test("is printDrawing over the given layoutProject layout", () => {
+    const result = project("bodice", "straight_sleeve");
+    const labels = { bodice: { front: "Front\ncut 1" } };
+    const layout = layoutProject(result.parts, DEFAULTS);
+    expect(layoutDrawing(layout, labels)).toEqual(printDrawing(result.parts, DEFAULTS, labels));
+  });
+
+  test("moves each piece by the layout's offset and keeps its cutting line", () => {
+    const pattern = rectangles(["box", 0, 0, 100, 50]);
+    const layout = layoutProject({ only: pattern }, DEFAULTS);
+    const moved = {
+      ...layout,
+      parts: layout.parts.map((part) => ({
+        ...part,
+        pieces: part.pieces.map((piece) => ({ ...piece, offset: { dx: 1000, dy: -500 } })),
+      })),
+    };
+    const [piece] = layoutDrawing(moved, {}).pieces;
+    const line = layout.parts[0]!.pieces[0]!.cutting;
+    if (!line.ok) throw new Error("no cutting line");
+    expect(piece!.cutting).toEqual(line.points.map(({ x, y }) => ({ x: x + 1000, y: y - 500 })));
+    expect(piece!.outline[0]!.from).toEqual({ x: 1000, y: -500 });
   });
 });

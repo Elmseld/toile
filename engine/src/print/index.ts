@@ -3,6 +3,7 @@
 // makes it from the result it draws and `bun test` checks the scale.
 
 export {
+  layoutDrawing,
   type PrintDrawing,
   type PrintLabel,
   type PrintPiece,
