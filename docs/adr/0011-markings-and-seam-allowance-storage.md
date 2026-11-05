@@ -76,3 +76,4 @@ the cutting line), and the user must set the allowance per edge, including 0 at 
   server cannot detect darts.
 - Setting a value on a fold edge moves the line off the fold while the instruction still says
   "on fold".
+- The PDF (ticket 0010, ADR 0012) draws the same pieces, markings and cutting lines, using `pieceSeamAllowances` and the same layout.

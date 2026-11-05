@@ -1,7 +1,7 @@
 # @toile/engine
 
 The pattern engine: pure TypeScript that turns measurements and a pattern definition into geometry.
-It has no UI and no I/O, so the editor, the PDF export and the server all use the same code.
+It has no UI and no I/O, so the editor, the PDF export (`src/print`, see Printing) and the server all use the same code.
 
 ```bash
 bun install
@@ -221,7 +221,7 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   grainline and its arrowheads and the notch marks, shrinking the size down to 40 % for a narrow piece; `null` when
   nothing fits (a sliver, or a degenerate outline), and the caller places the label itself.
   Views draw the grainline arrowheads `GRAINLINE_ARROW_SIZE` (8 mm) long and wide, tip on the end
-  point, as placement assumes. The text may have several lines, split on `"\n"` (name, then the
+  point, as placement assumes (`grainlineArrowheads(grainline)` gives the triangles, `[tip, left, right]` per end, for views and the PDF). The text may have several lines, split on `"\n"` (name, then the
   cutting instruction): the box is as wide as the longest line, and each further line adds
   `LABEL_LINE_HEIGHT` (1.2) times the size to its height, so a view spaces its lines by that. It
   costs about 7 to 14 ms per bodice piece, so a view should not call it on every pointer move
@@ -297,6 +297,27 @@ cuttingLine(piece, { default: 10, edges: { b_hem: 40, b_cb: 0 } })
   laptop), twice that with the safe fallback; the worst hostile outlines at the entry limit take
   at most about 0.2 s. A view that computes it on every update (the editor's drag) caches it by
   outline and allowances (ADR 0011 decision 8).
+## Printing
+
+`src/print/` makes the 1:1 PDF the project page offers (`docs/adr/0012-pdf-printing.md`). No DOM and
+no I/O; the browser hook calls `patternPdf` and downloads the bytes.
+
+- `patternPdf({ parts, allowances, labels, paper, title, texts })` returns `{ ok: true, bytes,
+  pages }` or `{ ok: false, kind }` with `kind` `nothing_to_print`, `too_many_pages` or `failed`.
+  It never throws. `parts` are an ok project result's parts, `allowances` a
+  `ProjectSeamAllowances`, `labels` `{ part: { piece: "Name\ncut 2" } }` (own keys only, the piece
+  name is the fallback) and `texts` the page 1 texts (`PrintTexts`).
+- `printDrawing(parts, allowances, labels)` lays the pieces out as the view does (`cuttingLine`,
+  `layoutPieces`, `layoutParts`) and returns print-ready pieces; a change to the layout must change
+  both. `PRINT_LABEL_SIZE` is 10 mm.
+- `tileGrid(bounds, paper)` gives the centred grid (`null` over `MAX_PRINT_TILES`, 400),
+  `printedTiles(grid, regions)` the tiles a piece region overlaps (row-major, no empty pages) and
+  `tileLabel(row, col)` the label ("A1", "AA1"). `readPaper(value)` gives `"letter"` or else `"a4"`.
+  `PRINT_MARGIN` and `TILE_OVERLAP` are 10 mm; `PT_PER_MM` is 72/25.4.
+- `writePdf({ title, pages })` writes PDF 1.4 (Helvetica, uncompressed); `pdfText` writes text as
+  hex WinAnsi, so user text cannot break the syntax.
+- Tests check the test square (283.465 pt) and a known line's length in the written bytes.
+
 ## Projects
 
 A pattern project has one or more parts, each a pattern definition with a name (ADR 0007): the
