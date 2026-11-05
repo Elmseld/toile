@@ -43,6 +43,12 @@ Note: a flash toast in the top right can cover `#nav-log-out` until it closes; w
 2. Submit it with the right password.
 Expected: (1) "Fel e-post eller lösenord." and still logged out; (2) `/patterns` with "Välkommen tillbaka!"
 
+### Email rate limit
+1. Log out. On `/users/log-in`, request a login link for the same address 4 times.
+2. Log in, and on `/users/settings` request an email change to a new address 4 times.
+Expected: (1) every request shows the flash "Om din e-postadress finns hos oss får du snart ett mejl med instruktioner för att logga in.", but `/dev/mailbox` holds only 3 login mails; the 4th request sends nothing and the server log has an info line "Email not sent, rate limit reached" with a masked address; (2) every request shows "Vi har skickat en länk till den nya adressen. Öppna den för att bekräfta ändringen.", `/dev/mailbox` holds only 3 change mails, and the 4th sends nothing.
+Notes: in dev all browser requests share the Docker gateway IP, so `config/dev.exs` raises the per-IP limit to 1000 an hour (the per-recipient limit of 3 per 15 minutes stays). Changes under `config/` need an app restart (`docker compose restart app`); the code reloader does not pick them up.
+
 ### Measurement profiles
 1. Logged in, click `#nav-measurements` ("Mått") and create a profile with a name and "72,5" for Midjevidd.
 2. Edit it and enter "0", then "301", then "72,55" for Midjevidd.

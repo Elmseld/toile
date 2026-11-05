@@ -80,6 +80,10 @@ reputation. The limit must not reveal whether an address has an account (ADR 000
   not parse, every client resolves to the proxy address and all of them share one budget of 20
   email requests per hour. A single abuser then blocks login links and registration emails for everyone
   until the window passes. Check this setting whenever a reverse proxy is added or changed.
+- **Delivery errors.** A failed send (mailer returns `{:error, reason}`) does not raise: raising only
+  for addresses with an account would reveal that the account exists. It is logged at `warning` with
+  the flow, the masked address and only the class of the reason (a provider response can echo the
+  address), and the caller answers as for a successful send.
 - **Logging.** Each denied send is logged once at `info`: flow, which bucket was full (`recipient` or
   `ip`), the IP and a masked address (`j***@example.com`, the domain cut to 100 bytes). The full
   address is never logged, and the masked value goes through `inspect/1` so control characters are

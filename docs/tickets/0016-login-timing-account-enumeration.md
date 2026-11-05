@@ -37,5 +37,6 @@ The time to answer a login-link request does not depend on whether the address h
 ## Notes
 - Async delivery is a design change (supervised `Task.Supervisor`, test setup that waits for the
   task), which is why this is split from 0011.
-- Rate limiting counts unknown addresses before the lookup (ADR 0010) so the IP budget is no oracle;
-  keep that order.
+- Rate limiting looks the account up first and keys the recipient bucket on the stored address, and
+  it makes exactly one hit for unknown addresses too (ADR 0010), so the IP budget is no oracle;
+  keep that.
