@@ -1,7 +1,7 @@
 ---
 id: 0007
 title: Sleeve block, fitted to the bodice
-status: in-review
+status: done
 type: feature
 ---
 

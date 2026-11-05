@@ -1,7 +1,7 @@
 ---
 id: 0005
 title: Skirt block and viewing pattern projects
-status: in-review
+status: done
 type: feature
 ---
 

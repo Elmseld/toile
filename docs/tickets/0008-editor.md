@@ -1,7 +1,7 @@
 ---
 id: 0008
 title: Editor – move points and edit formulas and parameters
-status: in-review
+status: done
 type: feature
 ---
 
@@ -14,15 +14,15 @@ On the project page the user can select a point and drag it, or open the point a
 formula. Parameters (e.g. ease) can be changed in a side panel. Everything is recalculated immediately.
 
 ## Acceptance criteria
-- [ ] Points can be selected and dragged with mouse, touch and pen (pointer events). The drag is saved as an offset, and dependent points and curves follow along during the drag.
-- [ ] Control points of Bézier curves can be dragged.
-- [ ] A panel shows the selected point's operation and formulas. Edited formulas are validated, and errors are shown without the pattern disappearing.
-- [ ] A parameter panel lists the pattern's parameters and lets the user change them.
-- [ ] Every part of a project (the main block and added blocks such as a sleeve, 0007) is edited and saved the same way, and a part that imports from the edited one (the sleeve from the bodice armhole) follows during the edit.
-- [ ] Undo and redo (at least 50 steps) within a session.
-- [ ] Changes are saved to the project (autosave or an explicit save button). After a reload the same pattern is shown.
-- [ ] Recalculation during a drag feels instant (no server calls per movement).
-- [ ] A test (LiveView or JS) covers that a saved offset persists after a reload.
+- [x] Points can be selected and dragged with mouse, touch and pen (pointer events). The drag is saved as an offset, and dependent points and curves follow along during the drag.
+- [x] Control points of Bézier curves can be dragged.
+- [x] A panel shows the selected point's operation and formulas. Edited formulas are validated, and errors are shown without the pattern disappearing.
+- [x] A parameter panel lists the pattern's parameters and lets the user change them.
+- [x] Every part of a project (the main block and added blocks such as a sleeve, 0007) is edited and saved the same way, and a part that imports from the edited one (the sleeve from the bodice armhole) follows during the edit.
+- [x] Undo and redo (at least 50 steps) within a session.
+- [x] Changes are saved to the project (autosave or an explicit save button). After a reload the same pattern is shown.
+- [x] Recalculation during a drag feels instant (no server calls per movement).
+- [x] A test (LiveView or JS) covers that a saved offset persists after a reload.
 
 ## Out of scope
 - Adding new points and lines from scratch, moving darts, slash & spread.
