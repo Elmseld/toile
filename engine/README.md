@@ -137,6 +137,12 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   cyclically), else `open_outline` on the next entry (`field: "outline/i/curve"`). Closure is
   checked before any geometry is computed, so it does not depend on the measurements. Curves are
   traversed in their defined direction.
+- **Markings** (ADR 0004 decision 19): an outline entry may have `"fold": true` (a boolean,
+  normalised to `fold: false` when absent): the edge lies on a fold of the fabric. A piece may
+  have `"cut": n`, an integer from 1 to `MAX_CUT` (100): how many times it is cut (left absent
+  when the definition does not say). Anything else is `invalid_definition` at the field's path.
+  The computed piece has `folds`, the curve names of its fold entries in outline order (`[]`
+  without folds). Fold curves are not checked to be lines; the blocks only mark lines.
 - **Notches** (ADR 0004 decision 17) are an optional piece field:
   `"notches": [{ "curve": "<outline curve>", "distance": "<formula>", "marks": 1 | 2 }]`. A notch
   lies `distance` mm along the outline, walking forward in outline order from the start of `curve`
@@ -204,18 +210,22 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   `viewBox` and draws the grainline from `piece.grainline`. `formatNumber(value)` is the number
   formatting they use. Hand-built input never makes them throw: curves of an unknown type are
   skipped (or give `""`), and non-finite numbers are written as `0`.
-  `patternBounds(pattern)` returns `{ minX, minY, maxX, maxY }` over every outline curve's end and
-  control points and the grainline points (null without pieces or when no coordinate is finite, non-finite numbers skipped; the result type
-  `Bounds` is exported), so a
-  caller can fit the `viewBox` without doing geometry itself.
+  `patternBounds(pattern, lines?)` returns `{ minX, minY, maxX, maxY }` over every outline curve's
+  end and control points, the grainline points and every point of `lines` (such as the pieces'
+  cutting lines; optional), null when there is no point or no coordinate is finite (non-finite
+  numbers skipped; the result type `Bounds` is exported), so a caller can fit the `viewBox`
+  without doing geometry itself.
 - **Labels.** `placeLabel(piece, text, size)` returns `{ x, y, size, clearance }`: the centre
   (for `text-anchor="middle"` and `dominant-baseline="middle"`) and font size (mm) at which the
   estimated text box lies inside the piece, farthest from the outline (darts included), the
   grainline and its arrowheads and the notch marks, shrinking the size down to 40 % for a narrow piece; `null` when
   nothing fits (a sliver, or a degenerate outline), and the caller places the label itself.
   Views draw the grainline arrowheads `GRAINLINE_ARROW_SIZE` (8 mm) long and wide, tip on the end
-  point, as placement assumes. It costs about 7 to 14 ms per bodice piece, so a view should not
-  call it on every pointer move (`engine/src/geometry/label.ts`).
+  point, as placement assumes. The text may have several lines, split on `"\n"` (name, then the
+  cutting instruction): the box is as wide as the longest line, and each further line adds
+  `LABEL_LINE_HEIGHT` (1.2) times the size to its height, so a view spaces its lines by that. It
+  costs about 7 to 14 ms per bodice piece, so a view should not call it on every pointer move
+  (`engine/src/geometry/label.ts`).
 
 ## Seam allowance
 
@@ -238,7 +248,14 @@ cuttingLine(piece, { default: 10, edges: { b_hem: 40, b_cb: 0 } })
   repeated), in the same rotational direction as the outline, starting at the leftmost point, with
   every outline vertex inside or on it. It is a polyline within about 0.02 mm of the true offset.
   `cuttingLinePathData(points)` gives its SVG path data. A caller that fits a `viewBox` must include
-  the cutting line: `patternBounds` covers outlines only.
+  the cutting line: pass the lines to `patternBounds(pattern, lines)`.
+- **A project's allowances** (ADR 0011). `pieceSeamAllowances(piece, default, edges?)` builds the
+  `allowances` for one piece from a project's default and the part's own values by curve name:
+  fold edges (`piece.folds`) get 0 unless `edges` has a value for them, and the default never
+  applies to a fold. `DEFAULT_SEAM_ALLOWANCE` (10 mm) is a new project's default.
+  `cuttingLineNotches(piece.notches, points)` moves every notch mark along its own line out to the
+  cutting line, keeping `NOTCH_LENGTH` and pointing inward (unchanged at 0 or where its ray misses
+  the line), in the same order.
 - **Corners.** Convex corners are mitered, clipped at `MITER_LIMIT` (4) times the larger
   allowance. A corner that turns by less than 90 degrees and would exceed the limit (very
   different allowances on nearly parallel edges, such as 40 and 10 mm below about 11 degrees) is a
@@ -278,8 +295,8 @@ cuttingLine(piece, { default: 10, edges: { b_hem: 40, b_cb: 0 } })
 - **Modules.** `offset.ts`, `joins.ts`, `boundary.ts`, `darts.ts`, `seam-allowance.ts`.
 - **Cost.** About 0.1 ms per skirt piece and 0.2 to 0.25 ms per bodice piece (Bun in Docker on a
   laptop), twice that with the safe fallback; the worst hostile outlines at the entry limit take
-  at most about 0.2 s. A view should compute it once
-  per drawn input, not on every pointer move.
+  at most about 0.2 s. A view that computes it on every update (the editor's drag) caches it by
+  outline and allowances (ADR 0011 decision 8).
 ## Projects
 
 A pattern project has one or more parts, each a pattern definition with a name (ADR 0007): the
@@ -485,3 +502,11 @@ edited.
 - Units: `toDisplay`, `fromDisplay`, `formatDisplay` convert parameter values between stored units
   and the units shown (mm to cm, degrees per mm to per cm). `MAX_PARAMETER` (1 000 000) is the
   largest absolute parameter value; the app's bound is pinned to it by a test.
+- Seam allowance edges (`edges.ts`, ADR 0011): `pickEdge(pieces, at, radius, prefer?)` gives the
+  nearest outline edge `{ piece, curve }` within a radius (cubics measured along the curve), ties
+  to the curve `prefer`. A project's stored allowances are `ProjectSeamAllowances`, `{ default,
+  edges: { part: { curve: mm } } }`: `readSeamAllowances(raw)` reads them tolerantly (an invalid
+  default becomes `DEFAULT_SEAM_ALLOWANCE`, invalid entries are dropped, only own keys),
+  `setDefaultAllowance` and `setEdgeAllowance(a, part, curve, mm | null)` edit them (`null`
+  removes a value; the same object when nothing changes), and `edgeAllowance(a, part, piece,
+  curve)` gives `{ value, source: "edge" | "fold" | "default" }` for the panel.
