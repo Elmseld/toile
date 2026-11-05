@@ -12,6 +12,11 @@ defmodule Toile.Patterns.PatternProject do
   the definition; it starts empty. The profile is optional in storage: deleting it sets
   `measurement_profile_id` to `nil`.
 
+  `seam_allowances` (`Toile.Patterns.SeamAllowances`) holds the project's seam allowance default
+  (10 mm at creation) and the user's values per edge, for every part, outside the definitions
+  (`docs/adr/0011-markings-and-seam-allowance-storage.md`). The editor saves them through
+  `seam_allowances_changeset/4`.
+
   The editor on the project page saves the main part through `edit_changeset/3` and an added
   part through `Toile.Patterns.PatternPart.edit_changeset/2`. Both run `validate_edit/2`, which
   accepts a new `definition` only where it differs from the stored one in user offsets and point
@@ -30,6 +35,7 @@ defmodule Toile.Patterns.PatternProject do
   alias Toile.Patterns.DefinitionEdit
   alias Toile.Patterns.DefinitionSize
   alias Toile.Patterns.PatternPart
+  alias Toile.Patterns.SeamAllowances
 
   # The engine's MAX_PARAMETER (engine/src/editor/units.ts); test/toile/patterns/engine_limits_test.exs
   # keeps the two equal.
@@ -43,6 +49,11 @@ defmodule Toile.Patterns.PatternProject do
     field :definition, :map
     field :parameters, :map, default: %{}
     embeds_many :parts, PatternPart, on_replace: :delete
+
+    embeds_one :seam_allowances, SeamAllowances,
+      on_replace: :update,
+      defaults_to_struct: true
+
     belongs_to :measurement_profile, MeasurementProfile
     field :user_id, :binary_id
 
@@ -72,7 +83,7 @@ defmodule Toile.Patterns.PatternProject do
   @doc """
   Changeset for updating a project owned by `user_scope`: renaming it or choosing another profile.
 
-  `block`, `definition`, `parameters`, `parts` and `user_id` are never cast. `user_scope` is unused for now
+  `block`, `definition`, `parameters`, `parts`, `seam_allowances` and `user_id` are never cast. `user_scope` is unused for now
   and keeps the signature in line with `create_changeset/3` and ADR 0001.
   """
   def changeset(pattern_project, attrs, _user_scope) do
@@ -154,6 +165,24 @@ defmodule Toile.Patterns.PatternProject do
   end
 
   defp valid_parameters?(parameters, _definition), do: parameters == %{}
+
+  @doc """
+  Changeset for saving the editor's seam allowances of a project owned by `user_scope`.
+
+  `attrs` are the allowances themselves, `%{"default" => mm, "edges" => %{part => %{curve =>
+  mm}}}`, checked by `Toile.Patterns.SeamAllowances.changeset/3` against `outline_curves`, the
+  curve names of each part's piece outlines. Nothing else is cast. `user_scope` is unused for
+  now, as in `changeset/3`.
+  """
+  def seam_allowances_changeset(pattern_project, attrs, outline_curves, _user_scope)
+      when is_map(attrs) and is_map(outline_curves) do
+    pattern_project
+    |> cast(%{"seam_allowances" => attrs}, [])
+    |> cast_embed(:seam_allowances,
+      required: true,
+      with: &SeamAllowances.changeset(&1, &2, outline_curves)
+    )
+  end
 
   @doc """
   Changeset that replaces the added part at `index` of the project's parts with `part` (the
