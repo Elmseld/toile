@@ -21,6 +21,7 @@ defmodule ToileWeb.UserLive.LoginTest do
   describe "user login - magic link" do
     test "sends magic link email when user exists", %{conn: conn} do
       user = user_fixture()
+      assert_email_sent()
 
       {:ok, lv, _html} = live(conn, ~p"/users/log-in")
 
@@ -30,6 +31,10 @@ defmodule ToileWeb.UserLive.LoginTest do
         |> follow_redirect(conn, ~p"/users/log-in")
 
       assert html =~ "If your email address is registered with us"
+
+      await_email_deliveries()
+      assert_email_sent(to: user.email, subject: "Log in to Toile")
+      assert_no_email_sent()
 
       assert Toile.Repo.get_by!(Toile.Accounts.UserToken, user_id: user.id).context ==
                "login"
@@ -70,6 +75,7 @@ defmodule ToileWeb.UserLive.LoginTest do
       assert known_flash["info"] ==
                "If your email address is registered with us, you will shortly receive an email with instructions for logging in."
 
+      await_email_deliveries()
       refute_received {:email, %Swoosh.Email{to: [{_, "nobody@example.com"}]}}
     end
   end
@@ -99,6 +105,7 @@ defmodule ToileWeb.UserLive.LoginTest do
       under =
         for _ <- 1..3 do
           response = submit_magic(conn, user.email)
+          await_email_deliveries()
           assert_email_sent(to: user.email, subject: "Log in to Toile")
           response
         end
@@ -106,6 +113,7 @@ defmodule ToileWeb.UserLive.LoginTest do
       assert login_token_count(user) == 3
 
       over = submit_magic(conn, user.email)
+      await_email_deliveries()
 
       assert_no_email_sent()
       assert login_token_count(user) == 3
@@ -119,11 +127,13 @@ defmodule ToileWeb.UserLive.LoginTest do
       under =
         for _ <- 1..3 do
           response = submit_magic(conn, user.email)
+          await_email_deliveries()
           assert_email_sent(to: user.email, subject: "Confirm your account on Toile")
           response
         end
 
       over = submit_magic(conn, user.email)
+      await_email_deliveries()
 
       assert_no_email_sent()
       assert Enum.uniq([over | under]) == [over]
@@ -141,20 +151,17 @@ defmodule ToileWeb.UserLive.LoginTest do
       end
 
       over = submit_magic(conn, user.email)
+      await_email_deliveries()
 
       assert_no_email_sent()
       assert login_token_count(user) == 0
       assert {"/users/log-in", %{"info" => "If your email address is registered" <> _}} = over
 
       # Another IP still gets the link.
-      other_conn =
-        Plug.Test.put_peer_data(build_conn(), %{
-          address: unique_remote_ip(),
-          port: 1,
-          ssl_cert: nil
-        })
+      other_conn = build_conn_with_unique_peer()
 
       assert submit_magic(other_conn, user.email) == over
+      await_email_deliveries()
       assert_email_sent(to: user.email)
     end
   end

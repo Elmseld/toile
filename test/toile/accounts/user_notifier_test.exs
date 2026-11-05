@@ -19,6 +19,15 @@ defmodule Toile.Accounts.UserNotifierTest do
     assert Gettext.get_locale(ToileWeb.Gettext) == "sv"
   end
 
+  test "emails bound the HTTP API client's connect and receive time" do
+    {:ok, email} = UserNotifier.deliver_login_instructions(user_fixture(), "http://x/[TOKEN]")
+
+    assert email.private[:client_options] == [
+             connect_options: [timeout: 5_000],
+             receive_timeout: 10_000
+           ]
+  end
+
   test "login instructions for an unconfirmed user are confirmation instructions" do
     user = unconfirmed_user_fixture()
 

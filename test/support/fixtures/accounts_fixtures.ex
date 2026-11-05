@@ -21,6 +21,9 @@ defmodule Toile.AccountsFixtures do
     {10, rem(div(n, 65_536), 256), rem(div(n, 256), 256), rem(n, 256)}
   end
 
+  @doc "See `Toile.EmailDeliveryHelpers.await_email_deliveries/1`."
+  defdelegate await_email_deliveries(timeout \\ 5_000), to: Toile.EmailDeliveryHelpers
+
   def valid_user_attributes(attrs \\ %{}) do
     Enum.into(attrs, %{
       email: unique_user_email()

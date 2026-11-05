@@ -10,6 +10,28 @@ defmodule Toile.Accounts do
 
   alias Toile.Accounts.{EmailRateLimiter, User, UserToken, UserNotifier}
 
+  @delivery_supervisor Toile.Accounts.EmailDeliverySupervisor
+
+  # At most this many login-link deliveries run at once; each holds a database
+  # connection while it issues the token. More are dropped and logged
+  # (ADR 0010).
+  @max_deliveries 100
+
+  # How long a stopping app waits for a delivery in flight. It covers the
+  # mailer's HTTP timeouts (`Toile.Accounts.UserNotifier`), so a delivery that
+  # has started can finish.
+  @delivery_shutdown_ms 20_000
+
+  # The `Task.Supervisor` that runs background login-link deliveries, and its
+  # name, for the application tree and the test helpers.
+  @doc false
+  def delivery_supervisor_spec do
+    {Task.Supervisor, name: @delivery_supervisor, max_children: @max_deliveries}
+  end
+
+  @doc false
+  def delivery_supervisor, do: @delivery_supervisor
+
   ## Database getters
 
   @doc """
@@ -512,6 +534,16 @@ defmodule Toile.Accounts do
   case variants that the `citext` lookup matches (such as `İ` for `i`) share one
   recipient budget.
 
+  The lookup and the rate-limit hit run in the caller. After an allowed hit the
+  login token is created and the email sent in a task under
+  `Toile.Accounts.EmailDeliverySupervisor`, after this function has returned,
+  so the response time does not reveal whether the address has an account
+  (ADR 0010). The task is started for unknown addresses too and does nothing
+  for them. A failed delivery, including a raise, exit or throw in the mailer,
+  is logged with the masked address only. So is a delivery that cannot be
+  started (too many in flight, or the supervisor is down); the reply is the
+  same.
+
   Always returns `:ok`.
 
   ## Options
@@ -530,21 +562,57 @@ defmodule Toile.Accounts do
     user = get_user_by_email(email)
     recipient = if user, do: user.email, else: email
 
-    # Exactly one hit either way, so the IP budget reveals nothing.
-    with :ok <- EmailRateLimiter.hit(:login_link, recipient, opts[:remote_ip]),
-         %User{} <- user do
-      user
-      |> deliver_login_instructions(magic_link_url_fun)
-      |> handle_delivery(:login_link, user.email)
+    # Exactly one hit either way, so the IP budget reveals nothing (ADR 0010).
+    with :ok <- EmailRateLimiter.hit(:login_link, recipient, opts[:remote_ip]) do
+      start_login_delivery(user, recipient, magic_link_url_fun)
     end
 
     :ok
+  end
+
+  # The token insert and the send run in a background task so the reply does
+  # not depend on whether the address has an account (ADR 0010). The task is
+  # started for unknown addresses too (it does nothing) so both take the same
+  # path, including when no task can be started: that is logged like a failed
+  # delivery and never raised, since a crash would give a different reply and a
+  # crash report with the address.
+  defp start_login_delivery(user, recipient, magic_link_url_fun) do
+    case Task.Supervisor.start_child(
+           @delivery_supervisor,
+           fn -> deliver_login_link(user, magic_link_url_fun) end,
+           shutdown: @delivery_shutdown_ms
+         ) do
+      {:ok, _pid} -> :ok
+      {:error, reason} -> handle_delivery({:error, reason}, :login_link, recipient)
+    end
+  catch
+    :exit, _reason ->
+      handle_delivery({:error, :supervisor_unavailable}, :login_link, recipient)
+  end
+
+  defp deliver_login_link(nil, _magic_link_url_fun), do: :ok
+
+  defp deliver_login_link(%User{} = user, magic_link_url_fun) do
+    user
+    |> deliver_login_instructions(magic_link_url_fun)
+    |> handle_delivery(:login_link, user.email)
+  rescue
+    # A raise, exit or throw would end the task with a crash report that
+    # contains the address.
+    exception -> handle_delivery({:error, exception}, :login_link, user.email)
+  catch
+    kind, _reason when kind in [:exit, :throw] ->
+      handle_delivery({:error, kind}, :login_link, user.email)
   end
 
   # A failed send is logged and otherwise ignored. Raising would answer a
   # request for an address with an account differently from one for an unknown
   # or rate-limited address, revealing whether the account exists (ADR 0010).
   defp handle_delivery({:ok, _email}, _flow, _recipient), do: :ok
+
+  # The account went away or changed address between the request and the
+  # delivery; nothing to send, and not a delivery failure.
+  defp handle_delivery({:error, :stale_user}, _flow, _recipient), do: :ok
 
   defp handle_delivery({:error, reason}, flow, recipient) do
     # Only the class of the reason: a provider response can echo the address.
@@ -564,14 +632,44 @@ defmodule Toile.Accounts do
   @doc """
   Delivers the magic link login instructions to the given user.
 
+  The login token is created under the user lock (ADR 0002 §3), after the user
+  is re-read. A confirmed user gets a magic link, an unconfirmed one a
+  confirmation email, decided on the re-read user.
+
+  Returns `{:ok, email}`, `{:error, :stale_user}` if the user no longer exists
+  or their email has changed (no token is created and nothing is sent), or the
+  mailer's `{:error, reason}`.
+
   Not rate limited; UI flows must go through `request_login_instructions/3`,
   `register_user_and_deliver_instructions/4` or `request_user_email_change/4`.
   """
   def deliver_login_instructions(%User{} = user, magic_link_url_fun)
       when is_function(magic_link_url_fun, 1) do
-    {encoded_token, user_token} = UserToken.build_email_token(user, "login")
-    Repo.insert!(user_token)
-    UserNotifier.deliver_login_instructions(user, magic_link_url_fun.(encoded_token))
+    # The send stays outside the transaction: the row lock must never be held
+    # across a mailer call.
+    case Repo.transact(fn -> insert_login_token(user) end) do
+      {:ok, {locked_user, encoded_token}} ->
+        UserNotifier.deliver_login_instructions(locked_user, magic_link_url_fun.(encoded_token))
+
+      {:error, :stale_user} = error ->
+        error
+    end
+  end
+
+  # Like every write path that touches tokens, locks the user row first
+  # (ADR 0002 §3). The user is re-read under the lock: with background delivery
+  # the request may be some time old by now, and a link must not go out for an
+  # account that was deleted or whose email has changed since.
+  defp insert_login_token(%User{id: id, email: email}) do
+    case lock_user(id) do
+      %User{email: ^email} = locked_user ->
+        {encoded_token, user_token} = UserToken.build_email_token(locked_user, "login")
+        Repo.insert!(user_token)
+        {:ok, {locked_user, encoded_token}}
+
+      _deleted_or_changed ->
+        {:error, :stale_user}
+    end
   end
 
   @doc """

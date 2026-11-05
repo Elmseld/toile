@@ -767,7 +767,9 @@ defmodule Toile.AccountsTest do
                remote_ip: unique_remote_ip()
              ) == :ok
 
+      await_email_deliveries()
       assert_email_sent(to: user.email, subject: "Log in to Toile")
+      assert_no_email_sent()
       assert Repo.get_by(UserToken, user_id: user.id, context: "login")
     end
 
@@ -779,7 +781,9 @@ defmodule Toile.AccountsTest do
                &"http://localhost/users/log-in/#{&1}"
              ) == :ok
 
+      await_email_deliveries()
       assert_email_sent(to: user.email, subject: "Confirm your account on Toile")
+      assert_no_email_sent()
     end
 
     test "returns :ok and sends nothing for an unknown address" do
@@ -789,6 +793,7 @@ defmodule Toile.AccountsTest do
                remote_ip: unique_remote_ip()
              ) == :ok
 
+      await_email_deliveries()
       assert_no_email_sent()
     end
 
@@ -804,6 +809,7 @@ defmodule Toile.AccountsTest do
         end
 
       assert results == [:ok, :ok, :ok, :ok]
+      await_email_deliveries()
       for _ <- 1..3, do: assert_email_sent(to: user.email)
       assert_no_email_sent()
 
@@ -831,6 +837,7 @@ defmodule Toile.AccountsTest do
                ) == :ok
       end
 
+      await_email_deliveries()
       for _ <- 1..3, do: assert_email_sent(to: user.email)
       assert_no_email_sent()
     end
@@ -854,6 +861,7 @@ defmodule Toile.AccountsTest do
                remote_ip: ip
              ) == :ok
 
+      await_email_deliveries()
       assert_no_email_sent()
       refute Repo.get_by(UserToken, user_id: user.id, context: "login")
     end
@@ -919,12 +927,15 @@ defmodule Toile.AccountsTest do
       request_login(user.email, ip)
       for _ <- 1..19, do: request_login(unique_user_email(), ip)
 
+      await_email_deliveries()
       refute Repo.get_by(UserToken, user_id: user.id, context: "login")
       refute probe_sends?(ip)
     end
   end
 
   describe "deliver_login_instructions/2" do
+    import Swoosh.TestAssertions
+
     setup do
       %{user: unconfirmed_user_fixture()}
     end
@@ -940,6 +951,30 @@ defmodule Toile.AccountsTest do
       assert user_token.user_id == user.id
       assert user_token.sent_to == user.email
       assert user_token.context == "login"
+    end
+
+    test "returns {:error, :stale_user} and creates no token if the email changed", %{
+      user: user
+    } do
+      Repo.update_all(from(u in User, where: u.id == ^user.id),
+        set: [email: unique_user_email()]
+      )
+
+      assert Accounts.deliver_login_instructions(user, &"http://x/#{&1}") ==
+               {:error, :stale_user}
+
+      refute Repo.get_by(UserToken, user_id: user.id, context: "login")
+      assert_no_email_sent()
+    end
+
+    test "returns {:error, :stale_user} for a deleted user", %{user: user} do
+      Repo.delete!(user)
+
+      assert Accounts.deliver_login_instructions(user, &"http://x/#{&1}") ==
+               {:error, :stale_user}
+
+      refute Repo.get_by(UserToken, user_id: user.id, context: "login")
+      assert_no_email_sent()
     end
   end
 
@@ -958,6 +993,7 @@ defmodule Toile.AccountsTest do
   defp probe_sends?(ip) do
     attacker = user_fixture()
     request_login(attacker.email, ip)
+    await_email_deliveries()
     Repo.exists?(from(t in UserToken, where: t.user_id == ^attacker.id and t.context == "login"))
   end
 

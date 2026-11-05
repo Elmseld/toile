@@ -33,11 +33,17 @@ defmodule Toile.DataCase do
   end
 
   @doc """
-  Sets up the sandbox based on the test tags.
+  Sets up the sandbox based on the test tags. When the test exits, it first
+  waits for background email deliveries
+  (`Toile.EmailDeliveryHelpers.await_email_deliveries/1`) and then stops the owner.
   """
   def setup_sandbox(tags) do
     pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Toile.Repo, shared: not tags[:async])
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+    # Registered after stop_owner, so it runs first (on_exit is last in, first
+    # out): background login-link deliveries finish while they can still use
+    # the sandbox connection (ADR 0010).
+    on_exit(fn -> Toile.EmailDeliveryHelpers.await_email_deliveries() end)
   end
 
   @doc """
