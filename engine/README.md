@@ -317,6 +317,9 @@ no I/O; the browser hook calls `patternPdf` and downloads the bytes.
   `printedTiles(grid, regions)` the tiles a piece region overlaps (row-major, no empty pages) and
   `tileLabel(row, col)` the label ("A1", "AA1"). `readPaper(value)` gives `"letter"` or else `"a4"`.
   `PRINT_MARGIN` and `TILE_OVERLAP` are 10 mm; `PT_PER_MM` is 72/25.4.
+- `wrapText(text, size, width, maxLines?)` wraps page 1's text by words at the estimated width,
+  breaks a word wider than `width`, and with `maxLines` ends the last kept line in "…" (the title
+  takes at most three lines).
 - `writePdf({ title, pages })` writes PDF 1.4 (Helvetica, uncompressed); `pdfText` writes text as
   hex WinAnsi, so user text cannot break the syntax.
 - Tests check the test square (283.465 pt) and a known line's length in the written bytes.

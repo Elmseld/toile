@@ -62,6 +62,8 @@ const DIAMOND_SIZE = 6;
 const TEST_SQUARE = 100; // mm
 const TILE_LABEL_SIZE = 36; // pt
 const TITLE_SIZE = 16; // pt
+/** The most lines the title takes on page 1; a longer one ends in "…". */
+const TITLE_MAX_LINES = 3;
 const BODY_SIZE = 10; // pt
 const HEADING_SIZE = 12; // pt
 const MAP_LABEL_SIZE = 8; // pt
@@ -214,23 +216,51 @@ export function pieceContent(piece: PrintPiece, toPage: (p: Point) => Point): st
 
 /**
  * `text` split into lines at most `width` wide at font `size` (same unit), greedily by words,
- * with the engine's estimated character width. A word wider than `width` gets a line of its own;
- * whitespace-only text gives no lines.
+ * with the engine's estimated character width. A word wider than `width` is broken over as many
+ * lines as it needs (at least one character each); whitespace-only text gives no lines. With
+ * `maxLines`, the lines past it are dropped and the last kept one ends in "…" (still within
+ * `width` where one character and the ellipsis fit).
  */
-export function wrapText(text: string, size: number, width: number): string[] {
+export function wrapText(
+  text: string,
+  size: number,
+  width: number,
+  maxLines = Infinity,
+): string[] {
   const lines: string[] = [];
   let line = "";
   for (const word of text.split(/\s+/).filter((part) => part !== "")) {
     const candidate = line === "" ? word : `${line} ${word}`;
-    if (line !== "" && estimatedWidth(candidate, size) > width) {
-      lines.push(line);
-      line = word;
-    } else {
+    if (estimatedWidth(candidate, size) <= width) {
       line = candidate;
+      continue;
     }
+    if (line !== "") lines.push(line);
+    const pieces = breakWord(word, size, width);
+    line = pieces.pop()!;
+    lines.push(...pieces);
   }
   if (line !== "") lines.push(line);
-  return lines;
+  if (lines.length <= maxLines) return lines;
+  const kept = lines.slice(0, Math.max(maxLines, 1));
+  kept.push(ellipsized(kept.pop()!, size, width));
+  return kept;
+}
+
+/** `word` cut into runs of characters, each as long as fits in `width` (at least one). */
+function breakWord(word: string, size: number, width: number): string[] {
+  const perLine = Math.max(1, Math.floor(width / (size * CHAR_WIDTH_RATIO)));
+  const chars = [...word];
+  const pieces: string[] = [];
+  for (let i = 0; i < chars.length; i += perLine) pieces.push(chars.slice(i, i + perLine).join(""));
+  return pieces;
+}
+
+/** `line` shortened as needed to end in "…" within `width` (keeping at least one character). */
+function ellipsized(line: string, size: number, width: number): string {
+  const chars = [...line.trimEnd()];
+  while (chars.length > 1 && estimatedWidth(`${chars.join("")}…`, size) > width) chars.pop();
+  return `${chars.join("").trimEnd()}…`;
 }
 
 /** Page 1: the title, the texts, the test square and the overview map, from the top left. */
@@ -246,14 +276,15 @@ function firstPageContent(
   const ops: string[] = ["0 g 0 G"];
   // `top` is the distance (pt) from the page's top edge to the next free line.
   let top = margin;
-  const paragraph = (font: "F1" | "F2", size: number, content: string): void => {
-    for (const line of wrapText(content, size, printableWidth)) {
+  const paragraph = (font: "F1" | "F2", size: number, content: string, maxLines?: number) => {
+    for (const line of wrapText(content, size, printableWidth, maxLines)) {
       top += size * LABEL_LINE_HEIGHT;
       ops.push(text(font, size, margin, height - top + (LABEL_LINE_HEIGHT - 1) * size, line));
     }
     top += GAP / 2;
   };
-  paragraph("F2", TITLE_SIZE, input.title);
+  // A capped title leaves the test square and the map their room whatever the project name.
+  paragraph("F2", TITLE_SIZE, input.title, TITLE_MAX_LINES);
   paragraph("F1", BODY_SIZE, input.texts.scaleCheck);
   paragraph("F1", BODY_SIZE, input.texts.assembly);
 

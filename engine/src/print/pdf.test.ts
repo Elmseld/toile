@@ -250,8 +250,24 @@ describe("wrapText", () => {
     expect(wrapText("  aaa   bbb  ", 10, 100)).toEqual(["aaa bbb"]);
   });
 
-  test("keeps an over-long word on its own line", () => {
-    expect(wrapText("a verylongword b", 10, 30)).toEqual(["a", "verylongword", "b"]);
+  test("breaks an over-long word over lines that fit", () => {
+    // At size 10 and width 30, four characters (24.8) fit on a line.
+    expect(wrapText("a verylongword b", 10, 30)).toEqual(["a", "very", "long", "word", "b"]);
+    expect(wrapText("abcdefghij", 10, 30)).toEqual(["abcd", "efgh", "ij"]);
+    expect(wrapText("abcdefghij ab", 10, 30)).toEqual(["abcd", "efgh", "ij", "ab"]);
+    expect(wrapText("abc", 10, 1)).toEqual(["a", "b", "c"]);
+    for (const line of wrapText("x".repeat(100), 16, 500)) {
+      expect(line.length * 16 * 0.62).toBeLessThanOrEqual(500);
+    }
+  });
+
+  test("keeps at most maxLines, the last one ending in an ellipsis within the width", () => {
+    expect(wrapText("aaa bbb ccc ddd", 10, 50, 2)).toEqual(["aaa bbb", "ccc ddd"]);
+    expect(wrapText("aaa bbb ccc ddd", 10, 50, 1)).toEqual(["aaa bbb…"]);
+    expect(wrapText("aaa bbb ccc ddd", 10, 40, 2)).toEqual(["aaa", "bbb…"]);
+    // "abcdef" fills the 40 wide line, so it loses characters to make room for the ellipsis.
+    expect(wrapText("abcdef ghi", 10, 40, 1)).toEqual(["abcde…"]);
+    expect(wrapText("aaa bbb", 10, 40, 0)).toEqual(["aaa…"]);
   });
 
   test("gives no lines for empty or blank text", () => {
@@ -335,6 +351,37 @@ describe("patternPdf: page content", () => {
       expect(y + h).toBeLessThanOrEqual(height - margin + 0.01);
       expect(first!.content).toContain(pdfText("A1"));
       expect(first!.content).toContain(pdfText("A2"));
+    }
+  });
+
+  test("keeps a long project name inside page 1, above the square and the map", () => {
+    const words = Array.from({ length: 25 }, () => "Kjol").join(" "); // 124 characters
+    for (const paper of ["a4", "letter"] as const) {
+      for (const title of ["X".repeat(100), "W".repeat(100), words]) {
+        const [first] = pagesOf(input(PANEL, { paper, title }));
+        const [width, height] = paper === "a4" ? [595.276, 841.89] : [612, 792];
+        const margin = PRINT_MARGIN * K;
+        const titleOps = /BT \/F2 16 Tf ([\d.]+) ([\d.]+) Td <([0-9A-F]*)> Tj ET/g;
+        const titleLines = [...first!.content.matchAll(titleOps)].map((match) => ({
+          x: Number(match[1]),
+          y: Number(match[2]),
+          chars: match[3]!.length / 2,
+        }));
+        expect(titleLines.length).toBeGreaterThan(1);
+        expect(titleLines.length).toBeLessThanOrEqual(3);
+        for (const line of titleLines) {
+          expect(line.x).toBeGreaterThanOrEqual(margin - 0.01);
+          expect(line.x + line.chars * 16 * 0.62).toBeLessThanOrEqual(width - margin + 0.01);
+        }
+        const square = /([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) re S/.exec(first!.content)!;
+        const [, y, , side] = square.slice(1).map(Number) as [number, number, number, number];
+        expect(y).toBeGreaterThanOrEqual(margin - 0.01);
+        expect(y + side).toBeLessThan(Math.min(...titleLines.map((line) => line.y)));
+        expect(y + side).toBeLessThanOrEqual(height - margin + 0.01);
+        // The map is drawn: its cells carry the tile labels.
+        expect(first!.content).toContain(pdfText("A1"));
+        expect(first!.content).toContain(pdfText("A2"));
+      }
     }
   });
 

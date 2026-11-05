@@ -41,7 +41,9 @@ already holds the computed result, including edits that are not saved yet.
    on it; they lie at the same pattern position on both pages.
 7. **Page 1** has the project name, a sentence asking for printing at 100 %, assembly instructions,
    a 10 × 10 cm test square and an overview map: the pieces scaled down with one labelled cell per
-   printed page. Tile pages follow in reading order.
+   printed page. Tile pages follow in reading order. Text wraps at the printable width, a word
+   wider than it is broken, and the title takes at most three lines (the last ending in "…"), so
+   any project name leaves the square and the map their room.
 8. **Empty pages are not printed.** A tile is printed only if a piece's region (the cutting line, or
    the outline when there is none) overlaps its printable area; a cell that only the layout box
    covers is skipped and has no cell in the map.
