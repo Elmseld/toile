@@ -4,8 +4,9 @@ defmodule Toile.Patterns.Blocks.LoaderTest do
   alias Toile.Patterns.Blocks.Loader
   alias Toile.Patterns.DefinitionSize
 
-  # Fixtures live in the container's own temp dir: the project's tmp/ is a bind mount on
-  # macOS Docker, where a read right after File.write! once saw an empty file (ticket 0017).
+  # Not :tmp_dir (ticket 0017): its fixed path under tmp/ is a bind mount on macOS Docker and
+  # is shared by concurrent `mix test` runs, either of which can leave a read seeing an empty
+  # file. Keep System.pid() in the path so each OS process and test gets its own directory.
   setup do
     dir =
       Path.join(
