@@ -35,8 +35,33 @@ defmodule ToileWeb.ClientIPTest do
                {0x2001, 0xDB8, 0, 0, 0, 0, 0, 1}
     end
 
+    test "strips a port and brackets" do
+      for {value, ip} <- [
+            {"10.9.9.9, 203.0.113.7:5678", {203, 0, 113, 7}},
+            {"[2001:db8::1]:443", {0x2001, 0xDB8, 0, 0, 0, 0, 0, 1}},
+            {"[2001:db8::1]", {0x2001, 0xDB8, 0, 0, 0, 0, 0, 1}},
+            {"[203.0.113.7]:80", {203, 0, 113, 7}}
+          ] do
+        assert ClientIP.resolve(@peer, [{"x-forwarded-for", value}], :x_forwarded_for) == ip
+      end
+    end
+
     test "falls back to the peer address for an unparsable entry" do
-      for value <- ["203.0.113.7, unknown", "203.0.113.7,", "", "127.1", <<0xFF, 0xFE>>] do
+      for value <- [
+            "203.0.113.7, unknown",
+            "203.0.113.7,",
+            "",
+            "127.1",
+            <<0xFF, 0xFE>>,
+            "203.0.113.7:",
+            "203.0.113.7:port",
+            "203.0.113.7:123456",
+            "[2001:db8::1",
+            "[2001:db8::1]:",
+            "[2001:db8::1]x",
+            "2001:db8::1:",
+            <<"203.0.113.7:", 0xFF>>
+          ] do
         assert ClientIP.resolve(@peer, [{"x-forwarded-for", value}], :x_forwarded_for) ==
                  {192, 0, 2, 1}
       end
