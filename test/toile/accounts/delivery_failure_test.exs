@@ -45,7 +45,8 @@ defmodule Toile.Accounts.DeliveryFailureTest do
 
     for {failure, swap_in, reason} <- [
           {"raise", :use_raising_mailer, "RuntimeError"},
-          {"exit", :use_exiting_mailer, ":exit"}
+          {"exit", :use_exiting_mailer, ":exit"},
+          {"throw", :use_throwing_mailer, ":throw"}
         ] do
       test "logs a mailer #{failure} without the address and answers :ok", %{
         confirmed: confirmed

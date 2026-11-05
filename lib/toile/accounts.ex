@@ -539,8 +539,8 @@ defmodule Toile.Accounts do
   `Toile.Accounts.EmailDeliverySupervisor`, after this function has returned,
   so the response time does not reveal whether the address has an account
   (ADR 0010). The task is started for unknown addresses too and does nothing
-  for them. A failed delivery, including a raise or exit in the mailer, is
-  logged with the masked address only. So is a delivery that cannot be
+  for them. A failed delivery, including a raise, exit or throw in the mailer,
+  is logged with the masked address only. So is a delivery that cannot be
   started (too many in flight, or the supervisor is down); the reply is the
   same.
 
@@ -597,11 +597,12 @@ defmodule Toile.Accounts do
     |> deliver_login_instructions(magic_link_url_fun)
     |> handle_delivery(:login_link, user.email)
   rescue
-    # A raise or exit would end the task with a crash report that contains the
-    # address.
+    # A raise, exit or throw would end the task with a crash report that
+    # contains the address.
     exception -> handle_delivery({:error, exception}, :login_link, user.email)
   catch
-    :exit, _reason -> handle_delivery({:error, :exit}, :login_link, user.email)
+    kind, _reason when kind in [:exit, :throw] ->
+      handle_delivery({:error, kind}, :login_link, user.email)
   end
 
   # A failed send is logged and otherwise ignored. Raising would answer a

@@ -90,7 +90,7 @@ reputation. The limit must not reveal whether an address has an account (ADR 000
   token. A delivery that cannot start (`{:error, :max_children}`, or the supervisor is down) is
   logged like a failed one (`reason=:max_children` or `reason=:supervisor_unavailable`, masked
   address) and the reply stays the same; it is never raised, which would crash the LiveView with
-  a crash report holding the address. A raise or exit in the task is logged like a failed
+  a crash report holding the address. A raise, exit or throw in the task is logged like a failed
   delivery (masked address, class only), never as a crash report. `UserNotifier` bounds an HTTP
   API send (`Swoosh.ApiClient.Req`, `client_options`) to 5 s connect and 10 s receive, instead of
   Req's 30 s and 15 s, so a hanging provider cannot pile up tasks; this also bounds the
