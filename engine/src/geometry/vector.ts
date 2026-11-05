@@ -71,6 +71,21 @@ export function pointSegmentDistance(p: Point, a: Point, b: Point): number {
 }
 
 /**
+ * Where the ray `origin + direction * t` meets the segment `a -> b`: the ray parameter `t` (in
+ * units of `direction`'s length; negative when the segment is behind the origin), or `null` when
+ * the ray's line misses the segment or runs parallel to it.
+ */
+export function raySegmentHit(origin: Point, direction: Point, a: Point, b: Point): number | null {
+  const edge = sub(b, a);
+  const denominator = cross(direction, edge);
+  if (!(Math.abs(denominator) > PARALLEL_TOLERANCE * norm(direction) * norm(edge))) return null;
+  const toStart = sub(a, origin);
+  const s = cross(toStart, direction) / denominator;
+  if (!(s >= 0 && s <= 1)) return null;
+  return cross(toStart, edge) / denominator;
+}
+
+/**
  * `p` rotated about `center` by the angle whose cosine and sine are `cos` and `sin` (positive
  * turns `x` toward `y`: clockwise on screen, with y down).
  */

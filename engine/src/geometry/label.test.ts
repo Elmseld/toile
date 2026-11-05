@@ -5,6 +5,7 @@ import { compilePattern, placeLabel as publicPlaceLabel } from "../index";
 import {
   CHAR_WIDTH_RATIO,
   GRAINLINE_ARROW_SIZE,
+  LABEL_LINE_HEIGHT,
   grainlineSegments,
   insidePolygon,
   type LabelPiece,
@@ -138,6 +139,31 @@ describe("placeLabel on the blocks", () => {
       });
     }
   }
+});
+
+describe("multi-line labels", () => {
+  test("textBox of two lines has the longer line's width and an extra line's height", () => {
+    expect(LABEL_LINE_HEIGHT).toBe(1.2);
+    expect(textBox("Back\ncut 2", 10)).toEqual({
+      width: 5 * 10 * CHAR_WIDTH_RATIO,
+      height: 10 * (1 + LABEL_LINE_HEIGHT),
+    });
+    expect(textBox("Framstycke", 10)).toEqual({ width: 10 * 10 * CHAR_WIDTH_RATIO, height: 10 });
+    expect(textBox("a\n\nb", 10).height).toBeCloseTo(10 * (1 + 2 * LABEL_LINE_HEIGHT), 12);
+  });
+
+  test("a two-line label on the skirt front lies inside the piece, clear of every line", () => {
+    const definition = JSON.parse(readFileSync(join(BLOCKS_DIR, "straight_skirt.json"), "utf8"));
+    const result = compilePattern(definition).evaluate({ measurements: PROFILES.small! });
+    const piece = result.pieces.front!;
+    const text = "Framstycke\nklipp 1 i fold";
+    const place = placeLabel(piece, text, SIZE)!;
+    expect(place).not.toBeNull();
+    const box = boxAround(place, text);
+    const polygon = outlinePolygon(piece);
+    for (const [x, y] of corners(box)) expect(insidePolygon(polygon, x, y)).toBe(true);
+    expect(clearance(piece, box)).toBeCloseTo(place.clearance, 6);
+  });
 });
 
 describe("placeLabel", () => {

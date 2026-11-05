@@ -63,11 +63,15 @@ export type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
 /**
  * The box around every piece: the end and control points of each outline curve (a cubic lies
  * inside its control polygon, so the box always contains the drawn outline, sometimes with a little
- * room) and the grainline points. `null` when there are no pieces or no finite coordinate; a
+ * room) and the grainline points, and every point of `lines` (such as the pieces' cutting lines,
+ * which lie outside the outlines). `null` when there are no points or no finite coordinate; a
  * non-finite number (only possible in hand-built input) is skipped, per axis. Callers use it to fit
  * the `viewBox` without doing geometry themselves.
  */
-export function patternBounds(pattern: Pick<ComputedPattern, "pieces">): Bounds | null {
+export function patternBounds(
+  pattern: Pick<ComputedPattern, "pieces">,
+  lines: readonly (readonly Point[])[] = [],
+): Bounds | null {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -94,6 +98,7 @@ export function patternBounds(pattern: Pick<ComputedPattern, "pieces">): Bounds 
     include(piece.grainline.from);
     include(piece.grainline.to);
   }
+  for (const line of lines) for (const point of line) include(point);
   if (minX > maxX || minY > maxY) return null;
   return { minX, minY, maxX, maxY };
 }

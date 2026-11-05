@@ -3,12 +3,13 @@
 // geometry on a computed piece in mm user units; drawing the text is the view's job.
 //
 // The text is treated as a box centred on the returned point (the view draws it with
-// text-anchor="middle" and dominant-baseline="middle"), of `size` mm height and an estimated
-// width. Candidate centres on a grid over the piece's bounding box are kept when they lie inside
-// the outline; the one whose box is farthest from every line wins (of equally good centres, the
-// one nearest the middle of the bounding box), refined once on a finer grid around it. A box that
-// does not touch the outline and whose centre is inside lies wholly inside the piece. When no box
-// at `size` keeps MIN_CLEARANCE_RATIO * size from the lines, the size shrinks step by step down to
+// text-anchor="middle" and dominant-baseline="middle"), of `size` mm height per line (lines split
+// on "\n", spaced LABEL_LINE_HEIGHT apart) and an estimated width. Candidate centres on a grid
+// over the piece's bounding box are kept when they lie inside the outline; the one whose box is
+// farthest from every line wins (of equally good centres, the one nearest the middle of the
+// bounding box), refined once on a finer grid around it. A box that does not touch the outline and
+// whose centre is inside lies wholly inside the piece. When no box at `size` keeps
+// MIN_CLEARANCE_RATIO * size from the lines, the size shrinks step by step down to
 // MIN_SIZE_RATIO * size. Deterministic (fixed grids and tie-break). Not cheap: two grids of about
 // 1700 and 300 candidates per size against a few hundred segments; measured with Bun in Docker on
 // a laptop, about 7 ms (front) and 14 ms (back) per bodice piece, about 20 ms per bodice. Fine
@@ -26,6 +27,11 @@ import type { Point } from "./vector";
 export const GRAINLINE_ARROW_SIZE = 8;
 /** Straight segments per cubic when flattening an outline. */
 export const CUBIC_STEPS = 16;
+/**
+ * The distance between the baselines of two lines of a multi-line label, as a fraction of the font
+ * size. Views space their lines (`dy`) by it, so the drawn block matches `textBox`.
+ */
+export const LABEL_LINE_HEIGHT = 1.2;
 /** Estimated advance of one character, as a fraction of the font size (generous for sans fonts). */
 export const CHAR_WIDTH_RATIO = 0.62;
 /** Wanted gap between the text box and the nearest line, as a fraction of the font size. */
@@ -89,9 +95,17 @@ export function outlinePolygon(piece: LabelPiece): Point[] {
   return points.filter(finitePoint);
 }
 
-/** The estimated box of `text` at font `size` (mm). */
+/**
+ * The estimated box of `text` at font `size` (mm). Lines are split on `"\n"`: the width is that of
+ * the longest line, and each line after the first adds `LABEL_LINE_HEIGHT * size` to the height.
+ */
 export function textBox(text: string, size: number): Box {
-  return { width: Math.max(1, [...text].length) * size * CHAR_WIDTH_RATIO, height: size };
+  const lines = text.split("\n");
+  const longest = Math.max(1, ...lines.map((line) => [...line].length));
+  return {
+    width: longest * size * CHAR_WIDTH_RATIO,
+    height: size * (1 + (lines.length - 1) * LABEL_LINE_HEIGHT),
+  };
 }
 
 /**

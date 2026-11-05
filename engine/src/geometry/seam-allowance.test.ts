@@ -11,9 +11,11 @@ import { cubicSegments, type Edge, MAX_CUTTING_LINE_SEGMENTS, polygonArea } from
 import {
   type CuttingPiece,
   cuttingLine,
+  DEFAULT_SEAM_ALLOWANCE,
   MAX_ALLOWANCE_ERRORS,
   MAX_RAW_LINE_POINTS,
   MAX_SEAM_ALLOWANCE,
+  pieceSeamAllowances,
   type SeamAllowances,
 } from "./seam-allowance";
 import { MAX_OUTLINE_ENTRIES, MAX_SECTION_ENTRIES } from "./validate";
@@ -314,6 +316,39 @@ describe("a rectangle (I)", () => {
 
   test("allowance 0 everywhere is the outline itself", () => {
     expectPoints(points(cuttingLine(polygonPiece(corners), { default: 0 })), corners);
+  });
+});
+
+describe("pieceSeamAllowances", () => {
+  test("fold edges get 0, the default is passed through", () => {
+    expect(DEFAULT_SEAM_ALLOWANCE).toBe(10);
+    expect(pieceSeamAllowances({ folds: ["e3"] }, 15)).toEqual({ default: 15, edges: { e3: 0 } });
+    expect(pieceSeamAllowances({ folds: [] }, 10, {})).toEqual({ default: 10, edges: {} });
+  });
+
+  test("the user's value for an edge wins over the fold", () => {
+    expect(pieceSeamAllowances({ folds: ["e3", "e1"] }, 10, { e3: 12, e0: 5 })).toEqual({
+      default: 10,
+      edges: { e3: 12, e1: 0, e0: 5 },
+    });
+  });
+
+  test("only own entries of edges are read; __proto__ stays plain data", () => {
+    const inherited = Object.create({ e3: 20 }) as Record<string, number>;
+    expect(pieceSeamAllowances({ folds: ["e3"] }, 10, inherited).edges).toEqual({ e3: 0 });
+    const hostile = JSON.parse('{"__proto__": 7}') as Record<string, number>;
+    const result = pieceSeamAllowances({ folds: [] }, 10, hostile);
+    expect(Object.hasOwn(result.edges!, "__proto__")).toBe(true);
+    expect(Object.getPrototypeOf(result.edges)).toBe(Object.prototype);
+  });
+
+  test("with cuttingLine, the line runs on the fold edge", () => {
+    const piece = polygonPiece([p(0, 0), p(200, 0), p(200, 100), p(0, 100)]);
+    const line = points(cuttingLine(piece, pieceSeamAllowances({ folds: ["e3"] }, 10)));
+    for (const vertex of [p(0, 0), p(0, 100)]) {
+      expect(polygonDistance(line, vertex)).toBeLessThan(1e-9);
+    }
+    expectPoints(line, [p(0, -10), p(210, -10), p(210, 110), p(0, 110)]);
   });
 });
 

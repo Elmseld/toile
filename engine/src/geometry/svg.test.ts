@@ -126,6 +126,15 @@ describe("patternBounds", () => {
     expect(patternBounds({ pieces: { t: triangle } })).toEqual({ minX: 0, minY: 0, maxX: 100, maxY: 80 });
   });
 
+  test("lines grow the box to their points; without them it is unchanged", () => {
+    const pieces = { t: triangle };
+    expect(patternBounds({ pieces }, [])).toEqual(patternBounds({ pieces }));
+    const lines = [[p(-10, -5), p(110, -5)], [p(50, 95)]];
+    expect(patternBounds({ pieces }, lines)).toEqual({ minX: -10, minY: -5, maxX: 110, maxY: 95 });
+    expect(patternBounds({ pieces: {} }, lines)).toEqual({ minX: -10, minY: -5, maxX: 110, maxY: 95 });
+    expect(patternBounds({ pieces: {} }, [[p(Number.NaN, 1)]])).toBeNull();
+  });
+
   test("a cubic's control points extend the box", () => {
     const [a, b] = [p(0, 0), p(100, 0)];
     const piece: ComputedPiece = {

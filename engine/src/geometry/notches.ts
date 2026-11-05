@@ -1,10 +1,11 @@
 // Notches (balance marks) on a computed piece outline (ADR 0004 decision 17): the point at an arc
-// distance along the outline, and the short marks a view draws there into the piece.
+// distance along the outline, and the short marks a view draws there into the piece; also the same
+// marks moved out to a cutting line (ADR 0011 decision 6).
 
 import { cubicAt, cubicParameterAtLength, cubicTangent } from "./bezier";
 import { outlinePolygon } from "./label";
 import type { ComputedCurve, ComputedNotch, NotchMark } from "./types";
-import type { Point } from "./vector";
+import { type Point, raySegmentHit } from "./vector";
 
 /** The length (mm) of a notch mark, from the outline into the piece. */
 export const NOTCH_LENGTH = 6;
@@ -50,6 +51,59 @@ export function computeNotch(
     };
   });
   return { point: located.point, marks };
+}
+
+/** Ray hits this far (mm) behind the start still count, for a cutting line through the outline. */
+const HIT_TOLERANCE = 1e-9;
+
+/**
+ * The notches moved out to the cutting line `line` (a closed polygon such as `cuttingLine`'s
+ * points, last point not repeated), in the order of `notches`. Each mark is moved along its own
+ * line, outwards (against its inward direction), to where it first meets `line`, and keeps
+ * `NOTCH_LENGTH`, pointing inward; the notch `point` moves the same way along the first mark's
+ * direction. With an allowance of 0 the marks stay where they are. A mark (or point) whose ray
+ * meets no segment of `line`, or that has no direction, is kept unchanged. Pure; never throws.
+ */
+export function cuttingLineNotches(
+  notches: readonly ComputedNotch[],
+  line: readonly Point[],
+): ComputedNotch[] {
+  return notches.map((notch) => {
+    const [first] = notch.marks;
+    const direction = first === undefined ? null : inwardUnit(first);
+    const point = direction === null ? notch.point : moveOut(notch.point, direction, line);
+    const marks = notch.marks.map((mark): NotchMark => {
+      const inward = inwardUnit(mark);
+      if (inward === null) return mark;
+      const from = moveOut(mark.from, inward, line);
+      return {
+        from,
+        to: { x: from.x + inward.x * NOTCH_LENGTH, y: from.y + inward.y * NOTCH_LENGTH },
+      };
+    });
+    return { point, marks };
+  });
+}
+
+/** The unit direction of `mark`, from the outline into the piece, or `null` when it has none. */
+function inwardUnit(mark: NotchMark): Point | null {
+  const dx = mark.to.x - mark.from.x;
+  const dy = mark.to.y - mark.from.y;
+  const length = Math.hypot(dx, dy);
+  if (!(length > 0) || !Number.isFinite(length)) return null;
+  return { x: dx / length, y: dy / length };
+}
+
+/** `start` moved against `inward` to the nearest point of the closed polygon `line`. */
+function moveOut(start: Point, inward: Point, line: readonly Point[]): Point {
+  const outward = { x: -inward.x, y: -inward.y };
+  let nearest = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < line.length && line.length >= 2; i++) {
+    const t = raySegmentHit(start, outward, line[i]!, line[(i + 1) % line.length]!);
+    if (t !== null && t >= -HIT_TOLERANCE && t < nearest) nearest = t;
+  }
+  if (!Number.isFinite(nearest)) return start;
+  return { x: start.x + outward.x * nearest, y: start.y + outward.y * nearest };
 }
 
 const GRAINLINE_UNUSED = { from: { x: 0, y: 0 }, to: { x: 0, y: 0 } };

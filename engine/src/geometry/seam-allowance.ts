@@ -20,8 +20,8 @@
 // piece that needs the second construction costs about twice as much. The worst hostile outlines
 // found at the entry limit (stars of hundreds of thin spikes, combs, serpentines of wavy rows, a
 // thousand large cubics, all at 100 mm) take at most about 0.2 s and 100 MB, then give a line or
-// are refused. A view should still compute it once per drawn input rather than on every pointer
-// move.
+// are refused. A view that computes it on every update (the editor's drag) should cache it per
+// outline and allowances, as the project page does (ADR 0011 decision 8).
 
 import { type Dart, type DartPeak, dartPeak, findDarts } from "./darts";
 import { insidePolygon } from "./label";
@@ -47,6 +47,7 @@ import {
   offsetEdge,
   polygonArea,
 } from "./offset";
+import type { ComputedPiece } from "./types";
 import { MAX_OUTLINE_ENTRIES, MAX_SECTION_ENTRIES } from "./validate";
 import {
   cross,
@@ -109,6 +110,8 @@ export type CuttingLineResult =
 
 /** The largest seam allowance (mm) accepted for an edge. */
 export const MAX_SEAM_ALLOWANCE = 100;
+/** The seam allowance (mm) of a new project, for every edge not on a fold (ADR 0011). */
+export const DEFAULT_SEAM_ALLOWANCE = 10;
 /** At most this many `invalid_seam_allowance` errors are returned; the rest are dropped. */
 export const MAX_ALLOWANCE_ERRORS = 100;
 /** Curve names longer than this are cut short in error messages (`edge` keeps the whole name). */
@@ -169,6 +172,22 @@ export function cuttingLine(piece: CuttingPiece, allowances: SeamAllowances): Cu
     if (error instanceof WorkLimitError) return degenerate(TOO_COMPLEX);
     return degenerate("The cutting line could not be computed for this piece");
   }
+}
+
+/**
+ * The allowances `cuttingLine` takes for one piece of a project part (ADR 0011 decision 4): the
+ * project's `defaultAllowance` for every edge, 0 for each fold edge (`piece.folds`), and the
+ * user's own values per curve name (`edges`, the part's map) over both. Only own entries of
+ * `edges` are read. Pure and does no validation: `cuttingLine` validates the result.
+ */
+export function pieceSeamAllowances(
+  piece: Pick<ComputedPiece, "folds">,
+  defaultAllowance: number,
+  edges?: Readonly<Record<string, number>>,
+): SeamAllowances {
+  const folds = piece.folds.map((curve): [string, number] => [curve, 0]);
+  const own = edges === undefined ? [] : Object.entries(edges);
+  return { default: defaultAllowance, edges: Object.fromEntries([...folds, ...own]) };
 }
 
 function compute(piece: unknown, input: unknown): CuttingLineResult {
