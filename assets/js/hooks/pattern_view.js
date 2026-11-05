@@ -26,14 +26,14 @@
 //
 // All parts are evaluated together (the engine's compileProject), so a part that imports values
 // from another, like a sleeve from the bodice armhole, is always computed from the same input. If
-// any part fails, nothing is drawn. The layout is the engine's and is done when the drawing is
-// built: layoutPieces moves the pieces of each part apart by their boxes with the cutting lines,
-// so they never overlap whatever the seam allowances, and layoutParts then places the parts side
-// by side by the boxes it returns. Each part is drawn in a <g data-part> translated by its offset,
-// each piece in it in a <g data-piece> translated by its own. Every mapping between the drawing
-// and a part's coordinates uses the same offsets: pieceOffset(part, piece) for an edge (tap and
-// highlight), pointOffset(part, point) for a point (handles, hover, drag), where a point goes with
-// the piece the engine's pointPieces gives it. The layout, and which piece each point goes with,
+// any part fails, nothing is drawn. The layout is the engine's layoutProject, the same one the PDF
+// uses, and is done when the drawing is built: it moves the pieces of each part apart by their
+// boxes with the cutting lines (taken from this hook's cache), so they never overlap whatever the
+// seam allowances, and places the parts side by side. Each part is drawn in a <g data-part>
+// translated by its offset, each piece in it in a <g data-piece> translated by its own. Every
+// mapping between the drawing and a part's coordinates uses the same offsets: pieceOffset(part,
+// piece) for an edge (tap and highlight), pointOffset(part, point) for a point (handles, hover,
+// drag), where a point goes with the piece the engine's pointPieces gives it. The layout, and which piece each point goes with,
 // stay while the pattern is edited, so a dragged point does not slip away from the pointer; they
 // are redone on the next build and by relayout(), which the editor calls when the seam allowances
 // it commits change.
@@ -76,14 +76,17 @@
 // what is visible). Events on the element:
 //   toile:fit                      resets the view to the whole pattern
 //   toile:zoom {detail: {factor}}  zooms around the centre (factor < 1 zooms in)
-//   toile:pdf                      downloads the PDF of the drawing as shown (downloadPdf)
+//   toile:pdf                      downloads the PDF of the working state (downloadPdf)
 // Wheel zooms around the pointer, two pointers pinch-zoom, one pointer pans, and with focus the
 // arrow keys pan, + and - zoom and 0 fits.
 //
 // The PDF is the engine's (patternPdf, docs/adr/0012-pdf-printing.md): the hook hands it the
-// result it draws and the current seam allowances, so the PDF shows the working state, unsaved
+// result it draws and the current seam allowances, so the PDF holds the working state, unsaved
 // edits included, with the same labels as the drawing, and offers the bytes as a download. The
-// page texts and the error texts are the "pdf" group of data-texts.
+// PDF lays that state out afresh with layoutProject, while the view keeps its last layout during
+// point edits (see above), so after a drag the pieces may sit apart differently in the PDF than on
+// the page; they never overlap in either. The page texts and the error texts are the "pdf" group
+// of data-texts.
 
 import {
   GRAINLINE_ARROW_SIZE,
@@ -93,9 +96,7 @@ import {
   cuttingLine,
   cuttingLineNotches,
   cuttingLinePathData,
-  layoutParts,
-  layoutPieces,
-  patternBounds,
+  layoutProject,
   patternPdf,
   piecePathData,
   pieceSeamAllowances,
@@ -293,10 +294,13 @@ const PatternView = {
     this.shown = null
     this.el.replaceChildren()
 
-    const results = result?.ok ? Object.entries(result.parts) : []
     this.layoutAllowances = this.allowances()
-    const pieceLayouts = results.map(([name, part]) => this.layoutPiecesOf(name, part))
-    const layout = layoutParts(pieceLayouts.map(({bounds}) => bounds))
+    // cuttingLineOf reads the same allowances (this.allowances()) and caches the lines.
+    const layout = layoutProject(
+      result?.ok ? result.parts : {},
+      this.layoutAllowances,
+      (part, piece) => this.cuttingLineOf(part, piece),
+    )
     if (!result?.ok || !layout.bounds) {
       if (result && !result.ok) console.warn("Pattern errors", this.errorsOf(result))
       this.renderNotes([])
@@ -309,22 +313,11 @@ const PatternView = {
     this.pieceOffsets = new Map()
     this.pointOwners = new Map()
     this.partOffsets = new Map()
-    for (const [i, [name, part]] of results.entries()) {
-      const partOffset = layout.offsets[i]
-      const pieces = Object.keys(part.pieces)
-      const local = pieceLayouts[i].offsets
-      this.partOffsets.set(name, partOffset)
-      this.localOffsets.set(name, new Map(pieces.map((piece, j) => [piece, local[j]])))
-      this.pieceOffsets.set(
-        name,
-        new Map(
-          pieces.map((piece, j) => [
-            piece,
-            {dx: partOffset.dx + local[j].dx, dy: partOffset.dy + local[j].dy},
-          ]),
-        ),
-      )
-      this.pointOwners.set(name, pointPieces(part))
+    for (const {name, offset, pieces} of layout.parts) {
+      this.partOffsets.set(name, offset)
+      this.localOffsets.set(name, new Map(pieces.map(({piece, local}) => [piece.name, local])))
+      this.pieceOffsets.set(name, new Map(pieces.map(({piece, offset}) => [piece.name, offset])))
+      this.pointOwners.set(name, pointPieces(result.parts[name]))
     }
     this.fitted = fit(layout.bounds, FIT_MARGIN)
     this.svg = this.buildSvg(result)
@@ -375,17 +368,6 @@ const PatternView = {
     const line = cuttingLine(piece, allowances)
     this.cuttingCache.set(slot, {key, line})
     return line
-  },
-
-  // The engine's layoutPieces for the pieces of part `part` (a part result), in piece order, by
-  // each piece's box with its cutting line (if it could be drawn).
-  layoutPiecesOf(part, partResult) {
-    return layoutPieces(
-      Object.values(partResult.pieces).map(piece => {
-        const line = this.cuttingLineOf(part, piece)
-        return patternBounds({pieces: {[piece.name]: piece}}, line.ok ? [line.points] : [])
-      }),
-    )
   },
 
   // Moves the drawn elements to `result` (a result of the same parts) without changing the view
