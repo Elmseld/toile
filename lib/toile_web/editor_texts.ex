@@ -43,6 +43,11 @@ defmodule ToileWeb.EditorTexts do
     * `"cutting_line"`: the notes under the drawing, each with `%{piece}` for the piece's label:
       `"failed"` when a piece has no cutting line, and `"safe_construction"` and
       `"dart_without_peak"` for the engine's approximations of that kind.
+    * `"pdf"`: the printed PDF (`docs/adr/0012-pdf-printing.md`). Page 1 shows `"test_square"`
+      in the 10 × 10 cm square, `"scale_check"` (print at 100 %) and `"assembly"` (how to put
+      the pages together) under the title, and `"overview"` as the heading of the page map. The
+      page shows `"too_large"` when the pattern needs too many pages and `"failed"` when no PDF
+      could be made.
 
   It is a function rather than a module attribute because the texts depend on the locale of the
   calling process.
@@ -90,7 +95,25 @@ defmodule ToileWeb.EditorTexts do
           ),
         "dart_without_peak" =>
           gettext("The cutting line of %{piece} has no dart peak at a dart.", piece: "%{piece}")
-      }
+      },
+      "pdf" => pdf()
+    }
+  end
+
+  defp pdf do
+    %{
+      "test_square" => gettext("10 × 10 cm"),
+      "scale_check" =>
+        gettext(
+          "Print at 100 % (actual size), without fitting to the page. The square must measure 10 × 10 cm."
+        ),
+      "assembly" =>
+        gettext(
+          "Cut each page along the line at its left and top edge and tape it over the page before it, so that the lines and diamonds meet. The letter is the row and the number the column."
+        ),
+      "overview" => gettext("Pages"),
+      "too_large" => gettext("The pattern is too large to print."),
+      "failed" => gettext("The PDF could not be made.")
     }
   end
 

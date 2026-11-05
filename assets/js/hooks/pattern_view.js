@@ -18,21 +18,25 @@
 //   data-texts         the editor's UI texts (JSON, ToileWeb.EditorTexts)
 //   data-max-save-bytes  the most a save's definition and parameters may encode to (JSON bytes)
 //   data-max-definition-bytes  the most a save's definition alone may encode to (JSON bytes)
+//   data-pdf-paper     the id of the paper select ("a4" or "letter"; anything else counts as A4)
+//   data-pdf-status    the id of the PDF status line (plain text)
+//   data-pdf-title     the project name, the PDF's title
+//   data-pdf-filename  the download name of the PDF
 // The element's aria-label also names the SVG.
 //
 // All parts are evaluated together (the engine's compileProject), so a part that imports values
 // from another, like a sleeve from the bodice armhole, is always computed from the same input. If
-// any part fails, nothing is drawn. The layout is the engine's and is done when the drawing is
-// built: layoutPieces moves the pieces of each part apart by their boxes with the cutting lines,
-// so they never overlap whatever the seam allowances, and layoutParts then places the parts side
-// by side by the boxes it returns. Each part is drawn in a <g data-part> translated by its offset,
-// each piece in it in a <g data-piece> translated by its own. Every mapping between the drawing
-// and a part's coordinates uses the same offsets: pieceOffset(part, piece) for an edge (tap and
-// highlight), pointOffset(part, point) for a point (handles, hover, drag), where a point goes with
-// the piece the engine's pointPieces gives it. The layout, and which piece each point goes with,
-// stay while the pattern is edited, so a dragged point does not slip away from the pointer; they
-// are redone on the next build and by relayout(), which the editor calls when the seam allowances
-// it commits change.
+// any part fails, nothing is drawn. The layout is the engine's layoutProject, the same one the PDF
+// uses, and is done when the drawing is built: it moves the pieces of each part apart by their
+// boxes with the cutting lines (taken from this hook's cache), so they never overlap whatever the
+// seam allowances, and places the parts side by side. Each part is drawn in a <g data-part>
+// translated by its offset, each piece in it in a <g data-piece> translated by its own. Every
+// mapping between the drawing and a part's coordinates uses the same offsets: pieceOffset(part,
+// piece) for an edge (tap and highlight), pointOffset(part, point) for a point (handles, hover,
+// drag), where a point goes with the piece the engine's pointPieces gives it. The layout, and
+// which piece each point goes with, stay while the pattern is edited, so a dragged point does not
+// slip away from the pointer; they are redone on the next build and by relayout(), which the
+// editor calls when the seam allowances it commits change.
 //
 // Each piece group holds, in drawing order (docs/adr/0011-markings-and-seam-allowance-storage.md):
 // the cutting line (solid), the seam line (the outline, dashed), the fold edges (dash-dot, primary
@@ -72,8 +76,17 @@
 // what is visible). Events on the element:
 //   toile:fit                      resets the view to the whole pattern
 //   toile:zoom {detail: {factor}}  zooms around the centre (factor < 1 zooms in)
+//   toile:pdf                      downloads the PDF of the working state (downloadPdf)
 // Wheel zooms around the pointer, two pointers pinch-zoom, one pointer pans, and with focus the
 // arrow keys pan, + and - zoom and 0 fits.
+//
+// The PDF is the engine's (patternPdf, docs/adr/0012-pdf-printing.md): the hook hands it the
+// result it draws and the current seam allowances, so the PDF holds the working state, unsaved
+// edits included, with the same labels as the drawing, and offers the bytes as a download. The
+// PDF lays that state out afresh with layoutProject, while the view keeps its last layout during
+// point edits (see above), so after a drag the pieces may sit apart differently in the PDF than on
+// the page; they never overlap in either. The page texts and the error texts are the "pdf" group
+// of data-texts.
 
 import {
   GRAINLINE_ARROW_SIZE,
@@ -83,13 +96,13 @@ import {
   cuttingLine,
   cuttingLineNotches,
   cuttingLinePathData,
-  layoutParts,
-  layoutPieces,
-  patternBounds,
+  layoutProject,
+  patternPdf,
   piecePathData,
   pieceSeamAllowances,
   placeLabel,
   pointPieces,
+  readPaper,
   readSeamAllowances,
 } from "../../../engine/src/index"
 import {PatternEditor} from "../editor/pattern_editor"
@@ -108,6 +121,8 @@ const KEY_ZOOM_FACTOR = 0.8
 const LABEL_CACHE_SIZE = 200
 // A panning press that moves less than this many pixels is a tap (it selects an edge).
 const TAP_DISTANCE_PX = 3
+// How long a downloaded file's Blob URL stays valid after the click.
+const BLOB_URL_LIFETIME_MS = 10_000
 // Stroke widths in pixels. The seam and fold lines are dashed in mm, so their width is set per
 // view (render).
 const CUTTING_WIDTH_PX = 2
@@ -129,6 +144,13 @@ function textOf(map, part, piece) {
   const texts = isObject(map) && Object.hasOwn(map, part) ? map[part] : null
   const text = isObject(texts) && Object.hasOwn(texts, piece) ? texts[piece] : null
   return typeof text === "string" && text !== "" ? text : null
+}
+
+/** The label text of piece `piece` of part `part`: its name, and its cutting instruction on a
+ * second line when it has one. */
+function labelText(labels, cuts, part, piece) {
+  const name = textOf(labels, part, piece) ?? piece
+  return [name, textOf(cuts, part, piece)].filter(Boolean).join("\n")
 }
 
 /** The short lines of `notches` (the engine's ComputedNotch list). */
@@ -170,6 +192,7 @@ const PatternView = {
     this.onKeyDown = event => this.keyDown(event)
     this.onFit = () => this.setView(this.fitted)
     this.onZoom = event => this.zoomBy(Number(event.detail?.factor))
+    this.onPdf = () => this.downloadPdf()
 
     this.el.addEventListener("wheel", this.onWheel, {passive: false})
     this.el.addEventListener("pointerdown", this.onPointerDown)
@@ -180,6 +203,7 @@ const PatternView = {
     this.el.addEventListener("keydown", this.onKeyDown)
     this.el.addEventListener("toile:fit", this.onFit)
     this.el.addEventListener("toile:zoom", this.onZoom)
+    this.el.addEventListener("toile:pdf", this.onPdf)
 
     // The grid covers what is visible, which depends on the element's size.
     this.resizeObserver = new ResizeObserver(() => this.scheduleRender())
@@ -272,10 +296,13 @@ const PatternView = {
     this.shown = null
     this.el.replaceChildren()
 
-    const results = result?.ok ? Object.entries(result.parts) : []
     this.layoutAllowances = this.allowances()
-    const pieceLayouts = results.map(([name, part]) => this.layoutPiecesOf(name, part))
-    const layout = layoutParts(pieceLayouts.map(({bounds}) => bounds))
+    // cuttingLineOf reads the same allowances (this.allowances()) and caches the lines.
+    const layout = layoutProject(
+      result?.ok ? result.parts : {},
+      this.layoutAllowances,
+      (part, piece) => this.cuttingLineOf(part, piece),
+    )
     if (!result?.ok || !layout.bounds) {
       if (result && !result.ok) console.warn("Pattern errors", this.errorsOf(result))
       this.renderNotes([])
@@ -288,22 +315,11 @@ const PatternView = {
     this.pieceOffsets = new Map()
     this.pointOwners = new Map()
     this.partOffsets = new Map()
-    for (const [i, [name, part]] of results.entries()) {
-      const partOffset = layout.offsets[i]
-      const pieces = Object.keys(part.pieces)
-      const local = pieceLayouts[i].offsets
-      this.partOffsets.set(name, partOffset)
-      this.localOffsets.set(name, new Map(pieces.map((piece, j) => [piece, local[j]])))
-      this.pieceOffsets.set(
-        name,
-        new Map(
-          pieces.map((piece, j) => [
-            piece,
-            {dx: partOffset.dx + local[j].dx, dy: partOffset.dy + local[j].dy},
-          ]),
-        ),
-      )
-      this.pointOwners.set(name, pointPieces(part))
+    for (const {name, offset, pieces} of layout.parts) {
+      this.partOffsets.set(name, offset)
+      this.localOffsets.set(name, new Map(pieces.map(({piece, local}) => [piece.name, local])))
+      this.pieceOffsets.set(name, new Map(pieces.map(({piece, offset}) => [piece.name, offset])))
+      this.pointOwners.set(name, pointPieces(result.parts[name]))
     }
     this.fitted = fit(layout.bounds, FIT_MARGIN)
     this.svg = this.buildSvg(result)
@@ -354,17 +370,6 @@ const PatternView = {
     const line = cuttingLine(piece, allowances)
     this.cuttingCache.set(slot, {key, line})
     return line
-  },
-
-  // The engine's layoutPieces for the pieces of part `part` (a part result), in piece order, by
-  // each piece's box with its cutting line (if it could be drawn).
-  layoutPiecesOf(part, partResult) {
-    return layoutPieces(
-      Object.values(partResult.pieces).map(piece => {
-        const line = this.cuttingLineOf(part, piece)
-        return patternBounds({pieces: {[piece.name]: piece}}, line.ok ? [line.points] : [])
-      }),
-    )
   },
 
   // Moves the drawn elements to `result` (a result of the same parts) without changing the view
@@ -491,6 +496,78 @@ const PatternView = {
     label.setAttribute("text-anchor", place.anchor)
     // Each line starts at the anchor again.
     for (const line of label.children) line.setAttribute("x", place.x)
+  },
+
+  // Downloads the PDF of the drawn result (the working state) on the chosen paper, or says in
+  // the status line (data-pdf-status, plain text) why there is none.
+  downloadPdf() {
+    const status = this.el.dataset.pdfStatus
+      ? document.getElementById(this.el.dataset.pdfStatus)
+      : null
+    const texts = isObject(this.texts.pdf) ? this.texts.pdf : {}
+    const text = key => (Object.hasOwn(texts, key) && typeof texts[key] === "string" ? texts[key] : "")
+    const say = message => {
+      if (status) status.textContent = message
+    }
+    say("")
+    try {
+      const result = this.shown
+      if (!result?.ok) {
+        say(text("failed"))
+        return
+      }
+      const select = this.el.dataset.pdfPaper
+        ? document.getElementById(this.el.dataset.pdfPaper)
+        : null
+      // As the drawing labels the pieces (pieceGroup). fromEntries defines own keys, whatever
+      // the part and piece names.
+      const labels = Object.fromEntries(
+        Object.entries(result.parts).map(([part, partResult]) => [
+          part,
+          Object.fromEntries(
+            Object.values(partResult.pieces).map(piece => [
+              piece.name,
+              labelText(this.pieceLabels, this.pieceCuts, part, piece.name),
+            ]),
+          ),
+        ]),
+      )
+      const pdf = patternPdf({
+        parts: result.parts,
+        allowances: this.allowances(),
+        labels,
+        paper: readPaper(select?.value),
+        title: this.el.dataset.pdfTitle ?? "",
+        texts: {
+          testSquare: text("test_square"),
+          scaleCheck: text("scale_check"),
+          assembly: text("assembly"),
+          overview: text("overview"),
+        },
+      })
+      if (!pdf.ok) {
+        say(text(pdf.kind === "too_many_pages" ? "too_large" : "failed"))
+        return
+      }
+      this.saveFile(new Blob([pdf.bytes], {type: "application/pdf"}))
+    } catch (error) {
+      console.warn("PDF export failed", error)
+      say(text("failed"))
+    }
+  },
+
+  // Offers `blob` as a download named data-pdf-filename.
+  saveFile(blob) {
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = this.el.dataset.pdfFilename || "pattern.pdf"
+    link.hidden = true
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    // Some browsers cancel a download whose URL is revoked straight after the click.
+    setTimeout(() => URL.revokeObjectURL(url), BLOB_URL_LIFETIME_MS)
   },
 
   // The project's own errors and every part's, each tagged with its part name.

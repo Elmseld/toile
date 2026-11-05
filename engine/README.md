@@ -1,7 +1,7 @@
 # @toile/engine
 
 The pattern engine: pure TypeScript that turns measurements and a pattern definition into geometry.
-It has no UI and no I/O, so the editor, the PDF export and the server all use the same code.
+It has no UI and no I/O, so the editor, the PDF export (`src/print`, see Printing) and the server all use the same code.
 
 ```bash
 bun install
@@ -221,7 +221,7 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   grainline and its arrowheads and the notch marks, shrinking the size down to 40 % for a narrow piece; `null` when
   nothing fits (a sliver, or a degenerate outline), and the caller places the label itself.
   Views draw the grainline arrowheads `GRAINLINE_ARROW_SIZE` (8 mm) long and wide, tip on the end
-  point, as placement assumes. The text may have several lines, split on `"\n"` (name, then the
+  point, as placement assumes (`grainlineArrowheads(grainline)` gives the triangles, `[tip, left, right]` per end, for views and the PDF). The text may have several lines, split on `"\n"` (name, then the
   cutting instruction): the box is as wide as the longest line, and each further line adds
   `LABEL_LINE_HEIGHT` (1.2) times the size to its height, so a view spaces its lines by that. It
   costs about 7 to 14 ms per bodice piece, so a view should not call it on every pointer move
@@ -297,6 +297,34 @@ cuttingLine(piece, { default: 10, edges: { b_hem: 40, b_cb: 0 } })
   laptop), twice that with the safe fallback; the worst hostile outlines at the entry limit take
   at most about 0.2 s. A view that computes it on every update (the editor's drag) caches it by
   outline and allowances (ADR 0011 decision 8).
+
+## Printing
+
+`src/print/` makes the 1:1 PDF the project page offers (`docs/adr/0012-pdf-printing.md`). No DOM and
+no I/O; the browser hook calls `patternPdf` and downloads the bytes.
+
+- `patternPdf({ parts, allowances, labels, paper, title, texts })` returns `{ ok: true, bytes,
+  pages }` or `{ ok: false, kind }` with `kind` `nothing_to_print`, `too_many_pages` or `failed`.
+  It never throws. `parts` are an ok project result's parts, `allowances` a
+  `ProjectSeamAllowances`, `labels` `{ part: { piece: "Name\ncut 2" } }` (own keys only, the piece
+  name is the fallback) and `texts` the page 1 texts (`PrintTexts`).
+- `printDrawing(parts, allowances, labels)` lays the pieces out with `layoutProject`, the layout
+  the view computes when it draws anew, and returns print-ready pieces; `layoutDrawing(layout,
+  labels)` does the same for a layout already computed (`patternPdf` checks the tile cap on its
+  box first). The PDF always lays the result out afresh, while the view keeps its last layout
+  during point edits, so the pieces can sit where the page's next layout puts them.
+  `PRINT_LABEL_SIZE` is 10 mm.
+- `tileGrid(bounds, paper)` gives the centred grid (`null` over `MAX_PRINT_TILES`, 400),
+  `printedTiles(grid, regions)` the tiles a piece region overlaps (row-major, no empty pages) and
+  `tileLabel(row, col)` the label ("A1", "AA1"). `readPaper(value)` gives `"letter"` or else `"a4"`.
+  `PRINT_MARGIN` and `TILE_OVERLAP` are 10 mm; `PT_PER_MM` is 72/25.4.
+- `wrapText(text, size, width, maxLines?)` wraps page 1's text by words at the estimated width,
+  breaks a word wider than `width`, and with `maxLines` ends the last kept line in "…" (the title
+  takes at most three lines).
+- `writePdf({ title, pages })` writes PDF 1.4 (Helvetica, uncompressed); `pdfText` writes text as
+  hex WinAnsi, so user text cannot break the syntax.
+- Tests check the test square (283.465 pt) and a known line's length in the written bytes.
+
 ## Projects
 
 A pattern project has one or more parts, each a pattern definition with a name (ADR 0007): the
@@ -330,6 +358,13 @@ block it was created from (say `bodice`) and blocks added to it (say `straight_s
   (`PIECE_GAP`, 20 mm) right of every earlier piece whose box, widened by `gap`, shares rows with
   its own, so every two pieces end up at least `gap` apart in one direction; pieces with room
   enough keep `{ dx: 0, dy: 0 }`. Its `bounds` is the part's box for `layoutParts`.
+- `layoutProject(parts, allowances, cuttingLineOf?)` (in `src/geometry/project-layout.ts`) is the
+  whole layout of a project, shared by the project page's view and the PDF: each piece's cutting
+  line (`cuttingLineOf(part, piece, seamAllowances)`, by default `cuttingLine`, with
+  `pieceSeamAllowances` of the part's own edge values; a view passes its cache), `layoutPieces`
+  over each piece's `patternBounds` with that line, then `layoutParts`. It returns `{ parts: [{
+  name, offset, pieces: [{ piece, cutting, local, offset }] }], bounds }` in the given order:
+  `local` is the piece's offset within its part, `offset` the part's plus `local`.
 - `pointPieces(pattern)` gives, by point name, the piece a view draws each point with: the first
   piece whose outline or grainline uses it (by object identity within the result), else the piece
   with the nearest outline box. `shiftCurve(curve, dx, dy)` moves a computed curve, e.g. to hit-test

@@ -79,7 +79,16 @@ Both groups use the same engine but get different amounts of it exposed.
    undo and redo. If no cutting line can be drawn, or it is approximated, the page says so in
    words. Projects created before 0015 have no cutting instruction, fold or skirt notches (they
    keep their block copy) but get everything else. Storage and rules: ADR 0011.
-5. **Print**: PDF at 1:1 scale, tiled on A4 with overlap, numbering and a test square.
+5. **Print** (ticket 0010): next to the zoom buttons the select "Papper" (A4 by default, or Letter)
+   and the button "Ladda ner PDF" download a PDF made in the browser. It holds every piece as
+   drawn, unsaved edits included, at 1:1 scale: cutting line, seam line, folds, grainline, notches
+   and labels. The pattern is tiled on portrait pages with a 10 mm margin and 10 mm overlap. Each
+   page is labelled with row (letter) and column (number), e.g. "B3", and neighbouring pages show a
+   join line with a diamond to match them up. Page 1 has the project name, the request to print at
+   100 %, assembly instructions, a test square of 10 × 10 cm and an overview map of the pages.
+   Pages with no pattern are not printed. A pattern needing more than 400 pages is refused with
+   "Mönstret är för stort för att skrivas ut."; any other failure shows "PDF:en kunde inte
+   skapas.". Rules and rejected alternatives: ADR 0012.
 
 ## Domain glossary
 The UI is Swedish, so the Swedish UI term is given in parentheses.
@@ -101,17 +110,18 @@ The UI is Swedish, so the Swedish UI term is given in parentheses.
 | Seam line (sömlinje) | The outline of a piece, where it is sewn. Drawn dashed. |
 | Cutting line (klipplinje) | The seam line moved outwards by the seam allowance. Drawn solid. |
 | Fold (fold) | An edge of a piece that lies on a fold of the fabric; it has no seam allowance and is cut "på fold". |
-| Tiling (kakling) | Splitting a 1:1 pattern across several A4 pages. |
+| Tiling (kakling) | Splitting a 1:1 pattern across several A4 or Letter pages. |
 
 ## Technology
 - **Phoenix 1.8 / LiveView** (Elixir 1.20, OTP 29) for accounts, measurement profiles and storage
   of pattern projects. Blocks are JSON files in `engine/blocks/` (ADR 0006). The dev environment (Postgres 17, Elixir, Bun) runs via `docker compose`.
 - **`engine/`**: the pattern engine as a pure TypeScript package (Bun for tests and type checking).
   It takes a pattern definition, measurements and parameters and returns geometry. It has no DOM
-  and no I/O. The editor, the PDF export and possibly server rendering use the same code.
+  and no I/O. The editor and the PDF export use the same code, and possibly server rendering.
 - The editor is a LiveView page with a JS hook that runs the engine in the client and draws SVG.
   Dragging and recalculation happen entirely in the client. The server receives the saved result
   (the pattern definition).
+- The PDF is written by the engine in the browser (`engine/src/print/`, no dependency; ADR 0012).
 - CI: GitHub Actions (`.github/workflows/ci.yml`).
 - Checks: see `CLAUDE.md`.
 
