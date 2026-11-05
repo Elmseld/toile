@@ -31,6 +31,7 @@ defmodule ToileWeb.UserLive.PasswordResetTest do
     |> form("#login_form_magic", user: %{email: user.email})
     |> render_submit()
 
+    await_email_deliveries()
     assert_received {:email, %Swoosh.Email{to: [{_, to}], text_body: body}}
     assert to == user.email
     assert [_, token] = Regex.run(~r{/users/log-in/([\w-]+)}, body)

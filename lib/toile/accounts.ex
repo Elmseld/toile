@@ -10,6 +10,8 @@ defmodule Toile.Accounts do
 
   alias Toile.Accounts.{EmailRateLimiter, User, UserToken, UserNotifier}
 
+  @delivery_supervisor Toile.Accounts.EmailDeliverySupervisor
+
   ## Database getters
 
   @doc """
@@ -512,6 +514,14 @@ defmodule Toile.Accounts do
   case variants that the `citext` lookup matches (such as `İ` for `i`) share one
   recipient budget.
 
+  The lookup and the rate-limit hit run in the caller. After an allowed hit the
+  login token is created and the email sent in a task under
+  `Toile.Accounts.EmailDeliverySupervisor`, after this function has returned,
+  so the response time does not reveal whether the address has an account
+  (ADR 0010). The task is started for unknown addresses too and does nothing
+  for them. A failed delivery, including a raise in the mailer, is logged with
+  the masked address only.
+
   Always returns `:ok`.
 
   ## Options
@@ -530,15 +540,39 @@ defmodule Toile.Accounts do
     user = get_user_by_email(email)
     recipient = if user, do: user.email, else: email
 
-    # Exactly one hit either way, so the IP budget reveals nothing.
-    with :ok <- EmailRateLimiter.hit(:login_link, recipient, opts[:remote_ip]),
-         %User{} <- user do
-      user
-      |> deliver_login_instructions(magic_link_url_fun)
-      |> handle_delivery(:login_link, user.email)
+    # Exactly one hit either way, so the IP budget reveals nothing (ADR 0010).
+    with :ok <- EmailRateLimiter.hit(:login_link, recipient, opts[:remote_ip]) do
+      start_login_delivery(user, magic_link_url_fun)
     end
 
     :ok
+  end
+
+  # The token insert and the send run in a background task so the reply does
+  # not depend on whether the address has an account (ADR 0010). The task is
+  # started for unknown addresses too (it does nothing) so both take the same
+  # path, including if the supervisor is unavailable.
+  defp start_login_delivery(user, magic_link_url_fun) do
+    {:ok, _pid} =
+      Task.Supervisor.start_child(@delivery_supervisor, fn ->
+        deliver_login_link(user, magic_link_url_fun)
+      end)
+
+    :ok
+  end
+
+  defp deliver_login_link(nil, _magic_link_url_fun), do: :ok
+
+  defp deliver_login_link(%User{} = user, magic_link_url_fun) do
+    user
+    |> deliver_login_instructions(magic_link_url_fun)
+    |> handle_delivery(:login_link, user.email)
+  rescue
+    # A raise or exit would end the task with a crash report that contains the
+    # address.
+    exception -> handle_delivery({:error, exception}, :login_link, user.email)
+  catch
+    :exit, _reason -> handle_delivery({:error, :exit}, :login_link, user.email)
   end
 
   # A failed send is logged and otherwise ignored. Raising would answer a

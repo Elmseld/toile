@@ -30,6 +30,8 @@ defmodule Toile.Accounts.DeliveryFailureTest do
                      remote_ip: unique_remote_ip()
                    ) == :ok
           end
+
+          await_email_deliveries()
         end)
 
       assert log =~ "Email delivery failed: flow=login_link"
@@ -37,6 +39,35 @@ defmodule Toile.Accounts.DeliveryFailureTest do
       assert log =~ ~s(recipient="u***@example.com")
       refute log =~ confirmed.email
       refute log =~ unconfirmed.email
+    end
+
+    for {failure, swap_in, reason} <- [
+          {"raise", :use_raising_mailer, "RuntimeError"},
+          {"exit", :use_exiting_mailer, ":exit"}
+        ] do
+      test "logs a mailer #{failure} without the address and answers :ok", %{
+        confirmed: confirmed
+      } do
+        apply(FailingMailAdapter, unquote(swap_in), [])
+
+        {result, log} =
+          with_log(fn ->
+            result =
+              Accounts.request_login_instructions(confirmed.email, &"#{@login_url}/#{&1}",
+                remote_ip: unique_remote_ip()
+              )
+
+            await_email_deliveries()
+            result
+          end)
+
+        assert result == :ok
+        assert log =~ "Email delivery failed: flow=login_link"
+        assert log =~ "reason=#{unquote(reason)}"
+        refute log =~ confirmed.email
+        # The task ended normally, without a crash report.
+        refute log =~ "terminating"
+      end
     end
   end
 
