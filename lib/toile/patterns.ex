@@ -359,7 +359,7 @@ defmodule Toile.Patterns do
           )
 
         locked
-        |> PatternProject.seam_allowances_changeset(attrs, outline_curves(locked), scope)
+        |> PatternProject.seam_allowances_changeset(attrs, part_outline_curves(locked), scope)
         |> Repo.update()
       end)
 
@@ -388,21 +388,56 @@ defmodule Toile.Patterns do
   def seam_allowances(%PatternProject{seam_allowances: %SeamAllowances{} = seam_allowances}),
     do: SeamAllowances.to_map(seam_allowances)
 
-  # The curve names of each part's piece outlines, by part name. Definitions are untrusted data:
-  # anything malformed is skipped, so its names cannot be given an allowance.
-  defp outline_curves(%PatternProject{} = pattern_project) do
+  @doc """
+  Returns the curves of a definition's piece outlines that can be given a seam allowance, as
+  `[{piece_name, [curve_name]}]` in piece and outline order. A curve is listed once, under the
+  first piece whose outline has it; a piece left with no curves is omitted.
+
+  This is the one list of settable edges: the project page builds its edge select from it, and
+  `update_seam_allowances/3` accepts only the curves it returns. Definitions are untrusted data,
+  so a piece without a string name or a list outline, and an outline entry without a string
+  curve, are skipped.
+
+  ## Examples
+
+      iex> outline_curves(%{"pieces" => [
+      ...>   %{"name" => "front", "outline" => [%{"curve" => "cf"}, %{"curve" => "side"}]},
+      ...>   %{"name" => "facing", "outline" => [%{"curve" => "cf"}, %{"curve" => "edge"}]}
+      ...> ]})
+      [{"front", ["cf", "side"]}, {"facing", ["edge"]}]
+
+  """
+  @spec outline_curves(term()) :: [{String.t(), [String.t()]}]
+  def outline_curves(%{"pieces" => pieces}) when is_list(pieces) do
+    {groups, _seen} =
+      Enum.flat_map_reduce(pieces, MapSet.new(), fn
+        %{"name" => piece, "outline" => outline}, seen
+        when is_binary(piece) and is_list(outline) ->
+          new =
+            for %{"curve" => curve} when is_binary(curve) <- outline,
+                not MapSet.member?(seen, curve),
+                uniq: true,
+                do: curve
+
+          group = if new == [], do: [], else: [{piece, new}]
+          {group, Enum.into(new, seen)}
+
+        _malformed, seen ->
+          {[], seen}
+      end)
+
+    groups
+  end
+
+  def outline_curves(_definition), do: []
+
+  # The settable curve names of each part, by part name, from `outline_curves/1`.
+  defp part_outline_curves(%PatternProject{} = pattern_project) do
     Map.new(engine_parts(pattern_project), fn %{"name" => name, "definition" => definition} ->
-      {name, MapSet.new(outline_curve_names(definition))}
+      curves = for {_piece, curves} <- outline_curves(definition), curve <- curves, do: curve
+      {name, MapSet.new(curves)}
     end)
   end
-
-  defp outline_curve_names(%{"pieces" => pieces}) when is_list(pieces) do
-    for %{"outline" => outline} when is_list(outline) <- pieces,
-        %{"curve" => curve} when is_binary(curve) <- outline,
-        do: curve
-  end
-
-  defp outline_curve_names(_definition), do: []
 
   defp part_index(%PatternProject{parts: parts}, part) do
     case Enum.find_index(parts, &(&1.name == part)) do

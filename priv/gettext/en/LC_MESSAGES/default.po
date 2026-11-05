@@ -1413,11 +1413,6 @@ msgstr ""
 
 #: lib/toile_web/editor_texts.ex
 #, elixir-autogen, elixir-format
-msgid "Enter a seam allowance from 0 to 10 cm"
-msgstr ""
-
-#: lib/toile_web/editor_texts.ex
-#, elixir-autogen, elixir-format
 msgid "Fold: %{value}"
 msgstr ""
 
@@ -1464,3 +1459,8 @@ msgid "cut %{count} on fold"
 msgid_plural "cut %{count} on fold"
 msgstr[0] ""
 msgstr[1] ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Enter a seam allowance from 0 to %{max} cm"
+msgstr ""

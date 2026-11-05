@@ -582,8 +582,8 @@ defmodule ToileWeb.PatternLive.Show do
   defp on_fold?(_piece), do: false
 
   # The edge select's options, valued `<part>.<curve>`, grouped by piece: under the piece's label
-  # for one part, under "<part>: <piece>" for several. A curve is listed once per part, under the
-  # first piece whose outline has it.
+  # for one part, under "<part>: <piece>" for several. The curves come from
+  # `Patterns.outline_curves/1`, the same list the server validates a save against.
   defp edge_options([%{"name" => part, "definition" => definition}]) do
     for {piece, options} <- part_edge_options(part, definition) do
       {BlockTexts.piece_label(piece), options}
@@ -603,27 +603,11 @@ defmodule ToileWeb.PatternLive.Show do
     end
   end
 
-  defp part_edge_options(part, %{"pieces" => pieces}) when is_list(pieces) do
-    {groups, _seen} =
-      Enum.flat_map_reduce(pieces, MapSet.new(), fn
-        %{"name" => piece, "outline" => outline}, seen
-        when is_binary(piece) and is_list(outline) ->
-          curves =
-            for %{"curve" => curve} when is_binary(curve) <- outline, uniq: true, do: curve
-
-          new = Enum.reject(curves, &MapSet.member?(seen, &1))
-          options = Enum.map(new, &{&1, "#{part}.#{&1}"})
-          group = if options == [], do: [], else: [{piece, options}]
-          {group, Enum.into(new, seen)}
-
-        _malformed, seen ->
-          {[], seen}
-      end)
-
-    groups
+  defp part_edge_options(part, definition) do
+    for {piece, curves} <- Patterns.outline_curves(definition) do
+      {piece, Enum.map(curves, &{&1, "#{part}.#{&1}"})}
+    end
   end
-
-  defp part_edge_options(_part, _definition), do: []
 
   # The parts' parameter rows, one group per part that has any, in part order.
   defp parameter_groups(parts) do

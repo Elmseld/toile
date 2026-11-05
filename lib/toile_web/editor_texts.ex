@@ -12,6 +12,8 @@ defmodule ToileWeb.EditorTexts do
 
   use Gettext, backend: ToileWeb.Gettext
 
+  alias Toile.Patterns.SeamAllowances
+  alias ToileWeb.Centimeters
   alias ToileWeb.ParameterTexts
 
   @doc """
@@ -36,7 +38,8 @@ defmodule ToileWeb.EditorTexts do
     * `"seam_allowance"`: the seam allowance panel (ADR 0011): `"edge_label"` labels the input
       of the selected edge; `"default_hint"` (the project default) and `"fold_hint"` (a fold
       edge) are the hints with the value an empty field stands for, as `%{value}` in cm with its
-      unit; `"range_error"` is shown for a value that is not a number from 0 to 10 cm.
+      unit; `"range_error"` is shown for a value that is not a number from 0 to the largest
+      allowance (`Toile.Patterns.SeamAllowances.max_mm/0`, filled in here in cm).
     * `"cutting_line"`: the notes under the drawing, each with `%{piece}` for the piece's label:
       `"failed"` when a piece has no cutting line, and `"safe_construction"` and
       `"dart_without_peak"` for the engine's approximations of that kind.
@@ -74,7 +77,10 @@ defmodule ToileWeb.EditorTexts do
         "edge_label" => gettext("Seam allowance for this edge (cm)"),
         "default_hint" => gettext("Default: %{value}", value: "%{value}"),
         "fold_hint" => gettext("Fold: %{value}", value: "%{value}"),
-        "range_error" => gettext("Enter a seam allowance from 0 to 10 cm")
+        "range_error" =>
+          gettext("Enter a seam allowance from 0 to %{max} cm",
+            max: Centimeters.format(SeamAllowances.max_mm())
+          )
       },
       "cutting_line" => %{
         "failed" => gettext("No cutting line could be drawn for %{piece}.", piece: "%{piece}"),

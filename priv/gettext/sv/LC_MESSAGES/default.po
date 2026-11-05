@@ -1413,11 +1413,6 @@ msgstr "Klicka eller tryck på en kant i mönstret för att välja den."
 
 #: lib/toile_web/editor_texts.ex
 #, elixir-autogen, elixir-format
-msgid "Enter a seam allowance from 0 to 10 cm"
-msgstr "Ange en sömsmån från 0 till 10 cm"
-
-#: lib/toile_web/editor_texts.ex
-#, elixir-autogen, elixir-format
 msgid "Fold: %{value}"
 msgstr "Fold: %{value}"
 
@@ -1464,3 +1459,8 @@ msgid "cut %{count} on fold"
 msgid_plural "cut %{count} on fold"
 msgstr[0] "klipp %{count} i fold"
 msgstr[1] "klipp %{count} i fold"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Enter a seam allowance from 0 to %{max} cm"
+msgstr "Ange en sömsmån från 0 till %{max} cm"

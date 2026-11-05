@@ -2,6 +2,8 @@ defmodule ToileWeb.EditorTextsTest do
   use ExUnit.Case, async: true
 
   alias Toile.Patterns.PointOps
+  alias Toile.Patterns.SeamAllowances
+  alias ToileWeb.Centimeters
   alias ToileWeb.EditorTexts
 
   setup do
@@ -59,8 +61,11 @@ defmodule ToileWeb.EditorTextsTest do
              "edge_label" => "Seam allowance for this edge (cm)",
              "default_hint" => "Default: %{value}",
              "fold_hint" => "Fold: %{value}",
-             "range_error" => "Enter a seam allowance from 0 to 10 cm"
+             "range_error" => "Enter a seam allowance from 0 to 10.0 cm"
            }
+
+    assert texts["seam_allowance"]["range_error"] =~
+             " #{Centimeters.format(SeamAllowances.max_mm())} cm"
 
     assert texts["cutting_line"]["failed"] == "No cutting line could be drawn for %{piece}."
 

@@ -1204,6 +1204,57 @@ defmodule Toile.PatternsTest do
     end
   end
 
+  describe "outline_curves/1" do
+    test "lists each piece's outline curves in order, each curve once under its first piece" do
+      definition = %{
+        "pieces" => [
+          %{
+            "name" => "front",
+            "outline" => [%{"curve" => "cf"}, %{"curve" => "side"}, %{"curve" => "cf"}]
+          },
+          %{"name" => "facing", "outline" => [%{"curve" => "cf"}, %{"curve" => "edge"}]},
+          %{"name" => "copy", "outline" => [%{"curve" => "side"}]}
+        ]
+      }
+
+      assert Patterns.outline_curves(definition) == [
+               {"front", ["cf", "side"]},
+               {"facing", ["edge"]}
+             ]
+    end
+
+    test "lists every block's outline curves" do
+      for key <- Blocks.keys(),
+          definition = Blocks.definition(key),
+          Map.get(definition, "pieces", []) != [] do
+        curves = Patterns.outline_curves(definition)
+
+        assert Enum.map(curves, &elem(&1, 0)) ==
+                 for(%{"name" => name} <- definition["pieces"], do: name),
+               "a piece of #{key} has no curves of its own"
+      end
+    end
+
+    test "skips malformed definitions, pieces and outline entries" do
+      assert Patterns.outline_curves(nil) == []
+      assert Patterns.outline_curves(%{}) == []
+      assert Patterns.outline_curves(%{"pieces" => "front"}) == []
+
+      definition = %{
+        "pieces" => [
+          "piece",
+          %{"outline" => [%{"curve" => "nameless"}]},
+          %{"name" => "no_outline"},
+          %{"name" => "bad_outline", "outline" => %{"curve" => "x"}},
+          %{"name" => "empty", "outline" => [%{"curve" => 1}, %{}, "x"]},
+          %{"name" => "front", "outline" => [%{"curve" => 1}, %{"curve" => "cf"}]}
+        ]
+      }
+
+      assert Patterns.outline_curves(definition) == [{"front", ["cf"]}]
+    end
+  end
+
   describe "update_seam_allowances/3 and seam_allowances/1" do
     test "a new project has the default allowance and no edges" do
       scope = user_scope_fixture()
@@ -1224,11 +1275,28 @@ defmodule Toile.PatternsTest do
       assert %SeamAllowances{default: 10.0, edges: %{}} =
                Patterns.get_pattern_project!(scope, id).seam_allowances
 
-      assert_raise Postgrex.Error, ~r/seam_allowances_must_be_an_object/, fn ->
-        Repo.query!("UPDATE pattern_projects SET seam_allowances = '[]'::jsonb WHERE id = $1", [
-          Ecto.UUID.dump!(id)
-        ])
+      for bad <- [
+            ~s|[]|,
+            ~s|{}|,
+            ~s|{"edges": {}}|,
+            ~s|{"default": 10}|,
+            ~s|{"default": "10", "edges": {}}|,
+            ~s|{"default": null, "edges": {}}|,
+            ~s|{"default": 10, "edges": []}|
+          ] do
+        assert_raise Postgrex.Error, ~r/seam_allowances_must_have_default_and_edges/, fn ->
+          Repo.query!(
+            "UPDATE pattern_projects SET seam_allowances = $1::text::jsonb WHERE id = $2",
+            [bad, Ecto.UUID.dump!(id)]
+          )
+        end
       end
+
+      assert %{num_rows: 1} =
+               Repo.query!(
+                 "UPDATE pattern_projects SET seam_allowances = $1::text::jsonb WHERE id = $2",
+                 [~s|{"default": 12.5, "edges": {"skirt": {"hem": 0}}}|, Ecto.UUID.dump!(id)]
+               )
     end
 
     test "stores the default and the edges, and they read back the same" do
@@ -1328,6 +1396,8 @@ defmodule Toile.PatternsTest do
         Map.put(pattern_project.definition, "pieces", [
           %{"name" => "back", "outline" => [%{"curve" => "ok"}, %{"curve" => 1}, "x"]},
           %{"name" => "front", "outline" => "f_cf"},
+          %{"outline" => [%{"curve" => "nameless"}]},
+          %{"name" => 7, "outline" => [%{"curve" => "numbered"}]},
           "piece"
         ])
 
@@ -1339,6 +1409,15 @@ defmodule Toile.PatternsTest do
       edges = fn curve -> %{"default" => 10, "edges" => %{"straight_skirt" => %{curve => 1}}} end
       assert {:ok, _} = Patterns.update_seam_allowances(scope, pattern_project, edges.("ok"))
       assert {:error, _} = Patterns.update_seam_allowances(scope, pattern_project, edges.("f_cf"))
+
+      # The edge select cannot list a piece without a name, so the server refuses its curves too.
+      assert {:error, _} =
+               Patterns.update_seam_allowances(scope, pattern_project, edges.("nameless"))
+
+      assert {:error, _} =
+               Patterns.update_seam_allowances(scope, pattern_project, edges.("numbered"))
+
+      assert Patterns.outline_curves(definition) == [{"back", ["ok"]}]
     end
 
     test "raises for another user's project" do

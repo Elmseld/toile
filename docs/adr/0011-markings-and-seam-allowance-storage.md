@@ -17,8 +17,13 @@ the cutting line), and the user must set the allowance per edge, including 0 at 
    `Patterns.update_seam_allowances/3`, which re-reads the row under lock and accepts only: a
    default number in 0..100, every edge key a part of the project and a curve in that part's piece
    outlines, every value a number in 0..100. Anything else is rejected and nothing is stored. The
-   bound equals the engine's `MAX_SEAM_ALLOWANCE`, and the default equals `DEFAULT_SEAM_ALLOWANCE`;
-   `engine_limits_test.exs` pins both. No atoms are made from keys. The server does not broadcast.
+   settable curves come from `Patterns.outline_curves/1`, which also builds the edge select, so the
+   select offers exactly what the server accepts. The bound equals the engine's
+   `MAX_SEAM_ALLOWANCE`, and the default equals `DEFAULT_SEAM_ALLOWANCE`; `engine_limits_test.exs`
+   pins both. No atoms are made from keys. The server does not broadcast. A CHECK constraint
+   (`seam_allowances_must_have_default_and_edges`) requires an object with a number `default` and
+   an object `edges`, so every row loads; it is added NOT VALID and validated in a separate
+   migration, so the scan does not run under the ACCESS EXCLUSIVE lock.
 3. **`fold` and `cut` are block data** (ADR 0004 decision 19), since they describe the piece and
    the PDF (ticket 0010) needs them. The blocks mark skirt back cut 2, skirt front cut 1 on fold
    (`f_cf`), bodice back cut 1 on fold (`b_cb`), bodice front cut 1 on fold (`f_cf`), sleeve cut 2,
