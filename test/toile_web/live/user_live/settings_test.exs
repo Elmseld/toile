@@ -310,6 +310,32 @@ defmodule ToileWeb.UserLive.SettingsTest do
     end
   end
 
+  describe "malformed events" do
+    setup %{conn: conn} do
+      user = user_fixture()
+      %{conn: log_in_user(conn, user), user: user}
+    end
+
+    for event <- ["validate_email", "update_email", "validate_password", "update_password"],
+        {name, params} <- [
+          {"no user params", %{}},
+          {"non-map user", %{"user" => "a@example.com"}},
+          {"non-string email", %{"user" => %{"email" => %{"a" => "b"}}}},
+          {"non-string password",
+           %{"user" => %{"password" => ["x"], "password_confirmation" => %{"a" => "b"}}}}
+        ] do
+      test "#{event} renders the form instead of crashing for #{name}", %{conn: conn, user: user} do
+        # Drop the email sent while creating the fixture.
+        assert_email_sent()
+        {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+        assert render_hook(lv, unquote(event), unquote(Macro.escape(params))) =~ "Save password"
+        assert Accounts.get_user_by_email(user.email)
+        refute_email_sent()
+      end
+    end
+  end
+
   describe "confirm email" do
     setup %{conn: conn} do
       user = user_fixture()

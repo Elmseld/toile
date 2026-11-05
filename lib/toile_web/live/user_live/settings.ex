@@ -6,6 +6,9 @@ defmodule ToileWeb.UserLive.Settings do
   alias Toile.Accounts
   alias ToileWeb.ClientIP
 
+  @email_fields ["email"]
+  @password_fields ["password", "password_confirmation"]
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -108,7 +111,7 @@ defmodule ToileWeb.UserLive.Settings do
 
   @impl true
   def handle_event("validate_email", params, socket) do
-    %{"user" => user_params} = params
+    user_params = user_params(params, @email_fields)
 
     email_form =
       socket.assigns.current_scope.user
@@ -120,7 +123,7 @@ defmodule ToileWeb.UserLive.Settings do
   end
 
   def handle_event("update_email", params, socket) do
-    %{"user" => user_params} = params
+    user_params = user_params(params, @email_fields)
     user = socket.assigns.current_scope.user
 
     if Accounts.sudo_mode?(user) do
@@ -131,7 +134,7 @@ defmodule ToileWeb.UserLive.Settings do
   end
 
   def handle_event("validate_password", params, socket) do
-    %{"user" => user_params} = params
+    user_params = user_params(params, @password_fields)
 
     password_form =
       socket.assigns.current_scope.user
@@ -143,7 +146,7 @@ defmodule ToileWeb.UserLive.Settings do
   end
 
   def handle_event("update_password", params, socket) do
-    %{"user" => user_params} = params
+    user_params = user_params(params, @password_fields)
     user = socket.assigns.current_scope.user
 
     if Accounts.sudo_mode?(user) do
@@ -152,6 +155,18 @@ defmodule ToileWeb.UserLive.Settings do
       {:noreply, require_reauthentication(socket)}
     end
   end
+
+  # A malformed event (no "user" map, or values that are not strings) is
+  # treated as an empty form so it gets validation errors instead of crashing
+  # the LiveView: a non-string value would otherwise be put back into the
+  # rendered input.
+  defp user_params(%{"user" => %{} = user_params}, fields) do
+    for {key, value} when is_binary(value) <- Map.take(user_params, fields),
+        into: %{},
+        do: {key, value}
+  end
+
+  defp user_params(_params, _fields), do: %{}
 
   defp request_email_change(socket, user, user_params) do
     # A taken address gets the same response as a free one so the form does
