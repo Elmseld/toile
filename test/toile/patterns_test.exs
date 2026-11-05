@@ -1353,6 +1353,30 @@ defmodule Toile.PatternsTest do
       end
     end
 
+    test "raises for a project that no longer exists" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      {:ok, _} = Patterns.delete_pattern_project(scope, pattern_project)
+
+      assert_raise Ecto.NoResultsError, fn ->
+        Patterns.update_seam_allowances(scope, pattern_project, %{"default" => 10, "edges" => %{}})
+      end
+    end
+
+    test "a save is not broadcast" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      Patterns.subscribe_pattern_projects(scope)
+
+      assert {:ok, _} =
+               Patterns.update_seam_allowances(scope, pattern_project, %{
+                 "default" => 12,
+                 "edges" => %{}
+               })
+
+      refute_receive {_event, %PatternProject{}}, 50
+    end
+
     test "saving the editor's work on a part keeps the seam allowances" do
       scope = user_scope_fixture()
       pattern_project = pattern_project_fixture(scope)

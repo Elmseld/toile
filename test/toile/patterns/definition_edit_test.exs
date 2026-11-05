@@ -183,6 +183,24 @@ defmodule Toile.Patterns.DefinitionEditTest do
       assert DefinitionEdit.validate(stored, pieces) == {:error, "/pieces/0/grainline/from"}
     end
 
+    test "markings are not editable: fold and cut", %{stored: stored} do
+      piece = Enum.find_index(stored["pieces"], &Map.has_key?(&1, "cut"))
+      assert piece
+
+      changed_cut = put_in(stored, ["pieces", Access.at(piece), "cut"], 3)
+      assert {:error, "/pieces" <> _} = DefinitionEdit.validate(stored, changed_cut)
+
+      removed_cut = update_in(stored, ["pieces", Access.at(piece)], &Map.delete(&1, "cut"))
+      assert {:error, "/pieces" <> _} = DefinitionEdit.validate(stored, removed_cut)
+
+      added_fold =
+        update_in(stored, ["pieces", Access.at(piece), "outline", Access.at(0)], fn entry ->
+          Map.put(entry, "fold", not Map.get(entry, "fold", false))
+        end)
+
+      assert {:error, "/pieces" <> _} = DefinitionEdit.validate(stored, added_fold)
+    end
+
     test "changed measurements, version or name", %{stored: stored} do
       assert DefinitionEdit.validate(stored, %{stored | "measurements" => ["bust"]}) ==
                {:error, "/measurements"}
