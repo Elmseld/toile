@@ -93,13 +93,15 @@ defmodule ToileWeb.PatternLive.Show do
   (`a4`, the default) or "Letter" (`letter`)), the "Download PDF" button (`#download-pdf`) and a
   status line (`#pdf-status`, plain text). It is `phx-update="ignore"`, so the paper choice and
   the status survive patches. The button dispatches `toile:pdf` on `#pattern-canvas`; the hook
-  then has the engine write the PDF of the drawing as shown (the working definitions and seam
-  allowances, unsaved edits included) and offers it as a download
-  (`docs/adr/0012-pdf-printing.md`). The canvas names the select (`data-pdf-paper`) and the
+  then has the engine write the PDF of the current working state (the working definitions and
+  seam allowances, unsaved edits included) and offers it as a download
+  (`docs/adr/0012-pdf-printing.md`). The PDF lays that state out afresh, with the same engine
+  layout as the drawing, while the drawing keeps its last layout during point edits, so after a
+  drag the pieces may be spaced differently in the PDF than on the page. The canvas names the select (`data-pdf-paper`) and the
   status line (`data-pdf-status`) by id and carries the project name for the title
   (`data-pdf-title`) and the download file name (`data-pdf-filename`: the name with every run of
-  other characters than letters and digits replaced by "-", at most 100 characters, "pattern"
-  when empty, then ".pdf"). The page texts and the error texts are the `"pdf"` group of
+  other characters than letters and digits replaced by "-", cut to at most 100 characters, then
+  trimmed of "-", "pattern" when empty, then ".pdf"). The page texts and the error texts are the `"pdf"` group of
   `data-texts`. The server computes nothing for the PDF.
 
   Another user's project id raises `Ecto.NoResultsError` (404) through the scoped context.
@@ -698,15 +700,21 @@ defmodule ToileWeb.PatternLive.Show do
   defp parameter_label(label, ""), do: label
   defp parameter_label(label, unit), do: gettext("%{label} (%{unit})", label: label, unit: unit)
 
-  # The download name of the project's PDF: every run of characters other than letters and
-  # digits becomes one "-" (so no "/", "\" or control characters), trimmed, at most 100
-  # characters, and "pattern" when nothing is left.
-  defp pdf_filename(name) do
+  @doc """
+  The download name of a project's PDF for the project name `name`: every run of characters
+  other than letters and digits becomes one "-" (so no "/", "\\" or control characters), the
+  result is cut to at most 100 characters and then trimmed of "-" (so the cut never leaves one
+  before ".pdf"), and it is "pattern" when nothing is left, then ".pdf".
+
+      iex> ToileWeb.PatternLive.Show.pdf_filename("Min kjol / v2")
+      "Min-kjol-v2.pdf"
+  """
+  def pdf_filename(name) do
     base =
       name
       |> String.replace(~r/[^\p{L}\p{N}]+/u, "-")
-      |> String.trim("-")
       |> String.slice(0, 100)
+      |> String.trim("-")
 
     if base == "", do: "pattern.pdf", else: base <> ".pdf"
   end

@@ -12,6 +12,9 @@ defmodule ToileWeb.PatternLive.ShowTest do
   alias Toile.Patterns.Blocks
   alias Toile.Patterns.PatternProject
   alias Toile.Repo
+  alias ToileWeb.PatternLive.Show
+
+  doctest Show, import: false
 
   @skirt %{waist: 680, hip: 940, hip_height: 206, skirt_length: 600}
 
@@ -1185,6 +1188,15 @@ defmodule ToileWeb.PatternLive.ShowTest do
         assert canvas_attribute(view, "pdf-filename") == filename
         assert canvas_attribute(view, "pdf-title") == name
       end
+    end
+
+    test "the PDF file name is cut to 100 characters before it is trimmed" do
+      # A stored name has at most 100 characters, so only a longer one reaches the cut.
+      assert Show.pdf_filename(String.duplicate("x", 99) <> " yz") ==
+               String.duplicate("x", 99) <> ".pdf"
+
+      assert Show.pdf_filename(" " <> String.duplicate("x", 120)) ==
+               String.duplicate("x", 99) <> ".pdf"
     end
 
     test "offers no PDF without a drawing", %{conn: conn, scope: scope} do
