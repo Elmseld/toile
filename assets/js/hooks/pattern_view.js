@@ -18,6 +18,10 @@
 //   data-texts         the editor's UI texts (JSON, ToileWeb.EditorTexts)
 //   data-max-save-bytes  the most a save's definition and parameters may encode to (JSON bytes)
 //   data-max-definition-bytes  the most a save's definition alone may encode to (JSON bytes)
+//   data-pdf-paper     the id of the paper select ("a4" or "letter"; anything else counts as A4)
+//   data-pdf-status    the id of the PDF status line (plain text)
+//   data-pdf-title     the project name, the PDF's title
+//   data-pdf-filename  the download name of the PDF
 // The element's aria-label also names the SVG.
 //
 // All parts are evaluated together (the engine's compileProject), so a part that imports values
@@ -72,8 +76,14 @@
 // what is visible). Events on the element:
 //   toile:fit                      resets the view to the whole pattern
 //   toile:zoom {detail: {factor}}  zooms around the centre (factor < 1 zooms in)
+//   toile:pdf                      downloads the PDF of the drawing as shown (downloadPdf)
 // Wheel zooms around the pointer, two pointers pinch-zoom, one pointer pans, and with focus the
 // arrow keys pan, + and - zoom and 0 fits.
+//
+// The PDF is the engine's (patternPdf, docs/adr/0012-pdf-printing.md): the hook hands it the
+// result it draws and the current seam allowances, so the PDF shows the working state, unsaved
+// edits included, with the same labels as the drawing, and offers the bytes as a download. The
+// page texts and the error texts are the "pdf" group of data-texts.
 
 import {
   GRAINLINE_ARROW_SIZE,
@@ -86,10 +96,12 @@ import {
   layoutParts,
   layoutPieces,
   patternBounds,
+  patternPdf,
   piecePathData,
   pieceSeamAllowances,
   placeLabel,
   pointPieces,
+  readPaper,
   readSeamAllowances,
 } from "../../../engine/src/index"
 import {PatternEditor} from "../editor/pattern_editor"
@@ -131,6 +143,13 @@ function textOf(map, part, piece) {
   return typeof text === "string" && text !== "" ? text : null
 }
 
+/** The label text of piece `piece` of part `part`: its name, and its cutting instruction on a
+ * second line when it has one. */
+function labelText(labels, cuts, part, piece) {
+  const name = textOf(labels, part, piece) ?? piece
+  return [name, textOf(cuts, part, piece)].filter(Boolean).join("\n")
+}
+
 /** The short lines of `notches` (the engine's ComputedNotch list). */
 function notchMarks(notches) {
   return notches.flatMap(notch =>
@@ -170,6 +189,7 @@ const PatternView = {
     this.onKeyDown = event => this.keyDown(event)
     this.onFit = () => this.setView(this.fitted)
     this.onZoom = event => this.zoomBy(Number(event.detail?.factor))
+    this.onPdf = () => this.downloadPdf()
 
     this.el.addEventListener("wheel", this.onWheel, {passive: false})
     this.el.addEventListener("pointerdown", this.onPointerDown)
@@ -180,6 +200,7 @@ const PatternView = {
     this.el.addEventListener("keydown", this.onKeyDown)
     this.el.addEventListener("toile:fit", this.onFit)
     this.el.addEventListener("toile:zoom", this.onZoom)
+    this.el.addEventListener("toile:pdf", this.onPdf)
 
     // The grid covers what is visible, which depends on the element's size.
     this.resizeObserver = new ResizeObserver(() => this.scheduleRender())
@@ -491,6 +512,77 @@ const PatternView = {
     label.setAttribute("text-anchor", place.anchor)
     // Each line starts at the anchor again.
     for (const line of label.children) line.setAttribute("x", place.x)
+  },
+
+  // Downloads the PDF of the drawn result (the working state) on the chosen paper, or says in
+  // the status line (data-pdf-status, plain text) why there is none.
+  downloadPdf() {
+    const status = this.el.dataset.pdfStatus
+      ? document.getElementById(this.el.dataset.pdfStatus)
+      : null
+    const texts = isObject(this.texts.pdf) ? this.texts.pdf : {}
+    const text = key => (Object.hasOwn(texts, key) && typeof texts[key] === "string" ? texts[key] : "")
+    const say = message => {
+      if (status) status.textContent = message
+    }
+    say("")
+    try {
+      const result = this.shown
+      if (!result?.ok) {
+        say(text("failed"))
+        return
+      }
+      const select = this.el.dataset.pdfPaper
+        ? document.getElementById(this.el.dataset.pdfPaper)
+        : null
+      // As the drawing labels the pieces (pieceGroup). fromEntries defines own keys, whatever
+      // the part and piece names.
+      const labels = Object.fromEntries(
+        Object.entries(result.parts).map(([part, partResult]) => [
+          part,
+          Object.fromEntries(
+            Object.values(partResult.pieces).map(piece => [
+              piece.name,
+              labelText(this.pieceLabels, this.pieceCuts, part, piece.name),
+            ]),
+          ),
+        ]),
+      )
+      const pdf = patternPdf({
+        parts: result.parts,
+        allowances: this.allowances(),
+        labels,
+        paper: readPaper(select?.value),
+        title: this.el.dataset.pdfTitle ?? "",
+        texts: {
+          testSquare: text("test_square"),
+          scaleCheck: text("scale_check"),
+          assembly: text("assembly"),
+          overview: text("overview"),
+        },
+      })
+      if (!pdf.ok) {
+        say(text(pdf.kind === "too_many_pages" ? "too_large" : "failed"))
+        return
+      }
+      this.saveFile(new Blob([pdf.bytes], {type: "application/pdf"}))
+    } catch (error) {
+      console.warn("PDF export failed", error)
+      say(text("failed"))
+    }
+  },
+
+  // Offers `blob` as a download named data-pdf-filename.
+  saveFile(blob) {
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = this.el.dataset.pdfFilename || "pattern.pdf"
+    link.hidden = true
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 0)
   },
 
   // The project's own errors and every part's, each tagged with its part name.
