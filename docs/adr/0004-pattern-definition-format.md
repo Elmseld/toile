@@ -100,7 +100,7 @@ a drag. The definition and its formulas are untrusted user input. This ADR build
     keeps every length and SVG number finite and gives every point in `points` a `basePoints`
     entry.
     Limits on the stored size of a definition (bytes per project, projects per user) belong to the
-    Phoenix app and are set in ADR 0006 (1 000 000 bytes, 100 projects per user).
+    Phoenix app and are set in ADR 0006 (200 000 bytes since ADR 0008, 100 projects per user).
 17. **Notches are an optional piece field** (ticket 0007; additive, no version bump):
     `"notches": [{ "curve": "<outline curve>", "distance": "<formula>", "marks": 1 | 2 }]`. A
     notch lies `distance` mm along the outline, walking forward in outline order from the start of

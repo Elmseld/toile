@@ -218,6 +218,45 @@ describe("compileProject", () => {
     expect(compiled.evaluate(INPUT).errors[0]?.message).not.toBe("changed");
   });
 
+  test("offsets apply to their part only, and parts importing from it see them", () => {
+    const measured = {
+      name: "base",
+      definition: {
+        version: 1,
+        formulas: { span: "distance(A, B)" },
+        points: [
+          { name: "A", op: "start", x: "0", y: "0" },
+          { name: "B", op: "start", x: "30", y: "0" },
+        ],
+      },
+    };
+    const other = {
+      name: "other",
+      definition: { version: 1, points: [{ name: "B", op: "start", x: "0", y: "0" }] },
+    };
+    const compiled = compileProject([measured, importer("sleeve", "base", "span"), other]);
+    const plain = compiled.evaluate({ measurements: {} });
+    expect(plain.parts.sleeve?.values.double).toBe(60);
+
+    const moved = compiled.evaluate(
+      { measurements: {} },
+      { offsets: { base: { B: { dx: 10, dy: 0 } }, missing: { B: { dx: 1, dy: 1 } } } },
+    );
+    expect(moved.ok).toBe(true);
+    expect(moved.parts.base?.points.B).toEqual({ x: 40, y: 0 });
+    expect(moved.parts.sleeve?.values.double).toBe(80);
+    expect(moved.parts.other?.points.B).toEqual({ x: 0, y: 0 });
+    // The offsets were for this evaluation only.
+    expect(compiled.evaluate({ measurements: {} })).toEqual(plain);
+  });
+
+  test("offsets that are not records are ignored", () => {
+    const compiled = compileProject([source()]);
+    for (const options of [undefined, {}, { offsets: null }, { offsets: { base: 3 } }]) {
+      expect(compiled.evaluate(INPUT, options as never).parts.base?.values.size).toBe(110);
+    }
+  });
+
   test("the parts are not read after compiling", () => {
     const parts = [source(), importer("sleeve", "base")];
     const compiled = compileProject(parts);

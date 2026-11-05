@@ -1,7 +1,8 @@
 // Field layouts of points and curves (shared by the validator and the evaluator) and the point
 // operations themselves.
 
-import type { CurveDefinition, PointDefinition, PointOp } from "./types";
+import pointOps from "./point_ops.json";
+import type { CurveDefinition, PointDefinition } from "./types";
 import {
   add,
   direction,
@@ -26,25 +27,14 @@ export type FieldSpec = readonly [field: string, kind: FieldKind];
 
 /**
  * The fields of every point operation, in edge order (which decides the field a
- * `failed_dependency` names). A `Map`, so an `op` such as `__proto__` from untrusted input never
- * reaches a prototype member.
+ * `failed_dependency` names). The table lives in `point_ops.json`, which the Phoenix app reads too
+ * (docs/adr/0008-pattern-editor.md), so both sides agree on which fields are formulas. A `Map`, so
+ * an `op` such as `__proto__` from untrusted input never reaches a prototype member.
  */
-export const OP_FIELDS: ReadonlyMap<string, readonly FieldSpec[]> = new Map<
-  PointOp,
-  readonly FieldSpec[]
->([
-  ["start", [["x", "formula"], ["y", "formula"]]],
-  ["offset", [["from", "name"], ["dx", "formula"], ["dy", "formula"]]],
-  ["along_line", [["from", "name"], ["to", "name"], ["distance", "formula"]]],
-  ["along_angle", [["from", "name"], ["angle", "formula"], ["distance", "formula"]]],
-  ["perpendicular", [["from", "name"], ["to", "name"], ["distance", "formula"]]],
-  ["line_intersection", [["line1", "line"], ["line2", "line"]]],
-  [
-    "line_circle_intersection",
-    [["line", "line"], ["center", "name"], ["radius", "formula"], ["which", "which"]],
-  ],
-  ["midpoint", [["from", "name"], ["to", "name"]]],
-]);
+// The JSON types as `string[][]`; point_ops.test.ts checks that it has the `FieldSpec` shape.
+export const OP_FIELDS: ReadonlyMap<string, readonly FieldSpec[]> = new Map(
+  Object.entries(pointOps as unknown as Record<string, readonly FieldSpec[]>),
+);
 
 /** The point-name fields of every curve type, in edge order. */
 export const CURVE_FIELDS: ReadonlyMap<string, readonly string[]> = new Map<

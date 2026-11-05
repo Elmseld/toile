@@ -3,24 +3,43 @@
 // Data attributes (set by ToileWeb.PatternLive.Show):
 //   data-key           the measurement profile id; a change means new input
 //   data-parts         the project's parts, [{"name", "definition"}], main part first (JSON,
-//                      untrusted: the engine validates it)
+//                      untrusted: the engine validates it). The editor reads them on mount and
+//                      only takes parts it does not have yet from a later value.
 //   data-input         {"measurements": {...}, "parameters": {partName: {...}}} in millimetres (JSON)
 //   data-piece-labels  {partName: {pieceName: label}} for the pieces of every part (JSON)
 //   data-error-text    shown instead of a drawing when the pattern cannot be computed
+//   data-editor        the id of the editor aside (optional); with it the pattern is editable
+//   data-texts         the editor's UI texts (JSON, ToileWeb.EditorTexts)
+//   data-max-save-bytes  the most a save's definition and parameters may encode to (JSON bytes)
+//   data-max-definition-bytes  the most a save's definition alone may encode to (JSON bytes)
 // The element's aria-label also names the SVG.
 //
 // All parts are evaluated together (the engine's compileProject), so a part that imports values
 // from another, like a sleeve from the bodice armhole, is always computed from the same input. If
-// any part fails, nothing is drawn. The parts are placed side by side by the engine's layoutParts;
-// each is drawn in a <g data-part> translated by its offset, and its pieces' notches as short
-// marks into the piece.
+// any part fails, nothing is drawn. The parts are placed side by side by the engine's layoutParts
+// when the drawing is built; each is drawn in a <g data-part> translated by its offset, and its
+// pieces' notches as short marks into the piece. The layout stays while the pattern is edited, so
+// a dragged point does not slip away from the pointer; it is redone on the next build.
+//
+// With an editor (assets/js/editor/pattern_editor.js, docs/adr/0008-pattern-editor.md) the
+// editor owns the working definitions and parameters of all parts: compute() asks it for the
+// result, it calls update() while points are dragged and edited, and it draws the point handles
+// into a layer in each part's group. A press on a point is the editor's (drag); a press elsewhere
+// pans as before, and a second pointer during a drag cancels the drag and pinches.
+//
+// Drawing has three parts: compute() evaluates the project for the current input, draw() builds
+// the SVG elements once per input (and fits the view to them), and update() moves the existing
+// elements to a new result without touching the view. updated() redraws only when data-key,
+// data-parts or data-input changed.
 //
 // Each piece's label is centred inside it where its text box is farthest from the outline, darts
-// and grainline (the engine's placeLabel), and shrunk when the piece is too narrow for it. The
-// grainline arrowheads are drawn at GRAINLINE_ARROW_SIZE, the size placeLabel keeps clear of.
+// and grainline (the engine's placeLabel), and shrunk when the piece is too narrow for it. A
+// placement costs several milliseconds, so placements are cached by label text, outline and
+// grainline, and update(result, {labels: "keep"}) leaves the labels where they are. The grainline
+// arrowheads are drawn at GRAINLINE_ARROW_SIZE, the size placeLabel keeps clear of.
 //
-// The SVG user unit is 1 mm. The pattern is computed once per input; zoom and pan only change
-// the viewBox (and the grid lines that cover what is visible). Events on the element:
+// The SVG user unit is 1 mm. Zoom and pan only change the viewBox (and the grid lines that cover
+// what is visible). Events on the element:
 //   toile:fit                      resets the view to the whole pattern
 //   toile:zoom {detail: {factor}}  zooms around the centre (factor < 1 zooms in)
 // Wheel zooms around the pointer, two pointers pinch-zoom, one pointer pans, and with focus the
@@ -34,6 +53,8 @@ import {
   piecePathData,
   placeLabel,
 } from "../../../engine/src/index"
+import {PatternEditor} from "../editor/pattern_editor"
+import {parseJSON} from "../json"
 import {center, fit, gridPathData, panBy, toAttribute, visibleArea, zoomAt} from "./viewport"
 
 const SVG_NS = "http://www.w3.org/2000/svg"
@@ -43,19 +64,13 @@ const LABEL_SIZE = 14
 const MIN_GRID_SPACING_PX = 4
 const KEY_PAN_FRACTION = 0.1
 const KEY_ZOOM_FACTOR = 0.8
+// Label placements kept before the cache starts over.
+const LABEL_CACHE_SIZE = 200
 
 function svgElement(name, attributes = {}) {
   const element = document.createElementNS(SVG_NS, name)
   for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, String(value))
   return element
-}
-
-function parseJSON(text, fallback) {
-  try {
-    return JSON.parse(text ?? "")
-  } catch {
-    return fallback
-  }
 }
 
 const PatternView = {
@@ -67,6 +82,7 @@ const PatternView = {
     this.onPointerDown = event => this.pointerDown(event)
     this.onPointerMove = event => this.pointerMove(event)
     this.onPointerUp = event => this.pointerUp(event)
+    this.onPointerCancel = event => this.pointerCancel(event)
     this.onKeyDown = event => this.keyDown(event)
     this.onFit = () => this.setView(this.fitted)
     this.onZoom = event => this.zoomBy(Number(event.detail?.factor))
@@ -75,8 +91,8 @@ const PatternView = {
     this.el.addEventListener("pointerdown", this.onPointerDown)
     this.el.addEventListener("pointermove", this.onPointerMove)
     this.el.addEventListener("pointerup", this.onPointerUp)
-    this.el.addEventListener("pointercancel", this.onPointerUp)
-    this.el.addEventListener("lostpointercapture", this.onPointerUp)
+    this.el.addEventListener("pointercancel", this.onPointerCancel)
+    this.el.addEventListener("lostpointercapture", this.onPointerCancel)
     this.el.addEventListener("keydown", this.onKeyDown)
     this.el.addEventListener("toile:fit", this.onFit)
     this.el.addEventListener("toile:zoom", this.onZoom)
@@ -85,48 +101,181 @@ const PatternView = {
     this.resizeObserver = new ResizeObserver(() => this.scheduleRender())
     this.resizeObserver.observe(this.el)
 
-    this.draw()
+    this.labelCache = new Map()
+    this.drawn = this.source()
+    this.pieceLabels = parseJSON(this.el.dataset.pieceLabels, {})
+    this.parts = parseJSON(this.el.dataset.parts, null)
+    // The pointer that drags a point, and where it last was (client pixels).
+    this.dragPointer = null
+    this.dragAt = null
+    const input = parseJSON(this.el.dataset.input, null)
+    this.editor = PatternEditor.create(this, this.parts, input)
+    this.draw(this.compute(input))
   },
 
-  // phx-update="ignore" still patches data attributes; redraw when the input changed.
+  // phx-update="ignore" still patches data attributes. New input (another profile) or new parts
+  // (a part added) redraw. The editor keeps its working definitions and only takes new parts,
+  // with their aside (data-editor names a new one when the parts change).
   updated() {
-    if (this.drawnFrom !== this.source()) this.draw()
+    const source = this.source()
+    const drawn = this.drawn
+    this.drawn = source
+    const input = parseJSON(source.input, null)
+    if (source.parts !== drawn.parts) {
+      this.parts = parseJSON(source.parts, null)
+      this.compiled = null
+      this.editor?.addParts(this.parts, input)
+    }
+    // After addParts, so the new aside shows the new parts' values.
+    if (source.editor !== drawn.editor && this.editor) {
+      const aside = document.getElementById(source.editor)
+      if (aside) this.editor.setAside(aside)
+    }
+    if (source.key === drawn.key && source.parts === drawn.parts && source.input === drawn.input) {
+      return
+    }
+    this.pieceLabels = parseJSON(this.el.dataset.pieceLabels, {})
+    this.draw(this.compute(input))
   },
 
+  source() {
+    const {key, parts, input, editor} = this.el.dataset
+    return {key, parts, input, editor}
+  },
+
+  // Saves made while the connection was down are sent again.
+  reconnected() {
+    this.editor?.resendIfUnsaved()
+  },
+
+  // The editor sends the commits that are not stored yet once more before it goes (e.g. when
+  // another profile lacks measurements and the drawing makes way for a message).
   destroyed() {
+    this.editor?.destroy()
     this.resizeObserver?.disconnect()
     if (this.frame !== null) cancelAnimationFrame(this.frame)
   },
 
-  source() {
-    const {key, parts, input} = this.el.dataset
-    return `${key}\n${parts}\n${input}`
+  // The project evaluated for `input`, or null without input. Compiles once per set of parts.
+  // The editor evaluates its working state instead, with the measurements of `input`.
+  compute(input) {
+    if (this.editor) return this.editor.load(input)
+    if (!input) return null
+    this.compiled ??= compileProject(this.parts)
+    return this.compiled.evaluate(input)
   },
 
-  draw() {
-    this.drawnFrom = this.source()
+  // Builds the drawing of `result` (a project result), lays the parts out and fits the view to
+  // them (with fit: false it keeps the view it has, if any), or shows the error text when the
+  // pattern cannot be drawn.
+  draw(result, {fit: refit = true} = {}) {
+    const view = refit ? null : this.viewBox
+    this.editor?.cancelDrag()
+    this.dragPointer = null
     this.pointers.clear()
     this.svg = null
     this.el.replaceChildren()
 
-    const parts = parseJSON(this.el.dataset.parts, null)
-    const input = parseJSON(this.el.dataset.input, null)
-    const labels = parseJSON(this.el.dataset.pieceLabels, {})
-    const result = input ? compileProject(parts).evaluate(input) : null
     const results = result?.ok ? Object.entries(result.parts) : []
     const layout = layoutParts(results.map(([, part]) => patternBounds(part)))
-
     if (!result?.ok || !layout.bounds) {
       if (result && !result.ok) console.warn("Pattern errors", this.errorsOf(result))
       this.showError()
       return
     }
 
-    const placed = results.map(([name, part], i) => ({name, part, offset: layout.offsets[i]}))
+    this.partOffsets = new Map(results.map(([name], i) => [name, layout.offsets[i]]))
     this.fitted = fit(layout.bounds, FIT_MARGIN)
-    this.svg = this.buildSvg(placed, labels)
+    this.svg = this.buildSvg(result)
     this.el.appendChild(this.svg)
-    this.setView(this.fitted)
+    this.update(result)
+    this.setView(view ?? this.fitted)
+  },
+
+  // Moves the drawn elements to `result` (a result of the same parts) without changing the view
+  // or the layout. With labels: "keep" the labels stay where they are, e.g. while a point is
+  // dragged; "place" places them again. A result with other parts or pieces than the drawing is
+  // drawn anew in the same view, and a result when nothing is drawn yet is drawn and fitted. A
+  // result with errors changes nothing: the last good drawing stays.
+  update(result, {labels = "place"} = {}) {
+    if (!result?.ok) return
+    if (!this.svg || !this.drawsPieces(result)) {
+      this.draw(result, {fit: !this.svg})
+      return
+    }
+    for (const [part, partResult] of Object.entries(result.parts)) {
+      const pieces = this.pieceElements.get(part)
+      for (const piece of Object.values(partResult.pieces)) {
+        const elements = pieces.get(piece.name)
+        const pathData = piecePathData(piece)
+        elements.outline.setAttribute("d", pathData)
+        const {from, to} = piece.grainline
+        elements.grainline.setAttribute("x1", from.x)
+        elements.grainline.setAttribute("y1", from.y)
+        elements.grainline.setAttribute("x2", to.x)
+        elements.grainline.setAttribute("y2", to.y)
+        elements.notches.replaceChildren(...this.notchMarks(piece))
+        if (labels === "place") this.placeLabelOf(piece, pathData, elements.label)
+      }
+    }
+    this.editor?.moveHandles(result)
+  },
+
+  // Whether the drawing has exactly the parts and pieces of `result`.
+  drawsPieces(result) {
+    const parts = Object.entries(result.parts)
+    if (parts.length !== this.pieceElements.size) return false
+    return parts.every(([part, partResult]) => {
+      const drawn = this.pieceElements.get(part)
+      const names = Object.keys(partResult.pieces)
+      return drawn && names.length === drawn.size && names.every(name => drawn.has(name))
+    })
+  },
+
+  // Inside the piece, clear of the outline, darts and grainline (the engine's placeLabel),
+  // centred on the returned point. A piece without area falls back to the grainline's midpoint,
+  // start-anchored half a label height to its right so the text sits beside the line instead of
+  // straddling it.
+  placeLabelOf(piece, pathData, label) {
+    const text = label.textContent
+    const {from, to} = piece.grainline
+    const key = `${text}\n${pathData}\n${from.x} ${from.y} ${to.x} ${to.y}`
+    let place = this.labelCache.get(key)
+    if (!place) {
+      const placed = placeLabel(piece, text, LABEL_SIZE)
+      place = placed
+        ? {...placed, anchor: "middle"}
+        : {
+            x: (from.x + to.x) / 2 + LABEL_SIZE / 2,
+            y: (from.y + to.y) / 2,
+            size: LABEL_SIZE,
+            anchor: "start",
+          }
+      if (this.labelCache.size >= LABEL_CACHE_SIZE) this.labelCache.clear()
+      this.labelCache.set(key, place)
+    }
+    label.setAttribute("x", place.x)
+    label.setAttribute("y", place.y)
+    label.setAttribute("font-size", place.size)
+    label.setAttribute("text-anchor", place.anchor)
+  },
+
+  // The short lines of a piece's notches.
+  notchMarks(piece) {
+    return piece.notches.flatMap(notch =>
+      notch.marks.map(mark =>
+        svgElement("line", {
+          x1: mark.from.x,
+          y1: mark.from.y,
+          x2: mark.to.x,
+          y2: mark.to.y,
+          stroke: "currentColor",
+          "stroke-width": 1.5,
+          "stroke-linecap": "round",
+          "vector-effect": "non-scaling-stroke",
+        }),
+      ),
+    )
   },
 
   // The project's own errors and every part's, each tagged with its part name.
@@ -145,7 +294,10 @@ const PatternView = {
     this.el.appendChild(message)
   },
 
-  buildSvg(placed, labels) {
+  // The SVG with one group per part, translated by its layout offset, holding one group per
+  // piece (outline, grainline, notches, label) and the part's handle layer, without geometry:
+  // update() sets that.
+  buildSvg(result) {
     const id = this.el.id
     const svg = svgElement("svg", {
       class: "block size-full text-base-content",
@@ -175,93 +327,65 @@ const PatternView = {
     svg.appendChild(this.minorGrid)
     svg.appendChild(this.majorGrid)
 
-    for (const {name, part, offset} of placed) {
+    this.pieceElements = new Map()
+    const handleLayers = new Map()
+    for (const [part, partResult] of Object.entries(result.parts)) {
+      const offset = this.partOffsets.get(part)
       const partGroup = svgElement("g", {
-        "data-part": name,
+        "data-part": part,
         transform: `translate(${offset.dx} ${offset.dy})`,
       })
-      for (const piece of Object.values(part.pieces)) {
-        partGroup.appendChild(this.pieceGroup(piece, labels[name] ?? {}))
+      const labels = this.pieceLabels[part] ?? {}
+      const pieces = new Map()
+      for (const piece of Object.values(partResult.pieces)) {
+        const elements = this.pieceGroup(piece.name, labels[piece.name] ?? piece.name)
+        partGroup.appendChild(elements.group)
+        pieces.set(piece.name, elements)
+      }
+      this.pieceElements.set(part, pieces)
+      if (this.editor) {
+        const layer = svgElement("g", {"data-handles": part, "pointer-events": "none"})
+        partGroup.appendChild(layer)
+        handleLayers.set(part, layer)
       }
       svg.appendChild(partGroup)
     }
 
+    this.editor?.drawHandles(handleLayers, result)
     return svg
   },
 
-  // labels: {pieceName: label} for this piece's part.
-  pieceGroup(piece, labels) {
+  // The elements of one piece, without geometry.
+  pieceGroup(name, text) {
     const id = this.el.id
-    const group = svgElement("g", {"data-piece": piece.name})
-    group.appendChild(
-      svgElement("path", {
-        d: piecePathData(piece),
-        fill: "none",
-        stroke: "currentColor",
-        "stroke-width": 2,
-        "stroke-linejoin": "round",
-        "vector-effect": "non-scaling-stroke",
-      }),
-    )
-
-    const {from, to} = piece.grainline
-    group.appendChild(
-      svgElement("line", {
-        x1: from.x,
-        y1: from.y,
-        x2: to.x,
-        y2: to.y,
-        stroke: "currentColor",
-        "stroke-width": 1,
-        "vector-effect": "non-scaling-stroke",
-        "marker-start": `url(#${id}-arrow)`,
-        "marker-end": `url(#${id}-arrow)`,
-      }),
-    )
-
-    const text = labels[piece.name] ?? piece.name
-    // Inside the piece, clear of the outline, darts and grainline (the engine's placeLabel),
-    // centred on the returned point. A piece without area falls back to the grainline's
-    // midpoint, start-anchored half a label height to its right so the text sits beside the
-    // line instead of straddling it.
-    const placed = placeLabel(piece, text, LABEL_SIZE)
-    const place = placed
-      ? {...placed, anchor: "middle"}
-      : {
-          x: (from.x + to.x) / 2 + LABEL_SIZE / 2,
-          y: (from.y + to.y) / 2,
-          size: LABEL_SIZE,
-          anchor: "start",
-        }
+    const group = svgElement("g", {"data-piece": name})
+    const outline = svgElement("path", {
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": 2,
+      "stroke-linejoin": "round",
+      "vector-effect": "non-scaling-stroke",
+    })
+    const grainline = svgElement("line", {
+      stroke: "currentColor",
+      "stroke-width": 1,
+      "vector-effect": "non-scaling-stroke",
+      "marker-start": `url(#${id}-arrow)`,
+      "marker-end": `url(#${id}-arrow)`,
+    })
+    const notches = svgElement("g")
     const label = svgElement("text", {
-      x: place.x,
-      y: place.y,
-      "font-size": place.size,
       fill: "currentColor",
-      "text-anchor": place.anchor,
       "dominant-baseline": "middle",
     })
     label.textContent = text
-    group.appendChild(label)
+    group.append(outline, grainline, notches, label)
+    return {group, outline, grainline, notches, label}
+  },
 
-    for (const notch of piece.notches) {
-      for (const mark of notch.marks) {
-        group.appendChild(
-          svgElement("line", {
-            x1: mark.from.x,
-            y1: mark.from.y,
-            x2: mark.to.x,
-            y2: mark.to.y,
-            stroke: "currentColor",
-            "stroke-width": 1.5,
-            "stroke-linecap": "round",
-            "vector-effect": "non-scaling-stroke",
-          }),
-        )
-      }
-    }
-
-    return group
+  // Where part `part` is drawn: the offset its coordinates are moved by.
+  partOffset(part) {
+    return this.partOffsets?.get(part) ?? {dx: 0, dy: 0}
   },
 
   setView(viewBox) {
@@ -286,6 +410,7 @@ const PatternView = {
     const {area, scale} = visibleArea(this.viewBox, width, height)
     this.minorGrid.setAttribute("d", this.gridAt(area, scale, 10))
     this.majorGrid.setAttribute("d", this.gridAt(area, scale, 100))
+    this.editor?.scaleHandles(scale)
   },
 
   gridAt(area, scale, step) {
@@ -328,12 +453,37 @@ const PatternView = {
 
   pointerDown(event) {
     if (!this.svg || (event.pointerType === "mouse" && event.button !== 0)) return
+    const at = {x: event.clientX, y: event.clientY}
+    if (this.dragPointer !== null) {
+      // A second pointer during a drag: the point goes back, and the two pointers pinch.
+      this.editor.cancelDrag()
+      this.pointers.set(this.dragPointer, this.dragAt)
+      this.dragPointer = null
+    } else if (this.pointers.size === 0 && this.editor?.pointerDown(event)) {
+      this.el.setPointerCapture(event.pointerId)
+      this.dragPointer = event.pointerId
+      this.dragAt = at
+      return
+    }
     this.el.setPointerCapture(event.pointerId)
-    this.pointers.set(event.pointerId, {x: event.clientX, y: event.clientY})
+    this.pointers.set(event.pointerId, at)
+  },
+
+  // The editor cancelled the drag (Escape) while its pointer is still down: that pointer pans.
+  dragCancelled() {
+    if (this.dragPointer === null) return
+    this.pointers.set(this.dragPointer, this.dragAt)
+    this.dragPointer = null
   },
 
   pointerMove(event) {
+    if (event.pointerId === this.dragPointer) {
+      this.dragAt = {x: event.clientX, y: event.clientY}
+      this.editor.moveDrag(event)
+      return
+    }
     const previous = this.pointers.get(event.pointerId)
+    if (!previous) this.hover(event)
     if (!previous || !this.svg) return
     const current = {x: event.clientX, y: event.clientY}
 
@@ -369,7 +519,28 @@ const PatternView = {
   },
 
   pointerUp(event) {
+    if (event.pointerId === this.dragPointer) {
+      this.dragPointer = null
+      this.editor.endDrag()
+      return
+    }
     this.pointers.delete(event.pointerId)
+  },
+
+  // The browser took the pointer away (or capture was lost): a drag ends without a change.
+  pointerCancel(event) {
+    if (event.pointerId === this.dragPointer) {
+      this.dragPointer = null
+      this.editor.cancelDrag()
+      return
+    }
+    this.pointers.delete(event.pointerId)
+  },
+
+  // A mouse over a point shows the move cursor.
+  hover(event) {
+    if (event.pointerType !== "mouse" || !this.svg || !this.editor) return
+    this.el.classList.toggle("cursor-move", this.editor.pick(event) !== null)
   },
 
   keyDown(event) {

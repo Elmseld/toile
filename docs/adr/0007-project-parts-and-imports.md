@@ -67,8 +67,9 @@ Rejected alternatives:
 - A general equation solver in the engine: unbounded cost on the drag path.
 
 ## Consequences
-- A project has one or more parts; the editor (0008) edits and saves the definition and
-  parameters of each part, and `compileProject` is its drag-time entry point.
+- A project has one or more parts; the editor (0008, ADR 0008) edits and saves the definition and
+  parameters of each part, one part per save, and `compileProject` is its drag-time entry point
+  (`evaluate(input, { offsets })` takes offsets by part).
 - The size cap of ADR 0006 applies to each stored definition. `list_pattern_projects/1` does not
   load `parts`.
 - The measurements a project needs are the union of its parts' declared measurements, so adding

@@ -32,6 +32,7 @@ export {
   compileProject,
   evaluateProject,
   type ProjectError,
+  type ProjectEvaluateOptions,
   type ProjectInput,
   type ProjectPart,
   type ProjectResult,

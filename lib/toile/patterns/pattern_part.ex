@@ -10,11 +10,15 @@ defmodule Toile.Patterns.PatternPart do
   its parameter defaults (`%{}` when added). Elixir never interprets the geometry: the engine
   evaluates all parts of a project together in the browser.
 
-  Parts are only ever built by `Toile.Patterns.PatternProject.add_part_changeset/3`, never cast
-  from user input.
+  Parts are built by `Toile.Patterns.PatternProject.add_part_changeset/3`. The editor changes
+  only a part's `definition` and `parameters`, through `edit_changeset/2` (ADR 0008); `name` and
+  `block` are never cast.
   """
 
   use Ecto.Schema
+  import Ecto.Changeset
+
+  alias Toile.Patterns.PatternProject
 
   @primary_key false
   embedded_schema do
@@ -22,5 +26,16 @@ defmodule Toile.Patterns.PatternPart do
     field :block, :string
     field :definition, :map
     field :parameters, :map, default: %{}
+  end
+
+  @doc """
+  Changeset for saving the editor's work on this part: casts `definition` and `parameters` and
+  checks them against the part's stored definition with
+  `Toile.Patterns.PatternProject.validate_edit/2`.
+  """
+  def edit_changeset(%__MODULE__{} = part, attrs) do
+    part
+    |> cast(attrs, [:definition, :parameters])
+    |> PatternProject.validate_edit(part.definition)
   end
 end

@@ -1,0 +1,15 @@
+{
+  "start": [["x", "formula"], ["y", "formula"]],
+  "offset": [["from", "name"], ["dx", "formula"], ["dy", "formula"]],
+  "along_line": [["from", "name"], ["to", "name"], ["distance", "formula"]],
+  "along_angle": [["from", "name"], ["angle", "formula"], ["distance", "formula"]],
+  "perpendicular": [["from", "name"], ["to", "name"], ["distance", "formula"]],
+  "line_intersection": [["line1", "line"], ["line2", "line"]],
+  "line_circle_intersection": [
+    ["line", "line"],
+    ["center", "name"],
+    ["radius", "formula"],
+    ["which", "which"]
+  ],
+  "midpoint": [["from", "name"], ["to", "name"]]
+}

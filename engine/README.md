@@ -103,7 +103,8 @@ A complete example (a rectangle with a dart, tested against two measurement sets
   formulas keep their own limits (see Formulas). Storage limits are up to the app (ADR 0006).
 - **Points.** `name`, `op`, the op's fields and an optional `user_offset: { dx, dy }`. Name fields
   hold point names; formula fields hold formulas (ADR 0003) that may also call the geometry
-  functions below. Lengths are mm.
+  functions below. Lengths are mm. The field layout of every op is in
+  `src/geometry/point_ops.json`, which the app also reads at compile time (ADR 0008).
 
   | `op` | Fields | Result |
   |------|--------|--------|
@@ -223,7 +224,10 @@ block it was created from (say `bodice`) and blocks added to it (say `straight_s
 - `compileProject(parts)` takes `[{ name, definition }]` (untrusted), compiles every part once and
   returns `{ evaluate(input) }`; `evaluateProject(parts, input)` is the same in one call. The input
   is `{ measurements, parameters?: { [part name]: overrides } }`: one profile for all parts,
-  parameter overrides per part (overrides for names that are not parts are ignored).
+  parameter overrides per part (overrides for names that are not parts are ignored). The optional
+  second argument `{ offsets?: { [part name]: { [point]: offset | null } } }` replaces user
+  offsets of those parts for one evaluation (each part's `EvaluateOptions.offsets`), as the editor
+  does for the point being dragged (ADR 0008); parts that import from a moved part see the change.
 - Parts are evaluated in the order their `imports` need (a part importing from another comes after
   it), and each import is fed from the source part's result `values`. Parts in a cycle (a part
   importing from itself included) come last, in the given order. An import whose part is missing,
@@ -394,3 +398,25 @@ The engine has no block registry.
   mm), and one at the crown, matching the shoulder seam; so all the cap ease lies between the
   notches. A sleeve wider than its armhole halves (an implausible `upper_arm`) gives
   `invalid_result` on `cap_h_0`, shown as the hook's generic error.
+
+## Editor helpers
+
+`src/editor/` holds the pure logic behind the project page editor (ADR 0008). All of it works on the
+raw definition JSON as stored, so a save differs from the stored definition only where the user
+edited.
+
+- `setUserOffset(definition, point, offset | null)`: replaces one point's `user_offset` (rounded to
+  0.1 mm with `roundOffset`; `null` removes it). Other points keep their identity.
+- `getPoint(definition, name)`: the raw point called `name`, or `undefined`.
+- `setPointFormula(definition, point, field, formula)`: replaces one formula field; anything else is
+  returned unchanged.
+- `pointFields(point)`, `controlPoints(definition)`: the op's fields for a panel, and the `c1`/`c2`
+  names of cubic curves.
+- `tryPattern(definition, input)`: compile and evaluate; `ok` only if the result is `ok`, else the
+  errors. `errorsFor(errors, point, field?)` picks the ones for a point.
+- `pickPoint(points, at, radius, prefer?)`: nearest point within a radius, ties to `prefer`.
+- History: `createHistory`, `push`, `undo`, `redo`, `canUndo`, `canRedo`: immutable undo/redo over
+  `{ definition, parameters }`, bounded to `HISTORY_LIMIT` (100) steps by default.
+- Units: `toDisplay`, `fromDisplay`, `formatDisplay` convert parameter values between stored units
+  and the units shown (mm to cm, degrees per mm to per cm). `MAX_PARAMETER` (1 000 000) is the
+  largest absolute parameter value; the app's bound is pinned to it by a test.

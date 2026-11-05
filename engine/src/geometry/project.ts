@@ -4,7 +4,7 @@
 // same evaluation.
 
 import { compilePattern } from "./evaluate";
-import type { CompiledPattern, PatternResult } from "./types";
+import type { CompiledPattern, EvaluateOptions, PatternResult } from "./types";
 import { validateDefinition } from "./validate";
 
 /** One part of a project: its name (the part name imports refer to) and its definition. */
@@ -16,6 +16,16 @@ export type ProjectInput = {
   measurements: Readonly<Record<string, number>>;
   /** Parameter overrides by part name; overrides for names that are not parts are ignored. */
   parameters?: Readonly<Record<string, Readonly<Record<string, number>>>>;
+};
+
+/** Options for one evaluation of a compiled project. */
+export type ProjectEvaluateOptions = {
+  /**
+   * User offsets by part name, then point name, that replace the parts' stored `user_offset`s
+   * for this evaluation (`EvaluateOptions.offsets` of each part), e.g. for the point being
+   * dragged in the editor. Names that are not parts are ignored.
+   */
+  offsets?: Readonly<Record<string, EvaluateOptions["offsets"]>>;
 };
 
 /** A problem with the list of parts itself; such entries are left out of the result. */
@@ -33,8 +43,11 @@ export type ProjectResult = {
 
 /** A project prepared by `compileProject`, to be evaluated against any number of inputs. */
 export type CompiledProject = {
-  /** The same result as `evaluateProject(parts, input)`. Never throws. */
-  readonly evaluate: (input: ProjectInput) => ProjectResult;
+  /**
+   * The same result as `evaluateProject(parts, input)`, with `options.offsets` applied to their
+   * parts. Never throws.
+   */
+  readonly evaluate: (input: ProjectInput, options?: ProjectEvaluateOptions) => ProjectResult;
 };
 
 type Part = {
@@ -65,7 +78,8 @@ export function compileProject(parts: unknown): CompiledProject {
   const list = readParts(parts, errors);
   const order = evaluationOrder(list);
   return Object.freeze({
-    evaluate: (input: ProjectInput): ProjectResult => evaluateParts(list, order, errors, input),
+    evaluate: (input: ProjectInput, options?: ProjectEvaluateOptions): ProjectResult =>
+      evaluateParts(list, order, errors, input, options),
   });
 }
 
@@ -163,11 +177,13 @@ function evaluateParts(
   order: readonly number[],
   errors: readonly ProjectError[],
   input: ProjectInput,
+  options?: ProjectEvaluateOptions,
 ): ProjectResult {
   // Read once, so a hostile getter cannot answer differently per part; values that are not numbers
   // are reported by the parts that declare them (`invalid_value`).
   const measurements = readRecord(input, "measurements") as Record<string, number>;
   const parameters = readRecord(input, "parameters");
+  const offsets = readRecord(options, "offsets");
   const results = new Map<string, PatternResult>();
   for (const index of order) {
     const part = parts[index]!;
@@ -180,13 +196,15 @@ function evaluateParts(
     const overrides = (
       Object.hasOwn(parameters, part.name) ? readRecord(parameters, part.name) : {}
     ) as Record<string, number>;
+    const partInput = { measurements, parameters: overrides, imports: Object.fromEntries(imports) };
+    const partOffsets = Object.hasOwn(offsets, part.name)
+      ? (readRecord(offsets, part.name) as EvaluateOptions["offsets"])
+      : null;
     results.set(
       part.name,
-      part.compiled.evaluate({
-        measurements,
-        parameters: overrides,
-        imports: Object.fromEntries(imports),
-      }),
+      partOffsets
+        ? part.compiled.evaluate(partInput, { offsets: partOffsets })
+        : part.compiled.evaluate(partInput),
     );
   }
   const ordered = Object.fromEntries(

@@ -84,6 +84,30 @@ test("the name errors of a pattern result are typed through the package entry po
   expect(invalid?.name).toBe("1x");
 });
 
+test("editor helpers are exported through the package entry point", async () => {
+  const engine = await import("./index");
+  for (const name of [
+    "setUserOffset",
+    "setPointFormula",
+    "pointFields",
+    "controlPoints",
+    "tryPattern",
+    "errorsFor",
+    "pickPoint",
+    "createHistory",
+    "push",
+    "undo",
+    "redo",
+    "canUndo",
+    "canRedo",
+    "toDisplay",
+    "fromDisplay",
+    "formatDisplay",
+  ]) {
+    expect(typeof (engine as Record<string, unknown>)[name]).toBe("function");
+  }
+});
+
 test("notches are evaluated through the package entry point", () => {
   const result = evaluatePattern(
     {

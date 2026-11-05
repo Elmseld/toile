@@ -17,10 +17,13 @@ defmodule Toile.Patterns do
   import Ecto.Query, warn: false
   alias Toile.Repo
 
+  require Logger
+
   alias Toile.Accounts.Scope
   alias Toile.Measurements
   alias Toile.Measurements.MeasurementProfile
   alias Toile.Patterns.Blocks
+  alias Toile.Patterns.PatternPart
   alias Toile.Patterns.PatternProject
 
   @max_projects_per_user 100
@@ -37,6 +40,8 @@ defmodule Toile.Patterns do
     * {:created, %PatternProject{}}
     * {:updated, %PatternProject{}}
     * {:deleted, %PatternProject{}}
+
+  Saving the editor's work (`update_pattern_edits/4`) is not broadcast.
 
   """
   def subscribe_pattern_projects(%Scope{} = scope) do
@@ -224,6 +229,125 @@ defmodule Toile.Patterns do
       {:ok, pattern_project}
     end
   end
+
+  @doc """
+  Saves the editor's work on one part of a pattern_project: its `definition` and `parameters`.
+
+  `part` is the part name: the project's `block` for the main part (the project's own
+  `definition` and `parameters`), or the name of an added part (`parts`, ADR 0007). Only user
+  offsets and point formula fields of the part's stored definition can change, and `parameters`
+  may only override the definition's declared parameters with numbers
+  (`Toile.Patterns.PatternProject.validate_edit/2`, `docs/adr/0008-pattern-editor.md`). Names,
+  ops, references, the named formulas, curves, pieces, measurements and parameter defaults stay
+  as stored, so whatever reads them by name (a sleeve importing the bodice armhole) keeps
+  working. The formulas are not checked here: the engine in the browser only saves a definition
+  it evaluated without errors.
+
+  The main part is checked against `pattern_project` as given and updates only its own columns.
+  An added part is checked against the stored row, read again and locked for the update, so a
+  part added meanwhile in another tab is kept. A `part` the project does not have is
+  `{:error, :unknown_part}`.
+
+  Does not broadcast: the editor autosaves on every commit, and the project list, the only
+  subscriber, shows nothing an edit changes. A rejected save is logged at info level with the
+  part, the failing fields and, for the definition, the JSON pointer of the first difference.
+  The measurement profile association is kept as it was.
+
+  ## Examples
+
+      iex> update_pattern_edits(scope, pattern_project, "straight_skirt", %{"definition" => edited, "parameters" => %{"ease_hip" => 50}})
+      {:ok, %PatternProject{}}
+
+      iex> update_pattern_edits(scope, pattern_project, "straight_skirt", %{"definition" => renamed_point, "parameters" => %{}})
+      {:error, %Ecto.Changeset{}}
+
+      iex> update_pattern_edits(scope, pattern_project, "collar", attrs)
+      {:error, :unknown_part}
+
+  """
+  def update_pattern_edits(%Scope{} = scope, %PatternProject{} = pattern_project, part, attrs)
+      when is_binary(part) do
+    true = pattern_project.user_id == scope.user.id
+
+    result =
+      if part == pattern_project.block do
+        pattern_project
+        |> PatternProject.edit_changeset(attrs, scope)
+        |> Repo.update()
+      else
+        update_part_edits(scope, pattern_project, part, attrs)
+      end
+
+    case result do
+      {:ok, %PatternProject{}} = ok ->
+        ok
+
+      {:error, reason} ->
+        log_rejected_edit(pattern_project, part, reason)
+        {:error, reason}
+    end
+  end
+
+  defp update_part_edits(scope, pattern_project, part, attrs) do
+    result =
+      Repo.transact(fn ->
+        locked =
+          Repo.one!(
+            from p in PatternProject,
+              where: p.id == ^pattern_project.id and p.user_id == ^scope.user.id,
+              lock: "FOR UPDATE"
+          )
+
+        with {:ok, index} <- part_index(locked, part),
+             {:ok, edited} <-
+               locked.parts
+               |> Enum.at(index)
+               |> PatternPart.edit_changeset(attrs)
+               |> Ecto.Changeset.apply_action(:update) do
+          locked
+          |> PatternProject.put_part_changeset(index, edited, scope)
+          |> Repo.update()
+        end
+      end)
+
+    with {:ok, pattern_project = %PatternProject{}} <- result do
+      {:ok, preload_profile(pattern_project, scope)}
+    end
+  end
+
+  defp part_index(%PatternProject{parts: parts}, part) do
+    case Enum.find_index(parts, &(&1.name == part)) do
+      nil -> {:error, :unknown_part}
+      index -> {:ok, index}
+    end
+  end
+
+  # The client only saves states the engine evaluated, so a rejection points at a bug or a
+  # tampered client. Logs field names and the JSON pointer of the first difference, never values.
+  # The part name and the pointer can hold text the client chose, so they are logged through
+  # `inspect/2`: control characters come out escaped and cannot forge a log line, and each is cut
+  # at 200 characters.
+  defp log_rejected_edit(pattern_project, part, :unknown_part) do
+    Logger.info(
+      "Rejected pattern edit for project #{pattern_project.id}, part #{inspect_client(part)}: unknown part"
+    )
+  end
+
+  defp log_rejected_edit(pattern_project, part, %Ecto.Changeset{} = changeset) do
+    reasons =
+      Enum.map_join(changeset.errors, ", ", fn {field, {_message, opts}} ->
+        case Keyword.get(opts, :path) do
+          nil -> Atom.to_string(field)
+          path -> "#{field} at #{inspect_client(path)}"
+        end
+      end)
+
+    Logger.info(
+      "Rejected pattern edit for project #{pattern_project.id}, part #{inspect_client(part)}: #{reasons}"
+    )
+  end
+
+  defp inspect_client(text), do: inspect(text, printable_limit: 200)
 
   # Changing the foreign key leaves the old profile in the association; reload it.
   defp maybe_reload_profile(pattern_project, changeset, scope) do
