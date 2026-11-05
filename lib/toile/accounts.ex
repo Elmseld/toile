@@ -131,16 +131,33 @@ defmodule Toile.Accounts do
         if only_email_taken_error?(changeset) do
           email = Ecto.Changeset.get_field(changeset, :email)
 
-          with %User{} = user <- get_user_by_email(email),
-               :ok <- EmailRateLimiter.hit(:registration_attempt_notice, user.email, remote_ip) do
-            {:ok, _} = UserNotifier.deliver_registration_attempt_notice(user, login_url)
-          end
+          notify_owner(:registration_attempt_notice, email, remote_ip, fn owner ->
+            UserNotifier.deliver_registration_attempt_notice(owner, login_url)
+          end)
 
           {:ok, email}
         else
           {:error, changeset}
         end
     end
+  end
+
+  # Sends the owner of the taken `email` a notice through `notify`, rate limited
+  # as `flow`. If the owner was deleted after the uniqueness check, nothing is
+  # sent but the request is still counted, keyed on the input address, so that
+  # every request takes exactly one hit (ADR 0010, IP budget is no oracle).
+  defp notify_owner(flow, email, remote_ip, notify) do
+    case get_user_by_email(email) do
+      %User{} = owner ->
+        with :ok <- EmailRateLimiter.hit(flow, owner.email, remote_ip) do
+          {:ok, _} = notify.(owner)
+        end
+
+      nil ->
+        EmailRateLimiter.hit(flow, email, remote_ip)
+    end
+
+    :ok
   end
 
   defp only_email_taken_error?(%Ecto.Changeset{errors: [_ | _] = errors}) do
@@ -462,10 +479,12 @@ defmodule Toile.Accounts do
       only_email_taken_error?(changeset) ->
         email = Ecto.Changeset.get_field(changeset, :email)
 
-        with %User{} = owner <- get_user_by_email(email),
-             :ok <- EmailRateLimiter.hit(:email_change_attempt_notice, owner.email, remote_ip) do
-          {:ok, _} = UserNotifier.deliver_email_change_attempt_notice(owner)
-        end
+        notify_owner(
+          :email_change_attempt_notice,
+          email,
+          remote_ip,
+          &UserNotifier.deliver_email_change_attempt_notice/1
+        )
 
         {:ok, email}
 
