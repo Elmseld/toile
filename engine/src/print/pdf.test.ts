@@ -1,0 +1,254 @@
+import { describe, expect, test } from "bun:test";
+import type { ProjectSeamAllowances } from "../editor/edges";
+import { DEFAULT_SEAM_ALLOWANCE } from "../geometry/seam-allowance";
+import type { ComputedPattern } from "../geometry/types";
+import type { Point } from "../geometry/vector";
+import * as engine from "../index";
+import { printDrawing } from "./drawing";
+import { PRINT_MARGIN, PT_PER_MM, TILE_OVERLAP } from "./paper";
+import {
+  type PatternPdfInput,
+  pageTransform,
+  patternPdf,
+  pdfPages,
+  pieceContent,
+  wrapText,
+} from "./pdf";
+import { contentStreams, decodePdf, expectWellFormed } from "./pdf-check";
+import { pdfText } from "./pdf-writer";
+import { project, rectangles } from "./print-fixtures";
+import { printedTiles, tileGrid, tileLabel, tileRect } from "./tiles";
+
+const K = PT_PER_MM;
+const DEFAULTS: ProjectSeamAllowances = { default: DEFAULT_SEAM_ALLOWANCE, edges: {} };
+const TEXTS = {
+  testSquare: "10 × 10 cm",
+  scaleCheck: "Print at 100 % (actual size). The square must measure 10 × 10 cm.",
+  assembly: "Tape the pages together so that the lines and diamonds meet.",
+  overview: "Pages",
+};
+const SEAM_DASH = "[11.339 5.669] 0 d";
+
+function input(
+  parts: Readonly<Record<string, Pick<ComputedPattern, "pieces">>>,
+  overrides: Partial<PatternPdfInput> = {},
+): PatternPdfInput {
+  const base = { allowances: DEFAULTS, labels: {}, title: "Panel", texts: TEXTS };
+  return { parts, paper: "a4", ...base, ...overrides };
+}
+
+function written(source: PatternPdfInput): { text: string; streams: string[]; pages: number } {
+  const result = patternPdf(source);
+  if (!result.ok) throw new Error(result.kind);
+  const text = decodePdf(result.bytes);
+  return { text, streams: contentStreams(text), pages: result.pages };
+}
+
+function pagesOf(source: PatternPdfInput) {
+  const result = pdfPages(source);
+  if (!result.ok) throw new Error(result.kind);
+  return result.pages;
+}
+
+/** The points of the path that follows `after` in `content`: its `m` point and each op's end. */
+function pathAfter(content: string, after: string): Point[] {
+  const start = content.indexOf(after);
+  expect(start).toBeGreaterThanOrEqual(0);
+  const points: Point[] = [];
+  let numbers: number[] = [];
+  for (const token of content.slice(start + after.length).trim().split(/\s+/)) {
+    if (/^-?[\d.]+$/.test(token)) {
+      numbers.push(Number(token));
+      continue;
+    }
+    if (token !== "m" && token !== "l" && token !== "c") break;
+    points.push({ x: numbers.at(-2)!, y: numbers.at(-1)! });
+    numbers = [];
+  }
+  return points;
+}
+
+const length = (a: Point, b: Point): number => Math.hypot(b.x - a.x, b.y - a.y);
+
+// A 300 × 150 mm rectangle: with the 10 mm allowance 320 mm wide, so two A4 columns.
+const PANEL = { panel: rectangles(["panel", 0, 0, 300, 150]) };
+
+describe("patternPdf: scale", () => {
+  const { text, streams, pages } = written(input(PANEL));
+
+  test("is a well-formed PDF with page 1 and the two tile pages", () => {
+    expectWellFormed(text);
+    expect(pages).toBe(3);
+    expect(text).toContain("/Count 3");
+    expect(streams).toHaveLength(3);
+  });
+
+  test("draws the test square on page 1 as a re of exactly 100 mm", () => {
+    const match = /([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) re/.exec(streams[0]!);
+    expect(match).not.toBeNull();
+    expect(Math.abs(Number(match![3]) - (100 * 72) / 25.4)).toBeLessThan(0.01);
+    expect(Math.abs(Number(match![4]) - (100 * 72) / 25.4)).toBeLessThan(0.01);
+    expect(streams[0]).toContain(pdfText("10 × 10 cm"));
+  });
+
+  test("writes A4 and Letter MediaBoxes", () => {
+    expect(text).toContain("/MediaBox [0 0 595.276 841.89]");
+    const letter = written(input(PANEL, { paper: "letter" })).text;
+    expect(letter).toContain("/MediaBox [0 0 612 792]");
+    expect(letter).not.toContain("595.276");
+  });
+
+  test("draws the 300 mm top edge of the seam line as 300 × 72/25.4 pt", () => {
+    const [start, end] = pathAfter(streams[1]!, SEAM_DASH);
+    expect(Math.abs(length(start!, end!) - (300 * 72) / 25.4)).toBeLessThan(0.01);
+    expect(Math.abs(length(start!, end!) - 850.394)).toBeLessThan(0.01);
+  });
+
+  test("puts each pattern point at the same place on neighbouring pages, one step apart", () => {
+    const drawing = printDrawing(PANEL, DEFAULTS, {});
+    const grid = tileGrid(drawing.bounds!, "a4")!;
+    const [a1, a2] = printedTiles(grid, drawing.pieces.map((piece) => piece.region));
+    const point = { x: 123.4, y: 56.7 };
+    const onA1 = pageTransform(grid, a1!)(point);
+    const onA2 = pageTransform(grid, a2!)(point);
+    expect(onA1.x - onA2.x).toBeCloseTo(grid.step.x * K, 9);
+    expect(onA1.y).toBeCloseTo(onA2.y, 9);
+    // The top left of the printable area is PRINT_MARGIN in from the page's top left.
+    const corner = pageTransform(grid, a1!)({ x: a1!.rect.minX, y: a1!.rect.minY });
+    expect(corner.x).toBeCloseTo(PRINT_MARGIN * K, 9);
+    expect(corner.y).toBeCloseTo(841.8898 - PRINT_MARGIN * K, 3);
+  });
+
+  test("draws the join line on A1 (right) and A2 (left) at the same pattern x", () => {
+    const drawing = printDrawing(PANEL, DEFAULTS, {});
+    const grid = tileGrid(drawing.bounds!, "a4")!;
+    const patternX = (page: string, col: number): number => {
+      const [from, to] = pathAfter(page, "0.3 w 0.4 G");
+      expect(from!.x).toBe(to!.x);
+      return (from!.x - PRINT_MARGIN * K) / K + tileRect(grid, 0, col).minX;
+    };
+    const onA1 = patternX(streams[1]!, 0);
+    const onA2 = patternX(streams[2]!, 1);
+    expect(onA1).toBeCloseTo(onA2, 2);
+    expect(onA1).toBeCloseTo(tileRect(grid, 0, 0).maxX - TILE_OVERLAP / 2, 2);
+  });
+});
+
+describe("pieceContent on the skirt", () => {
+  test("draws the centre front at its computed length × 72/25.4 pt", () => {
+    const result = project("straight_skirt");
+    const part = result.parts.straight_skirt!;
+    const drawing = printDrawing(result.parts, DEFAULTS, {});
+    const grid = tileGrid(drawing.bounds!, "a4")!;
+    const front = drawing.pieces.find((piece) => piece.piece === "front")!;
+    // Front outline: f_waist_side_seg, f_dart_leg_side, f_dart_leg_cf, f_waist_cf_seg, f_cf, ...
+    expect(front.outline[4]!.name).toBe("f_cf");
+    expect(front.outline[4]!.type).toBe("line");
+    for (const tile of printedTiles(grid, [front.region])) {
+      const path = pathAfter(pieceContent(front, pageTransform(grid, tile)), SEAM_DASH);
+      const drawn = length(path[4]!, path[5]!);
+      expect(Math.abs(drawn - part.curves.f_cf!.length * K)).toBeLessThan(0.01);
+    }
+  });
+});
+
+describe("pdfPages", () => {
+  test("has page 1 and then the printed tiles in reading order, each with its label", () => {
+    const result = project("bodice", "straight_sleeve");
+    const source = input(result.parts);
+    const pages = pagesOf(source);
+    const drawing = printDrawing(result.parts, DEFAULTS, {});
+    const grid = tileGrid(drawing.bounds!, "a4")!;
+    const tiles = printedTiles(grid, drawing.pieces.map((piece) => piece.region));
+    expect(pages).toHaveLength(1 + tiles.length);
+    expect(pages[0]!.label).toBeNull();
+    expect(pages.slice(1).map((page) => page.label)).toEqual(tiles.map((tile) => tile.label));
+    for (const page of pages.slice(1)) expect(page.content).toContain(pdfText(page.label!));
+    // Page 1's map has one cell per printed tile, with its label.
+    for (const tile of tiles) expect(pages[0]!.content).toContain(pdfText(tile.label));
+    expectWellFormed(written(source).text);
+  });
+
+  test("leaves out a cell only the layout box covers, also from the map", () => {
+    // A wide piece along the top and a narrow one below it on the left: B2 is empty.
+    const parts = { l: rectangles(["top", 0, 0, 340, 100], ["left", 0, 200, 100, 300]) };
+    const pages = pagesOf(input(parts));
+    expect(pages.map((page) => page.label)).toEqual([null, "A1", "A2", "B1"]);
+    for (const page of pages) expect(page.content).not.toContain(pdfText("B2"));
+    // A1 has neighbours to the right and below: two join lines with a diamond each.
+    const joins = pages[1]!.content.slice(pages[1]!.content.indexOf("0.3 w 0.4 G"));
+    expect(joins.match(/ l S/g)).toHaveLength(2);
+    expect(joins.match(/h S/g)).toHaveLength(2);
+  });
+
+  test("labels the pieces as given, as hex strings", () => {
+    const pages = pagesOf(input(PANEL, { labels: { panel: { panel: "Front)\ncut 2" } } }));
+    expect(pages[1]!.content).toContain(pdfText("Front)"));
+    expect(pages[1]!.content).toContain(pdfText("cut 2"));
+    expect(pages[1]!.content).not.toContain("Front");
+  });
+
+  test("puts the title and the texts on page 1", () => {
+    const [first] = pagesOf(input(PANEL, { title: "Min kjol" }));
+    expect(first!.content).toContain(pdfText("Min kjol"));
+    expect(first!.content).toContain(pdfText("Pages"));
+    expect(first!.content).toContain("/F2 16 Tf");
+  });
+});
+
+describe("patternPdf: errors", () => {
+  test("is nothing_to_print without parts or pieces", () => {
+    expect(patternPdf(input({}))).toEqual({ ok: false, kind: "nothing_to_print" });
+    expect(patternPdf(input({ empty: { pieces: {} } }))).toEqual({
+      ok: false,
+      kind: "nothing_to_print",
+    });
+  });
+
+  test("is too_many_pages for a pattern far wider than MAX_PRINT_TILES pages, quickly", () => {
+    const parts = { wide: rectangles(["near", 0, 0, 10, 10], ["far", 9e6, 0, 10, 10]) };
+    const start = performance.now();
+    expect(patternPdf(input(parts))).toEqual({ ok: false, kind: "too_many_pages" });
+    expect(performance.now() - start).toBeLessThan(500);
+  });
+
+  test("is failed when something unexpected throws", () => {
+    const parts = {
+      get broken(): ComputedPattern {
+        throw new Error("boom");
+      },
+    };
+    expect(patternPdf(input(parts))).toEqual({ ok: false, kind: "failed" });
+  });
+
+  test("writes a valid PDF whatever the title", () => {
+    const { text } = written(input(PANEL, { title: "Kjol ) (\\ \n /Evil 漢" }));
+    expectWellFormed(text);
+    expect(text).not.toContain("Evil");
+  });
+});
+
+describe("wrapText", () => {
+  test("wraps greedily at the estimated width", () => {
+    // At size 10 a character is about 6.2 wide: "aaa bbb" is 43.4, "aaa bbb ccc" 68.2.
+    expect(wrapText("aaa bbb ccc", 10, 50)).toEqual(["aaa bbb", "ccc"]);
+    expect(wrapText("  aaa   bbb  ", 10, 100)).toEqual(["aaa bbb"]);
+  });
+
+  test("keeps an over-long word on its own line", () => {
+    expect(wrapText("a verylongword b", 10, 30)).toEqual(["a", "verylongword", "b"]);
+  });
+
+  test("gives no lines for empty or blank text", () => {
+    expect(wrapText("", 10, 100)).toEqual([]);
+    expect(wrapText(" \n ", 10, 100)).toEqual([]);
+  });
+});
+
+describe("the engine's entry point", () => {
+  test("exports the print API", () => {
+    expect(engine.patternPdf).toBe(patternPdf);
+    expect(engine.readPaper("letter")).toBe("letter");
+    expect(engine.tileLabel(1, 2)).toBe(tileLabel(1, 2));
+  });
+});

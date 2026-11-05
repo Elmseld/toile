@@ -2,7 +2,11 @@ import { describe, expect, test } from "bun:test";
 import type { ProjectSeamAllowances } from "../editor/edges";
 import { outlinePolygon } from "../geometry/label";
 import { PART_GAP, PIECE_GAP } from "../geometry/layout";
-import { cuttingLine, DEFAULT_SEAM_ALLOWANCE, pieceSeamAllowances } from "../geometry/seam-allowance";
+import {
+  cuttingLine,
+  DEFAULT_SEAM_ALLOWANCE,
+  pieceSeamAllowances,
+} from "../geometry/seam-allowance";
 import { PRINT_LABEL_SIZE, type PrintPiece, printDrawing } from "./drawing";
 import { project, rectangles } from "./print-fixtures";
 import { boxOf } from "./tiles";
