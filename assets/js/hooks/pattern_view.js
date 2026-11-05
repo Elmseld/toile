@@ -121,6 +121,8 @@ const KEY_ZOOM_FACTOR = 0.8
 const LABEL_CACHE_SIZE = 200
 // A panning press that moves less than this many pixels is a tap (it selects an edge).
 const TAP_DISTANCE_PX = 3
+// How long a downloaded file's Blob URL stays valid after the click.
+const BLOB_URL_LIFETIME_MS = 10_000
 // Stroke widths in pixels. The seam and fold lines are dashed in mm, so their width is set per
 // view (render).
 const CUTTING_WIDTH_PX = 2
@@ -564,7 +566,8 @@ const PatternView = {
     document.body.appendChild(link)
     link.click()
     link.remove()
-    setTimeout(() => URL.revokeObjectURL(url), 0)
+    // Some browsers cancel a download whose URL is revoked straight after the click.
+    setTimeout(() => URL.revokeObjectURL(url), BLOB_URL_LIFETIME_MS)
   },
 
   // The project's own errors and every part's, each tagged with its part name.
