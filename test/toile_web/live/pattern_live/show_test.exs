@@ -25,6 +25,15 @@ defmodule ToileWeb.PatternLive.ShowTest do
     |> JSON.decode!()
   end
 
+  defp canvas_attribute(view, attribute) do
+    view
+    |> element("#pattern-canvas")
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.attribute("data-#{attribute}")
+    |> hd()
+  end
+
   # The stored definition of part `part` as the page hands it to the hook.
   defp part_definition(view, part) do
     Enum.find_value(canvas_data(view, "parts"), fn
@@ -1130,6 +1139,71 @@ defmodule ToileWeb.PatternLive.ShowTest do
                "default" => 10.0,
                "edges" => %{}
              }
+    end
+
+    test "renders the PDF controls and hands the hook what the PDF needs", %{
+      conn: conn,
+      scope: scope
+    } do
+      project = pattern_project_fixture(scope, name: "Min kjol / v2")
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      assert has_element?(view, ~s(#pattern #pdf-export[phx-update="ignore"]))
+      assert has_element?(view, ~s(#pdf-export label[for="pdf-paper"]), "Paper")
+      assert has_element?(view, ~s(#pdf-paper[name="paper"] option[value="a4"][selected]), "A4")
+      assert has_element?(view, ~s(#pdf-paper option[value="letter"]), "Letter")
+      refute has_element?(view, ~s(#pdf-paper option[value="letter"][selected]))
+
+      assert has_element?(
+               view,
+               ~s(#pdf-export button#download-pdf[type="button"]),
+               "Download PDF"
+             )
+
+      assert has_element?(view, ~s(#pdf-export #pdf-status[role="status"][aria-live="polite"]))
+
+      assert has_element?(
+               view,
+               ~s(#pattern-canvas[data-pdf-paper="pdf-paper"][data-pdf-status="pdf-status"])
+             )
+
+      assert canvas_attribute(view, "pdf-title") == "Min kjol / v2"
+      assert canvas_attribute(view, "pdf-filename") == "Min-kjol-v2.pdf"
+      assert %{"too_large" => _, "failed" => _} = canvas_data(view, "texts")["pdf"]
+    end
+
+    test "the PDF file name keeps letters and digits only", %{conn: conn, scope: scope} do
+      for {name, filename} <- [
+            {"?!. / \\ ...", "pattern.pdf"},
+            {"Sommarkjol åäö 2", "Sommarkjol-åäö-2.pdf"},
+            {"a\tb\nc", "a-b-c.pdf"},
+            {String.duplicate("x", 100), String.duplicate("x", 100) <> ".pdf"}
+          ] do
+        project = pattern_project_fixture(scope, name: name)
+        {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+        assert canvas_attribute(view, "pdf-filename") == filename
+        assert canvas_attribute(view, "pdf-title") == name
+      end
+    end
+
+    test "offers no PDF without a drawing", %{conn: conn, scope: scope} do
+      incomplete =
+        measurement_profile_fixture(scope, %{measurements: Map.delete(@skirt, :hip)})
+
+      missing = pattern_project_fixture(scope, measurement_profile_id: incomplete.id)
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{missing}")
+      assert has_element?(view, "#missing-measurements")
+      refute has_element?(view, "#pdf-export")
+      refute has_element?(view, "#download-pdf")
+
+      project = pattern_project_fixture(scope)
+      profile = Measurements.get_measurement_profile!(scope, project.measurement_profile_id)
+      {:ok, _} = Measurements.delete_measurement_profile(scope, profile)
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+      assert has_element?(view, "#no-profile")
+      refute has_element?(view, "#pdf-export")
+      refute has_element?(view, "#download-pdf")
     end
 
     test "raises for another user's project", %{conn: conn} do

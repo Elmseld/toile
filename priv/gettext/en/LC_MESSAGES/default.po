@@ -1494,3 +1494,18 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "The pattern is too large to print."
 msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Download PDF"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Letter"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Paper"
+msgstr ""

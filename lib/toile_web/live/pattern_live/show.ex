@@ -87,6 +87,21 @@ defmodule ToileWeb.PatternLive.Show do
   measurements count toward the missing-measurement list like the main part's, and its points
   and parameters can be edited like the main part's.
 
+  ## The PDF
+
+  `#pdf-export`, in the toolbar over the drawing, holds the paper select (`#pdf-paper`, "A4"
+  (`a4`, the default) or "Letter" (`letter`)), the "Download PDF" button (`#download-pdf`) and a
+  status line (`#pdf-status`, plain text). It is `phx-update="ignore"`, so the paper choice and
+  the status survive patches. The button dispatches `toile:pdf` on `#pattern-canvas`; the hook
+  then has the engine write the PDF of the drawing as shown (the working definitions and seam
+  allowances, unsaved edits included) and offers it as a download
+  (`docs/adr/0012-pdf-printing.md`). The canvas names the select (`data-pdf-paper`) and the
+  status line (`data-pdf-status`) by id and carries the project name for the title
+  (`data-pdf-title`) and the download file name (`data-pdf-filename`: the name with every run of
+  other characters than letters and digits replaced by "-", at most 100 characters, "pattern"
+  when empty, then ".pdf"). The page texts and the error texts are the `"pdf"` group of
+  `data-texts`. The server computes nothing for the PDF.
+
   Another user's project id raises `Ecto.NoResultsError` (404) through the scoped context.
   """
   use ToileWeb, :live_view
@@ -178,7 +193,7 @@ defmodule ToileWeb.PatternLive.Show do
       </div>
 
       <div :if={@state == :ready} id="pattern" class="space-y-2">
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap items-end gap-2">
           <button
             type="button"
             id="fit-pattern"
@@ -207,6 +222,40 @@ defmodule ToileWeb.PatternLive.Show do
           >
             <.icon name="hero-magnifying-glass-minus" />
           </button>
+          <%!--
+            Ignored by patches, so the paper choice and the status the hook writes survive them
+            (e.g. a profile switch). The select is outside a form: only the hook reads it.
+          --%>
+          <div
+            id="pdf-export"
+            phx-update="ignore"
+            class="flex flex-wrap items-end gap-2 [&_.fieldset]:mb-0"
+          >
+            <.input
+              type="select"
+              name="paper"
+              id="pdf-paper"
+              label={gettext("Paper")}
+              options={[{"A4", "a4"}, {gettext("Letter"), "letter"}]}
+              value="a4"
+              class="select min-h-11"
+            />
+            <button
+              type="button"
+              id="download-pdf"
+              class="btn min-h-11"
+              phx-click={JS.dispatch("toile:pdf", to: "#pattern-canvas")}
+            >
+              <.icon name="hero-arrow-down-tray" /> {gettext("Download PDF")}
+            </button>
+            <p
+              id="pdf-status"
+              role="status"
+              aria-live="polite"
+              class="self-center text-sm text-error"
+            >
+            </p>
+          </div>
         </div>
         <div class="flex flex-col gap-4 lg:flex-row">
           <div class="min-w-0 flex-1 space-y-2">
@@ -221,6 +270,10 @@ defmodule ToileWeb.PatternLive.Show do
               data-piece-cuts={JSON.encode!(@piece_cuts)}
               data-seam-allowances={@seam_allowances_json}
               data-notes="pattern-notes"
+              data-pdf-paper="pdf-paper"
+              data-pdf-status="pdf-status"
+              data-pdf-title={@project.name}
+              data-pdf-filename={pdf_filename(@project.name)}
               data-texts={@editor_texts_json}
               data-editor={@editor_id}
               data-max-save-bytes={PatternProject.max_save_bytes()}
@@ -644,6 +697,19 @@ defmodule ToileWeb.PatternLive.Show do
 
   defp parameter_label(label, ""), do: label
   defp parameter_label(label, unit), do: gettext("%{label} (%{unit})", label: label, unit: unit)
+
+  # The download name of the project's PDF: every run of characters other than letters and
+  # digits becomes one "-" (so no "/", "\" or control characters), trimmed, at most 100
+  # characters, and "pattern" when nothing is left.
+  defp pdf_filename(name) do
+    base =
+      name
+      |> String.replace(~r/[^\p{L}\p{N}]+/u, "-")
+      |> String.trim("-")
+      |> String.slice(0, 100)
+
+    if base == "", do: "pattern.pdf", else: base <> ".pdf"
+  end
 
   # The point select's options, valued `<part>.<point>`: flat for one part, grouped by part
   # label for several.
