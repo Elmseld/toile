@@ -12,15 +12,20 @@ and sessions could survive a password change.
    `Accounts.request_user_email_change/4` give the same result (`{:ok, email}`, same flash and
    redirect) for free and taken addresses. If the address is taken, the account owner gets a
    notice email (`UserNotifier`) and no change link is sent. Other validation errors are shown as usual.
+   Response time must not reveal account existence either: login links are issued and sent in a
+   background task (ADR 0010, ticket 0016). Registration and email change still send in the
+   request (ticket 0025).
 2. **Sudo mode for settings.** `/users/settings*` lives in its own scope and live_session
    `:require_sudo_mode` (the plug checks on the HTTP request so the path is saved and the user
    returns after logging in again). User-owned resources stay in `:require_authenticated_user`.
 3. **The user row is locked.** Everything that changes a user and their tokens (magic link login,
-   email change, password change, session token creation) runs in a transaction that first takes
+   email change, password change, session token creation, login link issuance) runs in a transaction that first takes
    `SELECT ... FOR UPDATE` on the user row (`lock_user/1`) and then touches tokens. The same lock
    order everywhere (user row, then tokens) rules out deadlocks. The token is re-read after the
    lock, so a one-time link can only be redeemed once and a stale email link cannot overwrite an
-   already completed change.
+   already completed change. Login link issuance re-reads the user under the lock: if the account was
+   deleted or its email changed since the request (delivery is in the background), no token is
+   created and no email is sent (`{:error, :stale_user}`).
 4. **Session tokens can be refused.** `generate_user_session_token/1` returns `{:ok, token}` or
    `{:error, :credentials_changed}` if the password hash changed since authentication. No session is
    created then, so a login in progress during a password change does not survive it.

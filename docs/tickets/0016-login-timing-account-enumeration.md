@@ -1,7 +1,7 @@
 ---
 id: 0016
 title: Login page response time reveals whether an account exists
-status: todo
+status: in-progress
 type: bug
 ---
 

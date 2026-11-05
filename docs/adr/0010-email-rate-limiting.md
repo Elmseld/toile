@@ -80,6 +80,19 @@ reputation. The limit must not reveal whether an address has an account (ADR 000
   not parse, every client resolves to the proxy address and all of them share one budget of 20
   email requests per hour. A single abuser then blocks login links and registration emails for everyone
   until the window passes. Check this setting whenever a reverse proxy is added or changed.
+- **Background delivery of login links (ticket 0016).** `request_login_instructions/3` does the
+  user lookup and the one `hit/4` in the request. After an allowed hit it starts a task under
+  `Toile.Accounts.EmailDeliverySupervisor` (a `Task.Supervisor` in the application tree), for
+  unknown addresses too; that task does nothing. The token insert (under the user lock, ADR 0002
+  §3) and the send run in the task, so the reply does not depend on account state. Spawning is
+  bounded by the limiter, since a task starts only after an allowed hit. A raise or exit in the
+  task is logged like a failed delivery (masked address, class only), never as a crash report.
+  Deliveries in flight when the app stops may be lost (5 s shutdown grace); the user can request
+  another link. Accepted residual difference: one indexed lookup that hits versus one that
+  misses, microseconds and far below network jitter. Rejected: sleeping or padding to constant
+  time (fragile, makes every request slow); a persistent job queue such as Oban (new dependency and
+  migration for a few emails, and a lost email is recoverable); moving the lookup and hit into the
+  task too (no back-pressure: every request, even an IP-denied one, would spawn work).
 - **Delivery errors.** A failed send (mailer returns `{:error, reason}`) does not raise: raising only
   for addresses with an account would reveal that the account exists. It is logged at `warning` with
   the flow, the masked address and only the class of the reason (a provider response can echo the
@@ -96,11 +109,16 @@ reputation. The limit must not reveal whether an address has an account (ADR 000
   sends email.
 - Tests share one global limiter; they isolate with unique recipient addresses and a unique peer IP
   per conn (`ConnCase`, `AccountsFixtures.unique_remote_ip/0`).
+- Tests that read login-link emails, tokens or logs call `AccountsFixtures.await_email_deliveries/0`;
+  `DataCase` waits for deliveries before the sandbox owner stops.
 
 ## Deferred
 - **More than one node:** counters are per node. Move behind the same `hit/4` function with a Postgres
   table or Hammer with a Redis backend.
-- **Response timing** differs between known and unknown login addresses (ticket 0016).
+- **Response timing** of registration and email change: they still send synchronously, and
+  registration has a 4th-request oracle (a free address sends 4 times before the limit, a taken one
+  3, so the 4th reply is slow for a free address and fast for a taken one). Login is fixed (ticket
+  0016). See ticket 0025.
 - **IPv6 allocations.** Counting per /64 still gives an attacker with a normal allocation (a /56 or
   /48) 256 to 65,536 IP buckets. An extra per-/48 bucket would close this; it is not needed at the
   current scale.
