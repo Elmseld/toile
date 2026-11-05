@@ -8,6 +8,7 @@ defmodule Toile.PatternsTest do
   alias Toile.Measurements
   alias Toile.Patterns
   alias Toile.Patterns.Blocks
+  alias Toile.Patterns.PatternPart
   alias Toile.Patterns.PatternProject
 
   defp valid_attrs(scope, attrs \\ %{}) do
@@ -42,7 +43,7 @@ defmodule Toile.PatternsTest do
                ["Anna", "Maja", "Rut"]
     end
 
-    test "does not load definitions or parameters but preloads the profile name" do
+    test "does not load definitions, parameters or parts but preloads the profile name" do
       scope = user_scope_fixture()
       profile = measurement_profile_fixture(scope, name: "Anna")
 
@@ -52,7 +53,10 @@ defmodule Toile.PatternsTest do
       {1, _} =
         Repo.update_all(
           from(p in PatternProject, where: p.id == ^pattern_project.id),
-          set: [parameters: %{"ease_hip" => 60}]
+          set: [
+            parameters: %{"ease_hip" => 60},
+            parts: [%PatternPart{name: "x", block: "x", definition: %{}, parameters: %{}}]
+          ]
         )
 
       assert [listed] = Patterns.list_pattern_projects(scope)
@@ -61,6 +65,7 @@ defmodule Toile.PatternsTest do
       assert listed.definition == nil
       # Not loaded: the schema default, not the stored overrides.
       assert listed.parameters == %{}
+      assert listed.parts == []
       assert listed.measurement_profile_id == profile.id
       assert listed.measurement_profile.id == profile.id
       assert listed.measurement_profile.name == "Anna"
@@ -184,6 +189,18 @@ defmodule Toile.PatternsTest do
 
       assert %{block: ["is invalid"]} = errors_on(changeset)
       refute Ecto.Changeset.get_change(changeset, :definition)
+    end
+
+    test "rejects a block with imports, which can only be added to a project" do
+      scope = user_scope_fixture()
+
+      assert {:error, changeset} =
+               Patterns.create_pattern_project(
+                 scope,
+                 valid_attrs(scope, block: "straight_sleeve")
+               )
+
+      assert %{block: ["is invalid"]} = errors_on(changeset)
     end
 
     test "requires a name of at most 100 characters" do
@@ -343,6 +360,368 @@ defmodule Toile.PatternsTest do
 
       assert_raise MatchError, fn ->
         Patterns.update_pattern_project(user_scope_fixture(), pattern_project, %{name: "x"})
+      end
+    end
+  end
+
+  describe "update_pattern_edits/4" do
+    defp skirt_point(definition, name) do
+      index = Enum.find_index(definition["points"], &(&1["name"] == name))
+      {index, Enum.at(definition["points"], index)}
+    end
+
+    defp put_point_field(definition, name, field, value) do
+      {index, _point} = skirt_point(definition, name)
+      put_in(definition, ["points", Access.at(index), field], value)
+    end
+
+    test "stores a user offset, a point formula and parameter overrides" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      [%{"name" => name} | _] = pattern_project.definition["points"]
+
+      definition =
+        pattern_project.definition
+        |> put_point_field(name, "user_offset", %{"dx" => 12.5, "dy" => -3})
+        |> put_point_field(name, "x", "10")
+
+      assert {:ok, %PatternProject{} = updated} =
+               Patterns.update_pattern_edits(scope, pattern_project, pattern_project.block, %{
+                 "definition" => definition,
+                 "parameters" => %{"ease_hip" => 50, "side_rise" => 7.5}
+               })
+
+      assert updated.definition == definition
+      assert updated.measurement_profile.id == pattern_project.measurement_profile_id
+
+      reloaded = Patterns.get_pattern_project!(scope, pattern_project.id)
+      assert reloaded.definition == definition
+
+      assert {_index, %{"user_offset" => %{"dx" => 12.5, "dy" => -3}, "x" => "10"}} =
+               skirt_point(reloaded.definition, name)
+
+      assert reloaded.parameters == %{"ease_hip" => 50, "side_rise" => 7.5}
+    end
+
+    test "can remove every override again" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      attrs = %{"definition" => pattern_project.definition, "parameters" => %{"ease_hip" => 50}}
+
+      {:ok, updated} =
+        Patterns.update_pattern_edits(scope, pattern_project, pattern_project.block, attrs)
+
+      assert {:ok, _} =
+               Patterns.update_pattern_edits(scope, updated, updated.block, %{
+                 attrs
+                 | "parameters" => %{}
+               })
+
+      assert Patterns.get_pattern_project!(scope, pattern_project.id).parameters == %{}
+    end
+
+    test "keeps the bodice's named formulas out of reach" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope, block: "bodice")
+      definition = put_in(pattern_project.definition, ["formulas", "armhole_length"], "0")
+
+      assert {:error, changeset} =
+               Patterns.update_pattern_edits(scope, pattern_project, pattern_project.block, %{
+                 "definition" => definition,
+                 "parameters" => %{}
+               })
+
+      assert %{definition: ["contains changes that cannot be saved"]} = errors_on(changeset)
+
+      assert Patterns.get_pattern_project!(scope, pattern_project.id).definition ==
+               Blocks.definition("bodice")
+    end
+
+    test "rejects a renamed point and stores nothing" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      [%{"name" => name} | _] = pattern_project.definition["points"]
+      definition = put_point_field(pattern_project.definition, name, "name", "renamed")
+
+      assert {:error, changeset} =
+               Patterns.update_pattern_edits(scope, pattern_project, pattern_project.block, %{
+                 "definition" => definition,
+                 "parameters" => %{"ease_hip" => 50}
+               })
+
+      assert %{definition: ["contains changes that cannot be saved"]} = errors_on(changeset)
+      assert {_message, path: "/points/0/name"} = changeset.errors[:definition]
+      assert Patterns.get_pattern_project!(scope, pattern_project.id) == pattern_project
+    end
+
+    test "rejects unknown, non-numeric and too large parameters" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+
+      for parameters <- [
+            %{"ease_bust" => 10},
+            %{"waist" => 10},
+            %{"ease_hip" => "50"},
+            %{"ease_hip" => nil},
+            %{"ease_hip" => 1_000_001},
+            %{"ease_hip" => -1.0e7}
+          ] do
+        assert {:error, changeset} =
+                 Patterns.update_pattern_edits(scope, pattern_project, pattern_project.block, %{
+                   "definition" => pattern_project.definition,
+                   "parameters" => parameters
+                 })
+
+        assert %{parameters: ["is invalid"]} = errors_on(changeset), inspect(parameters)
+      end
+
+      assert Patterns.get_pattern_project!(scope, pattern_project.id).parameters == %{}
+    end
+
+    test "accepts overrides at exactly the limits, negative and fractional values too" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+
+      parameters = %{"ease_hip" => 1_000_000, "side_rise" => -999_999.5}
+
+      assert {:ok, updated} =
+               Patterns.update_pattern_edits(scope, pattern_project, pattern_project.block, %{
+                 "definition" => pattern_project.definition,
+                 "parameters" => parameters
+               })
+
+      assert updated.parameters == parameters
+    end
+
+    test "rejects a parameter payload that is smuggled into the definition" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      definition = put_in(pattern_project.definition, ["parameters", "ease_hip"], 99)
+
+      assert {:error, changeset} =
+               Patterns.update_pattern_edits(scope, pattern_project, pattern_project.block, %{
+                 "definition" => definition,
+                 "parameters" => %{}
+               })
+
+      assert %{definition: ["contains changes that cannot be saved"]} = errors_on(changeset)
+      assert Patterns.get_pattern_project!(scope, pattern_project.id) == pattern_project
+    end
+
+    test "requires a definition and parameters that are maps" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+
+      assert {:error, changeset} =
+               Patterns.update_pattern_edits(scope, pattern_project, pattern_project.block, %{
+                 "definition" => "x",
+                 "parameters" => []
+               })
+
+      assert %{definition: ["is invalid"], parameters: ["is invalid"]} = errors_on(changeset)
+
+      assert {:error, changeset} =
+               Patterns.update_pattern_edits(scope, pattern_project, pattern_project.block, %{
+                 "definition" => nil,
+                 "parameters" => nil
+               })
+
+      assert %{definition: ["can't be blank"], parameters: ["can't be blank"]} =
+               errors_on(changeset)
+
+      assert Patterns.get_pattern_project!(scope, pattern_project.id) == pattern_project
+    end
+
+    test "rejects a definition over the size cap" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope, block: "bodice")
+      formula = String.duplicate("1", 10_000)
+
+      points =
+        Enum.map(pattern_project.definition["points"], fn point ->
+          fields = Toile.Patterns.PointOps.formula_fields(point["op"])
+          Map.merge(point, Map.new(fields, &{&1, formula}))
+        end)
+
+      definition = %{pattern_project.definition | "points" => points}
+      assert byte_size(JSON.encode!(definition)) > PatternProject.max_definition_bytes()
+
+      assert {:error, changeset} =
+               Patterns.update_pattern_edits(scope, pattern_project, pattern_project.block, %{
+                 "definition" => definition,
+                 "parameters" => %{}
+               })
+
+      assert %{definition: ["is too large"]} = errors_on(changeset)
+      assert Patterns.get_pattern_project!(scope, pattern_project.id) == pattern_project
+    end
+
+    test "rejects a save whose definition and parameters together are too large to send" do
+      names = for i <- 1..3000, do: "p#{i}"
+      defaults = Map.new(names, &{&1, 0})
+
+      definition = %{
+        "version" => 1,
+        "points" => [],
+        "parameters" => defaults,
+        "source" => String.duplicate("a", 150_000)
+      }
+
+      assert byte_size(JSON.encode!(definition)) <= PatternProject.max_definition_bytes()
+
+      project = %PatternProject{definition: definition, parameters: %{}}
+      attrs = %{"definition" => definition}
+
+      small = Map.new(Enum.take(names, 10), &{&1, 1})
+
+      assert PatternProject.edit_changeset(project, Map.put(attrs, "parameters", small), nil).valid?
+
+      large = Map.new(names, &{&1, -999_999.123456789})
+
+      changeset =
+        PatternProject.edit_changeset(project, Map.put(attrs, "parameters", large), nil)
+
+      assert byte_size(JSON.encode!(definition)) + byte_size(JSON.encode!(large)) >
+               PatternProject.max_save_bytes()
+
+      assert %{definition: ["is too large"]} = errors_on(changeset)
+    end
+
+    test "accepts no parameter overrides for a definition without parameters" do
+      project = %PatternProject{definition: %{"version" => 1, "points" => []}, parameters: %{}}
+      attrs = %{"definition" => project.definition}
+
+      assert PatternProject.edit_changeset(project, Map.put(attrs, "parameters", %{}), nil).valid?
+
+      changeset =
+        PatternProject.edit_changeset(project, Map.put(attrs, "parameters", %{"x" => 1}), nil)
+
+      assert %{parameters: ["is invalid"]} = errors_on(changeset)
+    end
+
+    test "does not broadcast, since the project list shows nothing an edit changes" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      Patterns.subscribe_pattern_projects(scope)
+
+      {:ok, _updated} =
+        Patterns.update_pattern_edits(scope, pattern_project, pattern_project.block, %{
+          "definition" => pattern_project.definition,
+          "parameters" => %{"ease_hip" => 50}
+        })
+
+      refute_receive {:updated, _}
+    end
+
+    test "saves an added part's definition and parameters, leaving the main part alone" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope, block: "bodice")
+      pattern_project = pattern_part_fixture(scope, pattern_project)
+      [%{definition: sleeve}] = pattern_project.parts
+      [%{"name" => name} | _] = sleeve["points"]
+      edited = put_point_field(sleeve, name, "user_offset", %{"dx" => 4, "dy" => 1})
+
+      assert {:ok, %PatternProject{} = updated} =
+               Patterns.update_pattern_edits(scope, pattern_project, "straight_sleeve", %{
+                 "definition" => edited,
+                 "parameters" => %{"cap_ease" => 25}
+               })
+
+      assert [%PatternPart{name: "straight_sleeve", block: "straight_sleeve"} = part] =
+               updated.parts
+
+      assert part.definition == edited
+      assert part.parameters == %{"cap_ease" => 25}
+      assert updated.measurement_profile.id == pattern_project.measurement_profile_id
+
+      reloaded = Patterns.get_pattern_project!(scope, pattern_project.id)
+      assert reloaded.parts == updated.parts
+      assert reloaded.definition == pattern_project.definition
+      assert reloaded.parameters == %{}
+    end
+
+    test "checks an added part against its own stored definition and parameters" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope, block: "bodice")
+      pattern_project = pattern_part_fixture(scope, pattern_project)
+      [%{definition: sleeve}] = pattern_project.parts
+
+      for {definition, parameters} <- [
+            {Map.put(sleeve, "formulas", %{}), %{}},
+            {sleeve, %{"ease_bust" => 40}},
+            {sleeve, %{"cap_ease" => "30"}},
+            {pattern_project.definition, %{}}
+          ] do
+        assert {:error, %Ecto.Changeset{valid?: false}} =
+                 Patterns.update_pattern_edits(scope, pattern_project, "straight_sleeve", %{
+                   "definition" => definition,
+                   "parameters" => parameters
+                 })
+      end
+
+      assert Patterns.get_pattern_project!(scope, pattern_project.id).parts ==
+               pattern_project.parts
+    end
+
+    test "an unknown part is an error and stores nothing" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+
+      for part <- ["straight_sleeve", "bodice", ""] do
+        assert {:error, :unknown_part} =
+                 Patterns.update_pattern_edits(scope, pattern_project, part, %{
+                   "definition" => pattern_project.definition,
+                   "parameters" => %{}
+                 })
+      end
+
+      assert Patterns.get_pattern_project!(scope, pattern_project.id) == pattern_project
+    end
+
+    test "edits from a page loaded before a part was added keep that part" do
+      scope = user_scope_fixture()
+      stale = pattern_project_fixture(scope, block: "bodice")
+      added = pattern_part_fixture(scope, stale)
+      [%{definition: sleeve}] = added.parts
+
+      # The main part updates its own columns only, so the stale struct does not drop the sleeve.
+      assert {:ok, _updated} =
+               Patterns.update_pattern_edits(scope, stale, "bodice", %{
+                 "definition" => stale.definition,
+                 "parameters" => %{"ease_bust" => 90}
+               })
+
+      # A part is read from the locked row, so the stale struct can still save it.
+      edited =
+        put_point_field(sleeve, hd(sleeve["points"])["name"], "user_offset", %{
+          "dx" => 1,
+          "dy" => 2
+        })
+
+      assert {:ok, _updated} =
+               Patterns.update_pattern_edits(scope, stale, "straight_sleeve", %{
+                 "definition" => edited,
+                 "parameters" => %{}
+               })
+
+      reloaded = Patterns.get_pattern_project!(scope, stale.id)
+      assert reloaded.parameters == %{"ease_bust" => 90}
+      assert [%{name: "straight_sleeve", definition: ^edited}] = reloaded.parts
+    end
+
+    test "with another scope raises" do
+      pattern_project = pattern_project_fixture(user_scope_fixture())
+
+      assert_raise MatchError, fn ->
+        Patterns.update_pattern_edits(
+          user_scope_fixture(),
+          pattern_project,
+          pattern_project.block,
+          %{
+            "definition" => pattern_project.definition,
+            "parameters" => %{}
+          }
+        )
       end
     end
   end
@@ -569,6 +948,26 @@ defmodule Toile.PatternsTest do
                []
     end
 
+    test "includes the arm measurements only once the sleeve is added" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope, block: "bodice")
+
+      profile =
+        measurement_profile_fixture(scope,
+          measurements: Map.drop(complete_measurements(), [:upper_arm, :wrist, :armhole_depth])
+        )
+
+      assert Patterns.missing_measurements(pattern_project, profile) == [:armhole_depth]
+
+      with_sleeve = pattern_part_fixture(scope, pattern_project)
+
+      assert Patterns.missing_measurements(with_sleeve, profile) ==
+               Enum.filter(
+                 Toile.Measurements.keys(),
+                 &(&1 in [:upper_arm, :wrist, :armhole_depth])
+               )
+    end
+
     test "ignores declared names that are not catalogue keys and odd definitions" do
       profile = measurement_profile_fixture(user_scope_fixture())
 
@@ -583,14 +982,18 @@ defmodule Toile.PatternsTest do
   end
 
   describe "engine_input/2" do
-    test "gives the profile's millimetres without nils and the project's parameters" do
+    test "gives the profile's millimetres without nils and the parameters by part name" do
       scope = user_scope_fixture()
       profile = measurement_profile_fixture(scope, measurements: %{waist: 680, hip: 940})
-      pattern_project = %PatternProject{parameters: %{"ease_hip" => 60}}
+
+      pattern_project = %PatternProject{
+        block: "straight_skirt",
+        parameters: %{"ease_hip" => 60}
+      }
 
       assert Patterns.engine_input(pattern_project, profile) == %{
                "measurements" => %{"waist" => 680, "hip" => 940},
-               "parameters" => %{"ease_hip" => 60}
+               "parameters" => %{"straight_skirt" => %{"ease_hip" => 60}}
              }
     end
 
@@ -598,8 +1001,205 @@ defmodule Toile.PatternsTest do
       scope = user_scope_fixture()
       pattern_project = pattern_project_fixture(scope)
 
-      assert %{"parameters" => %{}} =
+      assert %{"parameters" => %{"straight_skirt" => %{}}} =
                Patterns.engine_input(pattern_project, pattern_project.measurement_profile)
+    end
+
+    test "gives every added part its own parameters" do
+      scope = user_scope_fixture()
+
+      pattern_project =
+        scope
+        |> pattern_project_fixture(block: "bodice")
+        |> then(&pattern_part_fixture(scope, &1))
+
+      [part] = pattern_project.parts
+
+      assert Patterns.engine_input(
+               %{pattern_project | parts: [%{part | parameters: %{"cap_ease" => 20}}]},
+               pattern_project.measurement_profile
+             )["parameters"] ==
+               %{"bodice" => %{}, "straight_sleeve" => %{"cap_ease" => 20}}
+    end
+  end
+
+  describe "engine_parts/1" do
+    test "gives the main part named by the block, then the added parts" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope, block: "bodice")
+
+      assert Patterns.engine_parts(pattern_project) == [
+               %{"name" => "bodice", "definition" => Blocks.definition("bodice")}
+             ]
+
+      pattern_project = pattern_part_fixture(scope, pattern_project)
+
+      assert Patterns.engine_parts(pattern_project) == [
+               %{"name" => "bodice", "definition" => Blocks.definition("bodice")},
+               %{
+                 "name" => "straight_sleeve",
+                 "definition" => Blocks.definition("straight_sleeve")
+               }
+             ]
+    end
+  end
+
+  describe "addable_blocks/1" do
+    test "offers the sleeve for a bodice project, nothing for a skirt project" do
+      scope = user_scope_fixture()
+
+      assert Patterns.addable_blocks(pattern_project_fixture(scope, block: "bodice")) ==
+               ["straight_sleeve"]
+
+      assert Patterns.addable_blocks(pattern_project_fixture(scope)) == []
+    end
+
+    test "does not offer a block the project already has" do
+      scope = user_scope_fixture()
+
+      pattern_project =
+        scope
+        |> pattern_project_fixture(block: "bodice")
+        |> then(&pattern_part_fixture(scope, &1))
+
+      assert Patterns.addable_blocks(pattern_project) == []
+    end
+
+    test "does not offer the sleeve to a bodice copy that lacks a value it imports" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope, block: "bodice")
+
+      without =
+        update_in(
+          pattern_project.definition["formulas"],
+          &Map.delete(&1, "back_armhole_to_notch")
+        )
+
+      assert Patterns.addable_blocks(without) == []
+    end
+
+    test "accepts an imported value declared as a parameter, a measurement or an import" do
+      definition = Blocks.definition("bodice")
+      formulas = definition["formulas"]
+
+      as_parameter =
+        definition
+        |> Map.put("formulas", Map.delete(formulas, "back_armhole_to_notch"))
+        |> Map.put("parameters", Map.put(definition["parameters"], "back_armhole_to_notch", 140))
+
+      as_measurement =
+        definition
+        |> Map.put("formulas", Map.delete(formulas, "back_armhole_to_notch"))
+        |> Map.put("measurements", ["back_armhole_to_notch" | definition["measurements"]])
+
+      as_import =
+        definition
+        |> Map.put("formulas", Map.delete(formulas, "back_armhole_to_notch"))
+        |> Map.put("imports", %{"back_armhole_to_notch" => "other.back_armhole_to_notch"})
+
+      for definition <- [as_parameter, as_measurement, as_import] do
+        project = %PatternProject{block: "bodice", definition: definition}
+        assert Patterns.addable_blocks(project) == ["straight_sleeve"]
+      end
+    end
+
+    test "is empty for odd stored definitions" do
+      for definition <- [
+            nil,
+            %{},
+            %{"formulas" => "x", "parameters" => [], "measurements" => 1, "imports" => "y"}
+          ] do
+        assert Patterns.addable_blocks(%PatternProject{block: "bodice", definition: definition}) ==
+                 []
+      end
+    end
+  end
+
+  describe "add_part/3" do
+    test "stores a copy of the block definition with no parameters and broadcasts" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope, block: "bodice")
+      Patterns.subscribe_pattern_projects(scope)
+
+      assert {:ok, %PatternProject{} = updated} =
+               Patterns.add_part(scope, pattern_project, "straight_sleeve")
+
+      assert [%PatternPart{} = part] = updated.parts
+      assert part.name == "straight_sleeve"
+      assert part.block == "straight_sleeve"
+      assert part.definition == Blocks.definition("straight_sleeve")
+      assert part.parameters == %{}
+      assert updated.measurement_profile.id == pattern_project.measurement_profile_id
+      assert_receive {:updated, ^updated}
+
+      reloaded = Patterns.get_pattern_project!(scope, pattern_project.id)
+      assert reloaded.parts == updated.parts
+      # The main part is untouched.
+      assert reloaded.definition == Blocks.definition("bodice")
+    end
+
+    test "refuses a second add of the same block, also from a stale project" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope, block: "bodice")
+
+      assert {:ok, updated} = Patterns.add_part(scope, pattern_project, "straight_sleeve")
+      assert {:error, :not_addable} = Patterns.add_part(scope, updated, "straight_sleeve")
+      # The stale struct still has no parts; the stored row decides.
+      assert {:error, :not_addable} = Patterns.add_part(scope, pattern_project, "straight_sleeve")
+
+      assert [_one] = Patterns.get_pattern_project!(scope, pattern_project.id).parts
+    end
+
+    test "refuses unknown keys, base blocks, non-strings and blocks the project cannot take" do
+      scope = user_scope_fixture()
+      bodice = pattern_project_fixture(scope, block: "bodice")
+      skirt = pattern_project_fixture(scope)
+      Patterns.subscribe_pattern_projects(scope)
+
+      for key <- ["ball_gown", "bodice", "straight_skirt", "", nil, :straight_sleeve, 1] do
+        assert {:error, :not_addable} = Patterns.add_part(scope, bodice, key)
+      end
+
+      assert {:error, :not_addable} = Patterns.add_part(scope, skirt, "straight_sleeve")
+      refute_receive {:updated, _}
+      assert Patterns.get_pattern_project!(scope, bodice.id).parts == []
+    end
+
+    test "raises for another user's project" do
+      scope = user_scope_fixture()
+      other_scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope, block: "bodice")
+
+      assert_raise MatchError, fn ->
+        Patterns.add_part(other_scope, pattern_project, "straight_sleeve")
+      end
+
+      # A struct claiming the other user still does not reach the row: the reload is scoped.
+      assert_raise Ecto.NoResultsError, fn ->
+        Patterns.add_part(
+          other_scope,
+          %{pattern_project | user_id: other_scope.user.id},
+          "straight_sleeve"
+        )
+      end
+
+      assert Patterns.get_pattern_project!(scope, pattern_project.id).parts == []
+    end
+  end
+
+  describe "parts storage" do
+    test "a row stored without parts reads as none, and parts must be a JSON array" do
+      scope = user_scope_fixture()
+      {1, _} = insert_projects(scope, 1)
+      [%{id: id}] = Patterns.list_pattern_projects(scope)
+
+      assert Patterns.get_pattern_project!(scope, id).parts == []
+
+      assert_raise Postgrex.Error, ~r/parts_must_be_an_array/, fn ->
+        Repo.query!("UPDATE pattern_projects SET parts = '{}'::jsonb WHERE id = $1", [
+          Ecto.UUID.dump!(id)
+        ])
+      end
     end
   end
 

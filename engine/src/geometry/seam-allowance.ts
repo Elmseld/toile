@@ -1,5 +1,5 @@
 // The cutting line of a pattern piece: its outline offset outwards by the seam allowance, edge by
-// edge (ADR 0007). Pure geometry on a computed piece in mm user units; drawing it is the view's
+// edge (ADR 0009). Pure geometry on a computed piece in mm user units; drawing it is the view's
 // job (`cuttingLinePathData` in svg.ts).
 //
 // Steps: read and validate the allowances; flatten and offset every edge (offset.ts), with the

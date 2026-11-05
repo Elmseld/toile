@@ -1,4 +1,4 @@
-// Darts in a piece outline and the cutting line across them (ADR 0007). Pure geometry in mm, SVG
+// Darts in a piece outline and the cutting line across them (ADR 0009). Pure geometry in mm, SVG
 // coordinates (y down). Engine-internal: exported for `seam-allowance.ts` and the tests.
 //
 // A dart is detected geometrically: two consecutive straight legs X -> A -> Y of (nearly) equal

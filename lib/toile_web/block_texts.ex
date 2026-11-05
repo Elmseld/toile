@@ -25,6 +25,7 @@ defmodule ToileWeb.BlockTexts do
   @spec label(String.t()) :: String.t()
   def label("bodice"), do: gettext("Bodice")
   def label("straight_skirt"), do: gettext("Straight skirt")
+  def label("straight_sleeve"), do: gettext("Straight sleeve")
 
   @doc """
   Returns the label of the block a stored project was created from.
@@ -55,5 +56,6 @@ defmodule ToileWeb.BlockTexts do
   @spec piece_label(String.t()) :: String.t()
   def piece_label("back"), do: pgettext("pattern piece", "Back")
   def piece_label("front"), do: pgettext("pattern piece", "Front")
+  def piece_label("sleeve"), do: pgettext("pattern piece", "Sleeve")
   def piece_label(name) when is_binary(name), do: name
 end

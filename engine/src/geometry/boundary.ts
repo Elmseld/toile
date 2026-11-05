@@ -1,5 +1,5 @@
 // The outer boundary of a closed polyline that crosses itself, and the crossing tests behind it
-// (ADR 0007). Pure geometry in mm, SVG coordinates (y down). Engine-internal.
+// (ADR 0009). Pure geometry in mm, SVG coordinates (y down). Engine-internal.
 
 import { copy, MERGE_TOLERANCE, polygonArea } from "./offset";
 import { add, clamp01, cross, distance, norm, type Point, scale, sub } from "./vector";

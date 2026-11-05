@@ -39,10 +39,32 @@ Both groups use the same engine but get different amounts of it exposed.
    saving or cancelling there returns to the project) instead of drawing. Projects can be renamed
    and deleted from the list; a user can have at most 100. Deleting a profile keeps its projects,
    which then ask for a new profile. A project stores a copy of the block definition, so later
-   changes to a block do not affect it.
-3. **Modify**: the user drags points, edits formulas or parameters (e.g. ease), and the pattern is
-   recalculated immediately. Switching measurement profile recalculates the whole pattern.
-4. **Finish**: seam allowance is added per edge. Markings (grainline, notches, fold line) are shown.
+   changes to a block do not affect it. Only base blocks are offered under "Nytt mönster". On the
+   page of a bodice project, a section "Lägg till i mönstret" offers the button "Rak ärm" (a
+   one-piece sleeve; not offered twice, and not for skirts). The sleeve is drawn beside the
+   bodice, fitted to the bodice's armhole (the cap is the armhole plus a set cap ease) and
+   recomputed whenever the bodice is, for example on a profile switch or an edit. Notches mark how
+   the parts are sewn together: a double notch on the back armhole and the sleeve cap, a single one
+   at the front, and one at the sleeve crown (matches the shoulder seam). Adding the sleeve makes
+   the page ask for the arm measurements (upper arm, arm length, wrist) if the profile lacks them.
+   A sleeve cannot be removed yet.
+3. **Modify**: on the project page every point of every part (the bodice and an added sleeve
+   alike) is a handle that can be dragged with mouse, touch or pen; the control points of Bézier
+   curves too. Dependent points, curves and pieces follow during the drag, with no server call,
+   and so do the parts that import from the edited one (dragging the bodice armhole reshapes the
+   sleeve cap). Selecting a point (click or tap, or the select with the prompt "Välj en punkt",
+   grouped by part when there are several) shows its operation and fields; its formula fields
+   are editable (in millimetres), and an invalid formula shows an error under the field while the
+   drawing stays as it was. The panel shows the point's offset in cm with the button "Återställ
+   läget". A panel "Justeringar" lists the parameters of each part (e.g. ease, "Rörelsevidd,
+   stuss"), under the part's name when there are several, in cm or degrees; an empty field returns
+   to the default. "Ångra" and "Gör om" (also Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z and Ctrl+Y) step
+   through the last 100 edits per page visit, across all parts; the history is lost on reload.
+   Changes save automatically ("Sparar...", "Sparat", or "Ändringarna kunde inte sparas"), and a
+   reload shows the same pattern. Only point offsets, point formulas and parameter overrides can be
+   edited; point names, operations, curves and pieces cannot (ADR 0008). Switching measurement
+   profile recalculates the whole pattern and keeps the edits.
+4. **Finish**: seam allowance is added per edge. Markings (grainline, fold line) are shown; notches are already drawn since the sleeve (0007), and 0009 adds them to the cutting line.
 5. **Print**: PDF at 1:1 scale, tiled on A4 with overlap, numbering and a test square.
 
 ## Domain glossary
@@ -58,6 +80,8 @@ The UI is Swedish, so the Swedish UI term is given in parentheses.
 | Point (punkt) | Defined by an operation (e.g. "along line A–B, distance `waist/4`"), not by free coordinates. |
 | Pattern piece (mönsterdel) | Closed outline of lines/curves, e.g. "front piece". Has a grainline and seam allowance per edge. |
 | Pattern project (mönsterprojekt) | A user's pattern: a copy of a block plus its modifications and parameter overrides, linked to a measurement profile. |
+| Part | A block copy inside a project: the block the project was created from, plus blocks added later, such as a sleeve. A part can import values from another part (ADR 0007). Not a UI term. |
+| Notch (hack) | Balance mark on the outline; matching notches on two pieces show which points are sewn together. Not yet a UI term. |
 | Dart (inprovning) | Wedge-shaped fold that shapes the garment. |
 | Seam allowance (sömsmån) | Extra margin outside the seam line. |
 | Tiling (kakling) | Splitting a 1:1 pattern across several A4 pages. |

@@ -17,6 +17,7 @@ msgstr ""
 
 ## From Ecto.Changeset.put_change/3
 #: lib/toile/patterns.ex
+#: lib/toile/patterns/pattern_project.ex
 #, elixir-autogen
 msgid "is invalid"
 msgstr ""
@@ -148,4 +149,9 @@ msgstr ""
 #: lib/toile/patterns.ex
 #, elixir-autogen, elixir-format
 msgid "you can have at most %{limit} patterns"
+msgstr ""
+
+#: lib/toile/patterns/pattern_project.ex
+#, elixir-autogen, elixir-format
+msgid "contains changes that cannot be saved"
 msgstr ""

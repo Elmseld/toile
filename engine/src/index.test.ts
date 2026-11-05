@@ -6,8 +6,14 @@ import {
   distance,
   evaluateFormulas,
   evaluatePattern,
+  evaluateProject,
+  compileProject,
+  layoutParts,
   MAX_COORDINATE,
   MAX_SEAM_ALLOWANCE,
+  PART_GAP,
+  NOTCH_LENGTH,
+  NOTCH_PAIR_SPACING,
   piecePathData,
 } from "./index";
 import type {
@@ -110,4 +116,72 @@ test("cutting lines are computed and drawn through the package entry point", () 
     expect(cuttingLinePathData(result.points)).toBe("M -10 -10 L 100 -10 L 100 60 L -10 60 Z");
   }
   expect(MAX_SEAM_ALLOWANCE).toBe(100);
+});
+
+test("editor helpers are exported through the package entry point", async () => {
+  const engine = await import("./index");
+  for (const name of [
+    "setUserOffset",
+    "setPointFormula",
+    "pointFields",
+    "controlPoints",
+    "tryPattern",
+    "errorsFor",
+    "pickPoint",
+    "createHistory",
+    "push",
+    "undo",
+    "redo",
+    "canUndo",
+    "canRedo",
+    "toDisplay",
+    "fromDisplay",
+    "formatDisplay",
+  ]) {
+    expect(typeof (engine as Record<string, unknown>)[name]).toBe("function");
+  }
+});
+
+test("notches are evaluated through the package entry point", () => {
+  const result = evaluatePattern(
+    {
+      version: 1,
+      imports: { side: "other.side" },
+      points: [
+        { name: "A", op: "start", x: "0", y: "0" },
+        { name: "B", op: "start", x: "side", y: "0" },
+        { name: "C", op: "start", x: "0", y: "side" },
+      ],
+      curves: [
+        { name: "ab", type: "line", from: "A", to: "B" },
+        { name: "bc", type: "line", from: "B", to: "C" },
+        { name: "ca", type: "line", from: "C", to: "A" },
+      ],
+      pieces: [
+        {
+          name: "t",
+          outline: [{ curve: "ab" }, { curve: "bc" }, { curve: "ca" }],
+          grainline: { from: "A", to: "C" },
+          notches: [{ curve: "ab", distance: "side / 2", marks: 2 }],
+        },
+      ],
+    },
+    { measurements: {}, imports: { side: 100 } },
+  );
+  expect(result.ok).toBe(true);
+  expect(result.pieces.t?.notches[0]?.point).toEqual({ x: 50, y: 0 });
+  expect(result.pieces.t?.notches[0]?.marks).toHaveLength(2);
+  expect([NOTCH_LENGTH, NOTCH_PAIR_SPACING]).toEqual([6, 4]);
+});
+
+test("projects are evaluated and laid out through the package entry point", () => {
+  const parts = [
+    { name: "a", definition: { version: 1, formulas: { w: "10" } } },
+    { name: "b", definition: { version: 1, imports: { w: "a.w" }, formulas: { v: "w * 2" } } },
+  ];
+  const result = evaluateProject(parts, { measurements: {} });
+  expect(result.parts.b?.values.v).toBe(20);
+  expect(compileProject(parts).evaluate({ measurements: {} })).toEqual(result);
+  const layout = layoutParts([{ minX: 0, minY: 0, maxX: 1, maxY: 1 }, { minX: 0, minY: 0, maxX: 1, maxY: 1 }]);
+  expect(layout.offsets[1]).toEqual({ dx: 1 + PART_GAP, dy: 0 });
 });

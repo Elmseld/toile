@@ -1,9 +1,11 @@
 // Public API of the geometry module: pattern definitions, their evaluation, SVG output (ADR 0004),
-// label placement for views and cutting lines with seam allowance (ADR 0007).
+// label placement for views, projects of several parts with their layout (ADR 0007) and
+// cutting lines with seam allowance (ADR 0009).
 
 export type {
   CompiledPattern,
   ComputedCurve,
+  ComputedNotch,
   ComputedPattern,
   ComputedPiece,
   CurveDefinition,
@@ -11,6 +13,8 @@ export type {
   ElementError,
   ElementSource,
   EvaluateOptions,
+  NotchDefinition,
+  NotchMark,
   OutlineEntry,
   PatternDefinition,
   PatternError,
@@ -23,6 +27,17 @@ export type {
   UserOffset,
 } from "./types";
 export { compilePattern, evaluatePattern } from "./evaluate";
+export { layoutParts, PART_GAP, type PartsLayout } from "./layout";
+export {
+  type CompiledProject,
+  compileProject,
+  evaluateProject,
+  type ProjectError,
+  type ProjectEvaluateOptions,
+  type ProjectInput,
+  type ProjectPart,
+  type ProjectResult,
+} from "./project";
 export {
   GRAINLINE_ARROW_SIZE,
   type LabelPiece,
@@ -46,6 +61,7 @@ export {
   patternBounds,
   piecePathData,
 } from "./svg";
+export { NOTCH_LENGTH, NOTCH_PAIR_SPACING } from "./notches";
 export {
   MAX_OUTLINE_ENTRIES,
   MAX_SECTION_ENTRIES,

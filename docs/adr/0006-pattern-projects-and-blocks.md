@@ -13,15 +13,21 @@ engine in the browser.
   key is the file name and matches `^[a-z][a-z0-9_]*$`.
 - **Copy on create.** Creating a project copies the block's definition into `pattern_projects.definition`
   (jsonb). The block file is never re-read for an existing project, so later block changes do not
-  affect it. `block` stores the key for display only. Parameter overrides are stored in
+  affect it. `block` stores the key for display and also names the project's main part (ADR 0007). Parameter overrides are stored in
   `parameters` (jsonb, `{}` at creation).
+- **Parts (ticket 0007).** Further blocks can be added to a project (a sleeve to a bodice). Each
+  is copied on add into the jsonb column `pattern_projects.parts` (`name`, `block`, `definition`,
+  `parameters`), like the main part; see ADR 0007. Only blocks without `imports` ("base blocks")
+  can be chosen when creating a project. The definition size cap applies to each stored
+  definition, and a part can only be a catalogue block for now.
 - **Elixir reads blocks at compile time** in `Toile.Patterns.Blocks` (`@external_resource` per
   file, recompiling when files are added), modelled on `Toile.Measurements.Catalog` (ADR 0005). It
-  validates only shape (JSON object, integer `version`, `measurements` list) and never geometry.
+  validates only shape (JSON object, integer `version`, `measurements` list, `imports` as `part.value` strings) and never geometry.
   The engine validates the definition on the client. Any release image build must include
   `engine/blocks` and `engine/src`.
 - **Limits.** At most 100 projects per user (advisory lock, as for measurement profiles) and a
-  definition of at most 1 000 000 bytes encoded (`Toile.Patterns.DefinitionSize`). A block file
+  definition of at most 200 000 bytes encoded (`Toile.Patterns.DefinitionSize`; 1 000 000 until
+  ADR 0008 lowered it so an editor save fits a websocket frame). A block file
   over that cap fails to compile (checked by `Toile.Patterns.Blocks.Loader`), so creating a project from a block never hits it.
 - **Ownership.** Scoped per user (ADR 0001). The chosen `measurement_profile_id` must belong to the
   same user: the context checks it (for a form error), and the database enforces it with a
@@ -35,11 +41,15 @@ engine in the browser.
 - **Client.** A LiveView external hook (`PatternView`) imports the engine from `engine/src` through
   esbuild and computes the pattern once per input. Zoom and pan change only the SVG `viewBox`. The
   hook element is `phx-update="ignore"`, but LiveView still patches its data attributes: switching
-  profile changes `data-key` and `data-input`, and the hook's `updated()` callback redraws when
-  `data-key`, `data-definition` or `data-input` differ from what it last drew. No `push_event`. A
-  wrapper keyed by the profile id is only an extra measure; LiveView may move the hook element by
-  its id instead of mounting it again. CI builds the JS bundle so a broken engine import fails.
-- **Piece labels.** Each piece's name is written inside the piece, centred at the point whose
+  profile changes `data-key` and `data-input`, and the hook's `updated()` callback redraws and
+  refits when `data-key`, `data-parts` (the definitions of all parts) or `data-input` differ from
+  what it last drew. The editor owns the working definitions (ADR 0008): it reads them from
+  `data-parts` on mount and only takes parts it does not have yet from a later `data-parts` (a
+  part added on the page). No `push_event`. After a profile switch the page re-reads the project
+  from the database (a fresh read, not the socket's copy), so the hook gets the stored parts and
+  profile. The profile-keyed wrapper is gone, so the hook (and its undo history) survives a
+  profile switch. CI builds the JS bundle so a broken engine import fails.
+- **Piece labels.** The server sends the label texts as `data-piece-labels`, keyed by part name and then piece name (`{part: {piece: label}}`), so same-named pieces of different parts cannot overwrite each other. Each piece's name is written inside the piece, centred at the point whose
   text box is farthest from every drawn line (the outline with its darts, and the grainline with
   its arrowheads), found on a fixed grid over the piece's bounding box and refined once; the text
   shrinks, down to 40 %, when the piece is too narrow. Placement is geometry, so it lives in the

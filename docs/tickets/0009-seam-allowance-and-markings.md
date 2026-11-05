@@ -26,3 +26,5 @@ cutting line around the piece: the outline offset outwards, with correct corners
 
 ## Notes
 Split from the original 0009 ("Seam allowance and markings"); the markings and the UI moved to 0015.
+Notches already exist as an optional piece field and are drawn as short marks into the piece
+(ADR 0004 decision 17, ticket 0007); carrying them onto the cutting line is part of 0015.

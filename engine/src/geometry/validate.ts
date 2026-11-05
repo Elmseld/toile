@@ -5,6 +5,7 @@ import { CURVE_FIELDS, type FieldKind, OP_FIELDS } from "./operations";
 import type {
   CurveDefinition,
   DefinitionError,
+  NotchDefinition,
   OutlineEntry,
   PatternDefinition,
   PieceDefinition,
@@ -22,10 +23,13 @@ export const PATTERN_FORMAT_VERSION = 1;
 export const MAX_SECTION_ENTRIES = 20_000;
 
 /**
- * The most entries the outline of one piece may have. All outlines together may have at most
- * `MAX_SECTION_ENTRIES`.
+ * The most entries the outline of one piece may have, and the most notches. All outline entries
+ * and notches of all pieces together may have at most `MAX_SECTION_ENTRIES`.
  */
 export const MAX_OUTLINE_ENTRIES = 1_000;
+
+/** An import reference: `<part>.<value>`, both identifiers (ADR 0007). */
+const IMPORT_REFERENCE = /^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*$/;
 
 export type ValidationResult =
   | { ok: true; definition: PatternDefinition }
@@ -36,6 +40,7 @@ const TOP_LEVEL_FIELDS: ReadonlySet<string> = new Set([
   "name",
   "source",
   "measurements",
+  "imports",
   "parameters",
   "formulas",
   "points",
@@ -74,8 +79,10 @@ const ANY_CURVE_FIELDS: ReadonlySet<string> = new Set([
  * Unknown fields (on a point or curve whose `op` or `type` is missing or unknown: fields no op or
  * type knows), formulas that are not strings and arrays with empty slots are rejected, and so
  * are sections with more than `MAX_SECTION_ENTRIES` entries, outlines with more than
- * `MAX_OUTLINE_ENTRIES` and pieces whose outlines have more than `MAX_SECTION_ENTRIES` entries in
- * total (at `/pieces`; the items are then not checked). An object that throws while being
+ * `MAX_OUTLINE_ENTRIES` (notch lists likewise) and pieces whose outlines and notches have more than
+ * `MAX_SECTION_ENTRIES` entries in total (at `/pieces`; the items are then not checked). `imports`
+ * must map names to references `"<part>.<value>"` (two identifiers); a notch has a string `curve`,
+ * a formula `distance` and optional `marks` 1 or 2 (default 1). An object that throws while being
  * read (a hostile getter or proxy) is reported as `invalid_definition` at the root.
  */
 export function validateDefinition(value: unknown): ValidationResult {
@@ -123,6 +130,11 @@ class Validator {
     const measurements = this.list(value, "measurements", (item, path) =>
       this.string(item, path, "must be a measurement name (a string)"),
     );
+    const imports = this.record(value, "imports", (item, path) =>
+      typeof item === "string" && IMPORT_REFERENCE.test(item)
+        ? item
+        : this.problem(path, 'must be a reference "<part>.<value>" (a string)'),
+    );
     const parameters = this.record(value, "parameters", (item, path) =>
       typeof item === "number" ? item : this.problem(path, "must be a number"),
     );
@@ -141,6 +153,7 @@ class Validator {
         ...(name === undefined ? {} : { name }),
         ...(source === undefined ? {} : { source }),
         measurements,
+        imports,
         parameters,
         formulas,
         points,
@@ -238,7 +251,7 @@ class Validator {
 
   private piece(value: unknown, path: string): PieceDefinition | undefined {
     if (!isObject(value)) return this.problem(path, "A piece must be an object");
-    this.unknownFields(value, path, new Set(["name", "outline", "grainline"]));
+    this.unknownFields(value, path, new Set(["name", "outline", "grainline", "notches"]));
     const name = this.requiredString(value, "name", path, "must be a piece name (a string)");
 
     let outline: OutlineEntry[] | undefined;
@@ -271,24 +284,52 @@ class Validator {
         to: this.requiredString(line, "to", grainPath, "must be a point name (a string)"),
       };
     }
-    return { name, outline, grainline } as PieceDefinition;
+
+    let notches: NotchDefinition[] | undefined = [];
+    if (Object.hasOwn(value, "notches") && this.withinOutlineTotal(value.notches)) {
+      notches = this.array(value.notches, `${path}/notches`, MAX_OUTLINE_ENTRIES, (item, itemPath) =>
+        this.notch(item, itemPath),
+      );
+    }
+    return { name, outline, grainline, notches } as PieceDefinition;
+  }
+
+  private notch(value: unknown, path: string): NotchDefinition | undefined {
+    if (!isObject(value)) {
+      return this.problem(path, "A notch must be an object { curve, distance, marks? }");
+    }
+    this.unknownFields(value, path, new Set(["curve", "distance", "marks"]));
+    const curve = this.requiredString(value, "curve", path, "must be a curve name (a string)");
+    const distance = this.requiredString(
+      value,
+      "distance",
+      path,
+      'must be a formula string (write "50", not 50)',
+    );
+    let marks: 1 | 2 | undefined = 1;
+    if (Object.hasOwn(value, "marks")) {
+      const item = value.marks;
+      marks = item === 1 || item === 2 ? item : this.problem(`${path}/marks`, "must be 1 or 2");
+    }
+    if (curve === undefined || distance === undefined || marks === undefined) return undefined;
+    return { curve, distance, marks };
   }
 
   /**
-   * Adds the entries of one outline to the total of all pieces and reports, once, at `/pieces`
-   * when that goes over `MAX_SECTION_ENTRIES`; from then on outlines are not checked, which bounds
-   * the work of many large outlines. Anything `array` rejects on its own (not an array, more than
-   * `MAX_OUTLINE_ENTRIES`) is not counted.
+   * Adds the entries of one outline (or one notch list) to the total of all pieces and reports,
+   * once, at `/pieces` when that goes over `MAX_SECTION_ENTRIES`; from then on outlines and notches
+   * are not checked, which bounds the work of many large pieces. Anything `array` rejects on its
+   * own (not an array, more than `MAX_OUTLINE_ENTRIES`) is not counted.
    */
-  private withinOutlineTotal(outline: unknown): boolean {
-    if (!Array.isArray(outline) || outline.length > MAX_OUTLINE_ENTRIES) return true;
+  private withinOutlineTotal(entries: unknown): boolean {
+    if (!Array.isArray(entries) || entries.length > MAX_OUTLINE_ENTRIES) return true;
     const before = this.outlineEntries;
-    this.outlineEntries += outline.length;
+    this.outlineEntries += entries.length;
     if (this.outlineEntries <= MAX_SECTION_ENTRIES) return true;
     if (before <= MAX_SECTION_ENTRIES) {
       this.problem(
         "/pieces",
-        `The outlines must have at most ${MAX_SECTION_ENTRIES} entries in total`,
+        `The outlines and notches must have at most ${MAX_SECTION_ENTRIES} entries in total`,
       );
     }
     return false;

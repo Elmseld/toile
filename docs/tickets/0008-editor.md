@@ -1,7 +1,7 @@
 ---
 id: 0008
 title: Editor – move points and edit formulas and parameters
-status: todo
+status: in-review
 type: feature
 ---
 
@@ -18,6 +18,7 @@ formula. Parameters (e.g. ease) can be changed in a side panel. Everything is re
 - [ ] Control points of Bézier curves can be dragged.
 - [ ] A panel shows the selected point's operation and formulas. Edited formulas are validated, and errors are shown without the pattern disappearing.
 - [ ] A parameter panel lists the pattern's parameters and lets the user change them.
+- [ ] Every part of a project (the main block and added blocks such as a sleeve, 0007) is edited and saved the same way, and a part that imports from the edited one (the sleeve from the bodice armhole) follows during the edit.
 - [ ] Undo and redo (at least 50 steps) within a session.
 - [ ] Changes are saved to the project (autosave or an explicit save button). After a reload the same pattern is shown.
 - [ ] Recalculation during a drag feels instant (no server calls per movement).
@@ -33,3 +34,9 @@ Piece labels are placed by the engine's `placeLabel` (`engine/src/geometry/label
 takes about 7 to 14 ms per bodice piece (about 20 ms per bodice render). Recomputing it on every
 pointer move would eat most of a frame, so cache the placement per outline or recompute the
 labels only after a drag ends.
+
+A project has parts since 0007 (ADR 0007): the main definition plus added blocks such as a
+sleeve. The editor edits and saves the definition and parameters of each part (the size cap
+applies per definition, and a save carries one part), and `compileProject` is the drag-time
+entry point: its `evaluate(input, { offsets })` takes the dragged offset by part and point.
+Notch marks of all parts follow a drag; labels are placed again at its end.

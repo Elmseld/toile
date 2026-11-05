@@ -1,4 +1,4 @@
-// The joins of the cutting line at the outline's vertices (ADR 0007): miters, clipped miters,
+// The joins of the cutting line at the outline's vertices (ADR 0009): miters, clipped miters,
 // round joins, concave intersections and smooth steps between two offset edges. Pure geometry in
 // mm, SVG coordinates (y down), orientation `sign` as in `offset.ts`. Engine-internal.
 

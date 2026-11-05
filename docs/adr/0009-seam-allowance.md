@@ -1,4 +1,4 @@
-# 0007: Seam allowance
+# 0009: Seam allowance
 
 Status: accepted (ticket 0009)
 

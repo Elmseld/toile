@@ -1,4 +1,4 @@
-// Offsetting for the cutting line (ADR 0007): single outline edges flattened and moved outwards.
+// Offsetting for the cutting line (ADR 0009): single outline edges flattened and moved outwards.
 // The joins at the corners between them are in `joins.ts`, the cleanup that keeps the outer
 // boundary of a closed polyline that crosses itself in `boundary.ts`. Pure geometry in mm, SVG
 // coordinates (y down). Engine-internal: exported for `seam-allowance.ts`, `darts.ts` and the
