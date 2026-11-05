@@ -1,6 +1,6 @@
 // Public API of the geometry module: pattern definitions, their evaluation, SVG output (ADR 0004),
-// label placement for views, projects of several parts with their layout (ADR 0007) and
-// cutting lines with seam allowance (ADR 0009).
+// label placement for views, projects of several parts with their layout (ADR 0007),
+// cutting lines with seam allowance (ADR 0009) and the markings drawn with them (ADR 0011).
 
 export type {
   CompiledPattern,
@@ -27,7 +27,16 @@ export type {
   UserOffset,
 } from "./types";
 export { compilePattern, evaluatePattern } from "./evaluate";
-export { layoutParts, PART_GAP, type PartsLayout } from "./layout";
+export {
+  layoutParts,
+  layoutPieces,
+  type Offset,
+  PART_GAP,
+  type PartsLayout,
+  PIECE_GAP,
+  pointPieces,
+  shiftCurve,
+} from "./layout";
 export {
   type CompiledProject,
   compileProject,
@@ -40,6 +49,7 @@ export {
 } from "./project";
 export {
   GRAINLINE_ARROW_SIZE,
+  LABEL_LINE_HEIGHT,
   type LabelPiece,
   type LabelPlacement,
   placeLabel,
@@ -50,7 +60,9 @@ export {
   type CuttingLineResult,
   type CuttingPiece,
   cuttingLine,
+  DEFAULT_SEAM_ALLOWANCE,
   MAX_SEAM_ALLOWANCE,
+  pieceSeamAllowances,
   type SeamAllowances,
 } from "./seam-allowance";
 export {
@@ -61,8 +73,9 @@ export {
   patternBounds,
   piecePathData,
 } from "./svg";
-export { NOTCH_LENGTH, NOTCH_PAIR_SPACING } from "./notches";
+export { cuttingLineNotches, NOTCH_LENGTH, NOTCH_PAIR_SPACING } from "./notches";
 export {
+  MAX_CUT,
   MAX_OUTLINE_ENTRIES,
   MAX_SECTION_ENTRIES,
   PATTERN_FORMAT_VERSION,

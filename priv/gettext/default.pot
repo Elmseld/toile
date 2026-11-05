@@ -1395,3 +1395,72 @@ msgstr ""
 msgctxt "pattern piece"
 msgid "Sleeve"
 msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "%{part}: %{piece}"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Choose an edge"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Click or tap an edge in the pattern to select it."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Fold: %{value}"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "No cutting line could be drawn for %{piece}."
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Seam allowance"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Seam allowance for every edge (cm)"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Seam allowance for this edge (cm)"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The cutting line of %{piece} has no dart peak at a dart."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The cutting line of %{piece} is drawn with rounded corners."
+msgstr ""
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgid "cut %{count}"
+msgid_plural "cut %{count}"
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgid "cut %{count} on fold"
+msgid_plural "cut %{count} on fold"
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Enter a seam allowance from 0 to %{max} cm"
+msgstr ""

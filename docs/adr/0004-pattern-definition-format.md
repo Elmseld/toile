@@ -111,11 +111,18 @@ a drag. The definition and its formulas are untrusted user input. This ADR build
     outline's orientation); a double notch has two marks centred on the point, `NOTCH_PAIR_SPACING`
     (4 mm) apart. A `curve` not in the piece's outline is `invalid_notch` at compile time, and a
     distance that is not finite or outside `[0, outline length)` is `invalid_notch` at evaluation;
-    both fail the piece. Notches only mark positions; 0009 adds them to the cutting line.
+    both fail the piece. Notches only mark positions; 0015 adds them to the cutting line.
 18. **Top-level `imports`** (ticket 0007; additive, no version bump): values taken from another
     part of the same project, `{ "<local name>": "<part>.<value>" }`. The local name is a value in
     the single namespace (decision 4) with source `import`. A missing one is `missing_import`.
     Evaluating several parts together is decided in ADR 0007.
+19. **Markings: `fold` and `cut`** (ticket 0015; additive, no version bump). An outline entry may
+    have `"fold": true` (a boolean, default `false`): the edge lies on a fold of the fabric. A piece
+    may have `"cut": n` (an integer from 1 to 100, default absent): how many times to cut it. The
+    engine returns `ComputedPiece.folds`, the curve names of the fold entries in outline order. It
+    does not check that a fold curve is a line; the blocks only mark lines. A non-boolean `fold`, a
+    `cut` outside 1..100 or not an integer, and unknown fields are `invalid_definition` at the
+    field's JSON pointer. The fold edge's seam allowance rule is in ADR 0011.
 
 Rejected alternatives:
 - A schema/validation dependency (zod, a JSON Schema validator): a new dependency for a small

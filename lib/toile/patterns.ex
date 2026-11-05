@@ -7,9 +7,11 @@ defmodule Toile.Patterns do
   a base block from `Toile.Patterns.Blocks` and is drafted for one of the user's measurement
   profiles (`docs/adr/0006-pattern-projects-and-blocks.md`). Blocks with imports, such as the
   sleeve, can then be added to it as parts (`addable_blocks/1`, `add_part/3`,
-  `docs/adr/0007-project-parts-and-imports.md`). This context stores and checks definitions but
-  never computes geometry: `engine_parts/1` and `engine_input/2` build what the engine in the
-  browser needs.
+  `docs/adr/0007-project-parts-and-imports.md`). Each project also stores its seam allowances,
+  a default and the user's values per edge (`update_seam_allowances/3`,
+  `docs/adr/0011-markings-and-seam-allowance-storage.md`). This context stores and checks
+  definitions but never computes geometry: `engine_parts/1`, `engine_input/2` and
+  `seam_allowances/1` build what the engine in the browser needs.
   """
 
   use Gettext, backend: ToileWeb.Gettext
@@ -25,6 +27,7 @@ defmodule Toile.Patterns do
   alias Toile.Patterns.Blocks
   alias Toile.Patterns.PatternPart
   alias Toile.Patterns.PatternProject
+  alias Toile.Patterns.SeamAllowances
 
   @max_projects_per_user 100
 
@@ -41,7 +44,8 @@ defmodule Toile.Patterns do
     * {:updated, %PatternProject{}}
     * {:deleted, %PatternProject{}}
 
-  Saving the editor's work (`update_pattern_edits/4`) is not broadcast.
+  Saving the editor's work (`update_pattern_edits/4`, `update_seam_allowances/3`) is not
+  broadcast.
 
   """
   def subscribe_pattern_projects(%Scope{} = scope) do
@@ -315,6 +319,126 @@ defmodule Toile.Patterns do
     end
   end
 
+  @doc """
+  Saves the editor's seam allowances of a pattern_project: the project default and the user's
+  values per edge, `%{"default" => mm, "edges" => %{part => %{curve => mm}}}`, replacing the
+  stored ones (`docs/adr/0011-markings-and-seam-allowance-storage.md`).
+
+  Accepted only when `default` is a number from 0 to
+  #{SeamAllowances.max_mm()}, every key of `edges` is a part of the project, every curve under
+  it is in one of that part's piece outlines and every value is a number from 0 to
+  #{SeamAllowances.max_mm()} (`Toile.Patterns.SeamAllowances.changeset/3`). The parts and their
+  outlines are read from the stored row, locked for the update, so a part added meanwhile in
+  another tab counts. Nothing else of the project changes. Returns the project as stored, with
+  its profile preloaded.
+
+  Does not broadcast, like `update_pattern_edits/4`. A rejected save is logged at info level with
+  the failing fields only. Raises if the project belongs to another user, or
+  (`Ecto.NoResultsError`) if it no longer exists.
+
+  ## Examples
+
+      iex> update_seam_allowances(scope, skirt_project, %{"default" => 15, "edges" => %{"straight_skirt" => %{"f_cf" => 0}}})
+      {:ok, %PatternProject{}}
+
+      iex> update_seam_allowances(scope, skirt_project, %{"default" => 101, "edges" => %{}})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def update_seam_allowances(%Scope{} = scope, %PatternProject{} = pattern_project, attrs)
+      when is_map(attrs) do
+    true = pattern_project.user_id == scope.user.id
+
+    result =
+      Repo.transact(fn ->
+        locked =
+          Repo.one!(
+            from p in PatternProject,
+              where: p.id == ^pattern_project.id and p.user_id == ^scope.user.id,
+              lock: "FOR UPDATE"
+          )
+
+        locked
+        |> PatternProject.seam_allowances_changeset(attrs, part_outline_curves(locked), scope)
+        |> Repo.update()
+      end)
+
+    case result do
+      {:ok, %PatternProject{} = updated} ->
+        {:ok, preload_profile(updated, scope)}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        log_rejected_seam_allowances(pattern_project, changeset)
+        {:error, changeset}
+    end
+  end
+
+  @doc """
+  Returns the project's seam allowances as the plain map the engine in the browser reads:
+  `%{"default" => mm, "edges" => %{part => %{curve => mm}}}`.
+
+  Takes a project that was already fetched through a scoped function, so it needs no scope.
+
+  ## Examples
+
+      iex> seam_allowances(new_project)
+      %{"default" => 10.0, "edges" => %{}}
+
+  """
+  def seam_allowances(%PatternProject{seam_allowances: %SeamAllowances{} = seam_allowances}),
+    do: SeamAllowances.to_map(seam_allowances)
+
+  @doc """
+  Returns the curves of a definition's piece outlines that can be given a seam allowance, as
+  `[{piece_name, [curve_name]}]` in piece and outline order. A curve is listed once, under the
+  first piece whose outline has it; a piece left with no curves is omitted.
+
+  This is the one list of settable edges: the project page builds its edge select from it, and
+  `update_seam_allowances/3` accepts only the curves it returns. Definitions are untrusted data,
+  so a piece without a string name or a list outline, and an outline entry without a string
+  curve, are skipped.
+
+  ## Examples
+
+      iex> outline_curves(%{"pieces" => [
+      ...>   %{"name" => "front", "outline" => [%{"curve" => "cf"}, %{"curve" => "side"}]},
+      ...>   %{"name" => "facing", "outline" => [%{"curve" => "cf"}, %{"curve" => "edge"}]}
+      ...> ]})
+      [{"front", ["cf", "side"]}, {"facing", ["edge"]}]
+
+  """
+  @spec outline_curves(term()) :: [{String.t(), [String.t()]}]
+  def outline_curves(%{"pieces" => pieces}) when is_list(pieces) do
+    {groups, _seen} =
+      Enum.flat_map_reduce(pieces, MapSet.new(), fn
+        %{"name" => piece, "outline" => outline}, seen
+        when is_binary(piece) and is_list(outline) ->
+          new =
+            for %{"curve" => curve} when is_binary(curve) <- outline,
+                not MapSet.member?(seen, curve),
+                uniq: true,
+                do: curve
+
+          group = if new == [], do: [], else: [{piece, new}]
+          {group, Enum.into(new, seen)}
+
+        _malformed, seen ->
+          {[], seen}
+      end)
+
+    groups
+  end
+
+  def outline_curves(_definition), do: []
+
+  # The settable curve names of each part, by part name, from `outline_curves/1`.
+  defp part_outline_curves(%PatternProject{} = pattern_project) do
+    Map.new(engine_parts(pattern_project), fn %{"name" => name, "definition" => definition} ->
+      curves = for {_piece, curves} <- outline_curves(definition), curve <- curves, do: curve
+      {name, MapSet.new(curves)}
+    end)
+  end
+
   defp part_index(%PatternProject{parts: parts}, part) do
     case Enum.find_index(parts, &(&1.name == part)) do
       nil -> {:error, :unknown_part}
@@ -345,6 +469,21 @@ defmodule Toile.Patterns do
     Logger.info(
       "Rejected pattern edit for project #{pattern_project.id}, part #{inspect_client(part)}: #{reasons}"
     )
+  end
+
+  # Field names only (the schema's atoms), never the client's keys or values.
+  defp log_rejected_seam_allowances(pattern_project, changeset) do
+    reasons =
+      changeset
+      |> Ecto.Changeset.traverse_errors(fn _error -> :error end)
+      |> Enum.flat_map(fn
+        {field, %{} = nested} -> Enum.map(Map.keys(nested), &"#{field}.#{&1}")
+        {field, _messages} -> [Atom.to_string(field)]
+      end)
+      |> Enum.sort()
+      |> Enum.join(", ")
+
+    Logger.info("Rejected seam allowances for project #{pattern_project.id}: #{reasons}")
   end
 
   defp inspect_client(text), do: inspect(text, printable_limit: 200)

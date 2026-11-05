@@ -72,4 +72,25 @@ defmodule Toile.PatternsLogTest do
     assert log =~ ~S(part "collar\n[info] forged": unknown part)
     refute log =~ "\n[info] forged"
   end
+
+  test "update_seam_allowances/3 logs a rejected save with field names, not keys or values" do
+    scope = user_scope_fixture()
+    pattern_project = pattern_project_fixture(scope)
+
+    log =
+      capture_log([level: :info], fn ->
+        assert {:error, _changeset} =
+                 Patterns.update_seam_allowances(scope, pattern_project, %{
+                   "default" => 150.25,
+                   "edges" => %{"secret\n[info] forged" => %{"x" => 1}}
+                 })
+      end)
+
+    assert log =~
+             "Rejected seam allowances for project #{pattern_project.id}: seam_allowances.default, seam_allowances.edges"
+
+    refute log =~ "secret"
+    # A dotted number, since the project id in the line can hold any run of hex digits.
+    refute log =~ "150.25"
+  end
 end

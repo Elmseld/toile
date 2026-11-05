@@ -7,6 +7,12 @@
 //                      only takes parts it does not have yet from a later value.
 //   data-input         {"measurements": {...}, "parameters": {partName: {...}}} in millimetres (JSON)
 //   data-piece-labels  {partName: {pieceName: label}} for the pieces of every part (JSON)
+//   data-piece-cuts    {partName: {pieceName: cutting instruction}} for the pieces that have one
+//                      (JSON; a project created before ticket 0015 has none)
+//   data-seam-allowances  the stored seam allowances, {"default": mm, "edges": {partName:
+//                      {curveName: mm}}} (JSON, read tolerantly with the engine's
+//                      readSeamAllowances). Read on mount only: then the editor owns them.
+//   data-notes         the id of the list under the drawing for notes about the cutting lines
 //   data-error-text    shown instead of a drawing when the pattern cannot be computed
 //   data-editor        the id of the editor aside (optional); with it the pattern is editable
 //   data-texts         the editor's UI texts (JSON, ToileWeb.EditorTexts)
@@ -16,27 +22,51 @@
 //
 // All parts are evaluated together (the engine's compileProject), so a part that imports values
 // from another, like a sleeve from the bodice armhole, is always computed from the same input. If
-// any part fails, nothing is drawn. The parts are placed side by side by the engine's layoutParts
-// when the drawing is built; each is drawn in a <g data-part> translated by its offset, and its
-// pieces' notches as short marks into the piece. The layout stays while the pattern is edited, so
-// a dragged point does not slip away from the pointer; it is redone on the next build.
+// any part fails, nothing is drawn. The layout is the engine's and is done when the drawing is
+// built: layoutPieces moves the pieces of each part apart by their boxes with the cutting lines,
+// so they never overlap whatever the seam allowances, and layoutParts then places the parts side
+// by side by the boxes it returns. Each part is drawn in a <g data-part> translated by its offset,
+// each piece in it in a <g data-piece> translated by its own. Every mapping between the drawing
+// and a part's coordinates uses the same offsets: pieceOffset(part, piece) for an edge (tap and
+// highlight), pointOffset(part, point) for a point (handles, hover, drag), where a point goes with
+// the piece the engine's pointPieces gives it. The layout, and which piece each point goes with,
+// stay while the pattern is edited, so a dragged point does not slip away from the pointer; they
+// are redone on the next build and by relayout(), which the editor calls when the seam allowances
+// it commits change.
+//
+// Each piece group holds, in drawing order (docs/adr/0011-markings-and-seam-allowance-storage.md):
+// the cutting line (solid), the seam line (the outline, dashed), the fold edges (dash-dot, primary
+// colour), the grainline, the notches as short marks into the piece from the seam line and from
+// the cutting line, and the label. The cutting line is the engine's cuttingLine for the piece's
+// allowances (pieceSeamAllowances: the project default, 0 on a fold edge, the user's value per
+// edge). It is computed on every update, also each frame of a drag, and cached per piece (its
+// latest line, keyed by its path data, curve names and allowances), so unchanged pieces cost
+// nothing (ADR 0011 decision 8). The layout and the fit cover the cutting lines. A piece without a
+// cutting line, or one drawn with approximations, gets a sentence in the notes list (data-notes),
+// always as plain text. The dashes of the seam and fold lines are in mm, so they keep their real
+// length at every zoom; their widths are set per view in pixels, like the other strokes (which are
+// non-scaling).
 //
 // With an editor (assets/js/editor/pattern_editor.js, docs/adr/0008-pattern-editor.md) the
 // editor owns the working definitions and parameters of all parts: compute() asks it for the
 // result, it calls update() while points are dragged and edited, and it draws the point handles
-// into a layer in each part's group. A press on a point is the editor's (drag); a press elsewhere
-// pans as before, and a second pointer during a drag cancels the drag and pinches.
+// into one layer per part over the drawing, each point at its pointOffset. A press on a point is
+// the editor's (drag); a press elsewhere pans as before, and a second pointer during a drag
+// cancels the drag and pinches. A press that pans but ends within TAP_DISTANCE_PX of where it
+// started is a tap: the editor selects the edge under it (editor.tap), and the hook highlights
+// the selected edge in a path of each piece group.
 //
 // Drawing has three parts: compute() evaluates the project for the current input, draw() builds
 // the SVG elements once per input (and fits the view to them), and update() moves the existing
 // elements to a new result without touching the view. updated() redraws only when data-key,
 // data-parts or data-input changed.
 //
-// Each piece's label is centred inside it where its text box is farthest from the outline, darts
-// and grainline (the engine's placeLabel), and shrunk when the piece is too narrow for it. A
-// placement costs several milliseconds, so placements are cached by label text, outline and
-// grainline, and update(result, {labels: "keep"}) leaves the labels where they are. The grainline
-// arrowheads are drawn at GRAINLINE_ARROW_SIZE, the size placeLabel keeps clear of.
+// Each piece's label (its name, and on a second line its cutting instruction) is centred inside it
+// where its text box is farthest from the outline, darts and grainline (the engine's placeLabel,
+// which takes the two lines as one text split on "\n"), and shrunk when the piece is too narrow
+// for it. A placement costs several milliseconds, so placements are cached by label text, outline
+// and grainline, and update(result, {labels: "keep"}) leaves the labels where they are. The
+// grainline arrowheads are drawn at GRAINLINE_ARROW_SIZE, the size placeLabel keeps clear of.
 //
 // The SVG user unit is 1 mm. Zoom and pan only change the viewBox (and the grid lines that cover
 // what is visible). Events on the element:
@@ -47,14 +77,24 @@
 
 import {
   GRAINLINE_ARROW_SIZE,
+  LABEL_LINE_HEIGHT,
   compileProject,
+  curvePathData,
+  cuttingLine,
+  cuttingLineNotches,
+  cuttingLinePathData,
   layoutParts,
+  layoutPieces,
   patternBounds,
   piecePathData,
+  pieceSeamAllowances,
   placeLabel,
+  pointPieces,
+  readSeamAllowances,
 } from "../../../engine/src/index"
 import {PatternEditor} from "../editor/pattern_editor"
-import {parseJSON} from "../json"
+import {isObject, parseJSON} from "../json"
+import {fill} from "../text"
 import {center, fit, gridPathData, panBy, toAttribute, visibleArea, zoomAt} from "./viewport"
 
 const SVG_NS = "http://www.w3.org/2000/svg"
@@ -66,11 +106,55 @@ const KEY_PAN_FRACTION = 0.1
 const KEY_ZOOM_FACTOR = 0.8
 // Label placements kept before the cache starts over.
 const LABEL_CACHE_SIZE = 200
+// A panning press that moves less than this many pixels is a tap (it selects an edge).
+const TAP_DISTANCE_PX = 3
+// Stroke widths in pixels. The seam and fold lines are dashed in mm, so their width is set per
+// view (render).
+const CUTTING_WIDTH_PX = 2
+const SEAM_WIDTH_PX = 1.25
+const FOLD_WIDTH_PX = 2
+const SELECTED_EDGE_WIDTH_PX = 8
+// Dash patterns in mm.
+const SEAM_DASH = "4 2"
+const FOLD_DASH = "10 2 2 2"
 
 function svgElement(name, attributes = {}) {
   const element = document.createElementNS(SVG_NS, name)
   for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, String(value))
   return element
+}
+
+/** `map[part][piece]` when it is a string (own keys only), else null. */
+function textOf(map, part, piece) {
+  const texts = isObject(map) && Object.hasOwn(map, part) ? map[part] : null
+  const text = isObject(texts) && Object.hasOwn(texts, piece) ? texts[piece] : null
+  return typeof text === "string" && text !== "" ? text : null
+}
+
+/** The short lines of `notches` (the engine's ComputedNotch list). */
+function notchMarks(notches) {
+  return notches.flatMap(notch =>
+    notch.marks.map(mark =>
+      svgElement("line", {
+        x1: mark.from.x,
+        y1: mark.from.y,
+        x2: mark.to.x,
+        y2: mark.to.y,
+        stroke: "currentColor",
+        "stroke-width": 1.5,
+        "stroke-linecap": "round",
+        "vector-effect": "non-scaling-stroke",
+      }),
+    ),
+  )
+}
+
+/** The path data of the outline curves of `piece` named `name`. */
+function curvesPathData(piece, name) {
+  return piece.outline
+    .filter(curve => curve.name === name)
+    .map(curve => curvePathData(curve))
+    .join(" ")
 }
 
 const PatternView = {
@@ -102,8 +186,16 @@ const PatternView = {
     this.resizeObserver.observe(this.el)
 
     this.labelCache = new Map()
+    this.cuttingCache = new Map()
     this.drawn = this.source()
     this.pieceLabels = parseJSON(this.el.dataset.pieceLabels, {})
+    this.pieceCuts = parseJSON(this.el.dataset.pieceCuts, {})
+    this.storedAllowances = readSeamAllowances(parseJSON(this.el.dataset.seamAllowances, null))
+    const texts = parseJSON(this.el.dataset.texts, {})
+    this.texts = isObject(texts) ? texts : {}
+    this.notesShown = null
+    // A panning press that may still be a tap: {id, x, y} in client pixels.
+    this.tap = null
     this.parts = parseJSON(this.el.dataset.parts, null)
     // The pointer that drags a point, and where it last was (client pixels).
     this.dragPointer = null
@@ -135,6 +227,7 @@ const PatternView = {
       return
     }
     this.pieceLabels = parseJSON(this.el.dataset.pieceLabels, {})
+    this.pieceCuts = parseJSON(this.el.dataset.pieceCuts, {})
     this.draw(this.compute(input))
   },
 
@@ -152,6 +245,7 @@ const PatternView = {
   // another profile lacks measurements and the drawing makes way for a message).
   destroyed() {
     this.editor?.destroy()
+    this.renderNotes([])
     this.resizeObserver?.disconnect()
     if (this.frame !== null) cancelAnimationFrame(this.frame)
   },
@@ -173,23 +267,104 @@ const PatternView = {
     this.editor?.cancelDrag()
     this.dragPointer = null
     this.pointers.clear()
+    this.tap = null
     this.svg = null
+    this.shown = null
     this.el.replaceChildren()
 
     const results = result?.ok ? Object.entries(result.parts) : []
-    const layout = layoutParts(results.map(([, part]) => patternBounds(part)))
+    this.layoutAllowances = this.allowances()
+    const pieceLayouts = results.map(([name, part]) => this.layoutPiecesOf(name, part))
+    const layout = layoutParts(pieceLayouts.map(({bounds}) => bounds))
     if (!result?.ok || !layout.bounds) {
       if (result && !result.ok) console.warn("Pattern errors", this.errorsOf(result))
+      this.renderNotes([])
       this.showError()
       return
     }
 
-    this.partOffsets = new Map(results.map(([name], i) => [name, layout.offsets[i]]))
+    // Offsets within a part (for the piece groups) and in the drawing (for every mapping).
+    this.localOffsets = new Map()
+    this.pieceOffsets = new Map()
+    this.pointOwners = new Map()
+    this.partOffsets = new Map()
+    for (const [i, [name, part]] of results.entries()) {
+      const partOffset = layout.offsets[i]
+      const pieces = Object.keys(part.pieces)
+      const local = pieceLayouts[i].offsets
+      this.partOffsets.set(name, partOffset)
+      this.localOffsets.set(name, new Map(pieces.map((piece, j) => [piece, local[j]])))
+      this.pieceOffsets.set(
+        name,
+        new Map(
+          pieces.map((piece, j) => [
+            piece,
+            {dx: partOffset.dx + local[j].dx, dy: partOffset.dy + local[j].dy},
+          ]),
+        ),
+      )
+      this.pointOwners.set(name, pointPieces(part))
+    }
     this.fitted = fit(layout.bounds, FIT_MARGIN)
     this.svg = this.buildSvg(result)
     this.el.appendChild(this.svg)
     this.update(result)
     this.setView(view ?? this.fitted)
+  },
+
+  // Draws `result` again with a new layout in the same view: the editor calls it when the
+  // committed seam allowances change, so the gaps between the parts follow the cutting lines.
+  // Without such a change it only updates the drawing. A press in progress (the press on the
+  // drawing that took the focus from an allowance field commits it) keeps its drag or pan: the
+  // new layout waits until the last pointer is up (relayoutIfStale).
+  relayout(result) {
+    if (!result?.ok) return
+    const pressed = this.pointers.size > 0 || this.dragPointer !== null
+    if (this.svg && (this.allowances() === this.layoutAllowances || pressed)) this.update(result)
+    else this.draw(result, {fit: !this.svg})
+  },
+
+  // Lays the drawn result out again if the allowances changed since the layout and no pointer is
+  // down.
+  relayoutIfStale() {
+    if (this.pointers.size > 0 || this.dragPointer !== null) return
+    if (this.svg && this.shown && this.allowances() !== this.layoutAllowances) {
+      this.draw(this.shown, {fit: false})
+    }
+  },
+
+  // The project's seam allowances: the editor's working ones, else the stored ones.
+  allowances() {
+    return this.editor?.seamAllowances() ?? this.storedAllowances
+  },
+
+  // The cutting line (the engine's CuttingLineResult) of `piece` of part `part` for the current
+  // allowances. The cache holds the latest line of each piece (by part and piece name), with its
+  // key: the piece's path data, its outline curve names (the allowances are keyed by them) and
+  // its effective allowances. So it stays one entry per piece however long a drag runs.
+  cuttingLineOf(part, piece, pathData = piecePathData(piece)) {
+    const {default: fallback, edges} = this.allowances()
+    const own = Object.hasOwn(edges, part) ? edges[part] : undefined
+    const allowances = pieceSeamAllowances(piece, fallback, own)
+    const names = piece.outline.map(curve => curve.name)
+    const key = `${pathData}\n${JSON.stringify([names, allowances])}`
+    const slot = JSON.stringify([part, piece.name])
+    const cached = this.cuttingCache.get(slot)
+    if (cached?.key === key) return cached.line
+    const line = cuttingLine(piece, allowances)
+    this.cuttingCache.set(slot, {key, line})
+    return line
+  },
+
+  // The engine's layoutPieces for the pieces of part `part` (a part result), in piece order, by
+  // each piece's box with its cutting line (if it could be drawn).
+  layoutPiecesOf(part, partResult) {
+    return layoutPieces(
+      Object.values(partResult.pieces).map(piece => {
+        const line = this.cuttingLineOf(part, piece)
+        return patternBounds({pieces: {[piece.name]: piece}}, line.ok ? [line.points] : [])
+      }),
+    )
   },
 
   // Moves the drawn elements to `result` (a result of the same parts) without changing the view
@@ -203,22 +378,79 @@ const PatternView = {
       this.draw(result, {fit: !this.svg})
       return
     }
+    this.shown = result
+    const notes = []
     for (const [part, partResult] of Object.entries(result.parts)) {
       const pieces = this.pieceElements.get(part)
       for (const piece of Object.values(partResult.pieces)) {
         const elements = pieces.get(piece.name)
         const pathData = piecePathData(piece)
+        const line = this.cuttingLineOf(part, piece, pathData)
+        elements.cutting.setAttribute("d", line.ok ? cuttingLinePathData(line.points) : "")
         elements.outline.setAttribute("d", pathData)
+        elements.folds.setAttribute(
+          "d",
+          piece.folds.map(name => curvesPathData(piece, name)).join(" "),
+        )
         const {from, to} = piece.grainline
         elements.grainline.setAttribute("x1", from.x)
         elements.grainline.setAttribute("y1", from.y)
         elements.grainline.setAttribute("x2", to.x)
         elements.grainline.setAttribute("y2", to.y)
-        elements.notches.replaceChildren(...this.notchMarks(piece))
-        if (labels === "place") this.placeLabelOf(piece, pathData, elements.label)
+        elements.notches.replaceChildren(...notchMarks(piece.notches))
+        elements.cutNotches.replaceChildren(
+          ...(line.ok ? notchMarks(cuttingLineNotches(piece.notches, line.points)) : []),
+        )
+        if (labels === "place") this.placeLabelOf(piece, pathData, elements)
+        notes.push(...this.cuttingNotes(line, elements.name))
       }
     }
+    this.highlightEdge()
+    this.renderNotes(notes)
     this.editor?.moveHandles(result)
+  },
+
+  // The sentences about the cutting line `line` of the piece labelled `name`: that it could not
+  // be drawn, or one per kind of approximation it was drawn with (each kind once).
+  cuttingNotes(line, name) {
+    const texts = isObject(this.texts.cutting_line) ? this.texts.cutting_line : {}
+    const kinds = line.ok
+      ? [...new Set((line.approximations ?? []).map(({kind}) => kind))]
+      : ["failed"]
+    return kinds
+      .filter(kind => typeof texts[kind] === "string" && Object.hasOwn(texts, kind))
+      .map(kind => fill(texts[kind], {piece: name}))
+  },
+
+  // Shows `notes` in the notes list (data-notes) as plain text, one item each; only touches the
+  // list when the notes change, so a drag does not make a screen reader repeat them.
+  renderNotes(notes) {
+    const shown = notes.join("\n")
+    if (shown === this.notesShown) return
+    this.notesShown = shown
+    const list = this.el.dataset.notes ? document.getElementById(this.el.dataset.notes) : null
+    if (!list) return
+    list.replaceChildren(
+      ...notes.map(text => {
+        const item = document.createElement("li")
+        item.textContent = text
+        return item
+      }),
+    )
+  },
+
+  // Highlights the editor's selected edge (every outline curve of that name in its part, each in
+  // its piece's group) in the drawn result, or no edge.
+  highlightEdge() {
+    if (!this.edgeLayers || !this.shown) return
+    const edge = this.editor?.selectedEdge ?? null
+    for (const [part, paths] of this.edgeLayers) {
+      const pieces = edge?.part === part ? this.shown.parts[part]?.pieces : null
+      for (const [name, path] of paths) {
+        const piece = pieces && Object.hasOwn(pieces, name) ? pieces[name] : null
+        path.setAttribute("d", piece ? curvesPathData(piece, edge.curve) : "")
+      }
+    }
   },
 
   // Whether the drawing has exactly the parts and pieces of `result`.
@@ -236,8 +468,7 @@ const PatternView = {
   // centred on the returned point. A piece without area falls back to the grainline's midpoint,
   // start-anchored half a label height to its right so the text sits beside the line instead of
   // straddling it.
-  placeLabelOf(piece, pathData, label) {
-    const text = label.textContent
+  placeLabelOf(piece, pathData, {label, labelText: text}) {
     const {from, to} = piece.grainline
     const key = `${text}\n${pathData}\n${from.x} ${from.y} ${to.x} ${to.y}`
     let place = this.labelCache.get(key)
@@ -258,24 +489,8 @@ const PatternView = {
     label.setAttribute("y", place.y)
     label.setAttribute("font-size", place.size)
     label.setAttribute("text-anchor", place.anchor)
-  },
-
-  // The short lines of a piece's notches.
-  notchMarks(piece) {
-    return piece.notches.flatMap(notch =>
-      notch.marks.map(mark =>
-        svgElement("line", {
-          x1: mark.from.x,
-          y1: mark.from.y,
-          x2: mark.to.x,
-          y2: mark.to.y,
-          stroke: "currentColor",
-          "stroke-width": 1.5,
-          "stroke-linecap": "round",
-          "vector-effect": "non-scaling-stroke",
-        }),
-      ),
-    )
+    // Each line starts at the anchor again.
+    for (const line of label.children) line.setAttribute("x", place.x)
   },
 
   // The project's own errors and every part's, each tagged with its part name.
@@ -295,8 +510,9 @@ const PatternView = {
   },
 
   // The SVG with one group per part, translated by its layout offset, holding one group per
-  // piece (outline, grainline, notches, label) and the part's handle layer, without geometry:
-  // update() sets that.
+  // piece (see pieceGroup) translated by the piece's offset within the part, with an editor each
+  // with a selected-edge path; then, with an editor, one handle layer per part, untranslated (the
+  // handles add each point's offset). Without geometry: update() sets that.
   buildSvg(result) {
     const id = this.el.id
     const svg = svgElement("svg", {
@@ -328,6 +544,8 @@ const PatternView = {
     svg.appendChild(this.majorGrid)
 
     this.pieceElements = new Map()
+    this.scaledStrokes = []
+    this.edgeLayers = this.editor ? new Map() : null
     const handleLayers = new Map()
     for (const [part, partResult] of Object.entries(result.parts)) {
       const offset = this.partOffsets.get(part)
@@ -335,37 +553,86 @@ const PatternView = {
         "data-part": part,
         transform: `translate(${offset.dx} ${offset.dy})`,
       })
-      const labels = this.pieceLabels[part] ?? {}
       const pieces = new Map()
+      const edgePaths = new Map()
       for (const piece of Object.values(partResult.pieces)) {
-        const elements = this.pieceGroup(piece.name, labels[piece.name] ?? piece.name)
+        const name = textOf(this.pieceLabels, part, piece.name) ?? piece.name
+        const elements = this.pieceGroup(piece.name, name, textOf(this.pieceCuts, part, piece.name))
+        const local = this.localOffsets.get(part)?.get(piece.name) ?? {dx: 0, dy: 0}
+        elements.group.setAttribute("transform", `translate(${local.dx} ${local.dy})`)
+        if (this.editor) {
+          const selectedEdge = svgElement("path", {
+            "data-selected-edge": part,
+            class: "text-primary",
+            fill: "none",
+            stroke: "currentColor",
+            "stroke-opacity": 0.4,
+            "stroke-width": SELECTED_EDGE_WIDTH_PX,
+            "stroke-linecap": "round",
+            "stroke-linejoin": "round",
+            "vector-effect": "non-scaling-stroke",
+            "pointer-events": "none",
+          })
+          elements.group.appendChild(selectedEdge)
+          edgePaths.set(piece.name, selectedEdge)
+        }
         partGroup.appendChild(elements.group)
         pieces.set(piece.name, elements)
       }
       this.pieceElements.set(part, pieces)
-      if (this.editor) {
+      this.edgeLayers?.set(part, edgePaths)
+      svg.appendChild(partGroup)
+    }
+    // Over every part, so a part's pieces never cover another part's handles.
+    if (this.editor) {
+      for (const part of Object.keys(result.parts)) {
         const layer = svgElement("g", {"data-handles": part, "pointer-events": "none"})
-        partGroup.appendChild(layer)
+        svg.appendChild(layer)
         handleLayers.set(part, layer)
       }
-      svg.appendChild(partGroup)
     }
 
     this.editor?.drawHandles(handleLayers, result)
     return svg
   },
 
-  // The elements of one piece, without geometry.
-  pieceGroup(name, text) {
+  // The elements of one piece, without geometry: the cutting line, the seam line (the outline),
+  // the fold lines, the grainline, the notch marks on the seam line and on the cutting line, and
+  // the label: `name` and, on a second line, the cutting instruction `cut` (null for none).
+  pieceGroup(pieceName, name, cut) {
     const id = this.el.id
-    const group = svgElement("g", {"data-piece": name})
-    const outline = svgElement("path", {
+    const group = svgElement("g", {"data-piece": pieceName})
+    const cutting = svgElement("path", {
+      "data-line": "cutting",
       fill: "none",
       stroke: "currentColor",
-      "stroke-width": 2,
+      "stroke-width": CUTTING_WIDTH_PX,
       "stroke-linejoin": "round",
       "vector-effect": "non-scaling-stroke",
     })
+    // Dashed in mm: the width follows the view (render), so no non-scaling stroke here.
+    const outline = svgElement("path", {
+      "data-line": "seam",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-dasharray": SEAM_DASH,
+      "stroke-linejoin": "round",
+    })
+    const folds = svgElement("path", {
+      "data-line": "fold",
+      class: "text-primary",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-dasharray": FOLD_DASH,
+    })
+    this.scaledStrokes.push(
+      {element: outline, px: SEAM_WIDTH_PX},
+      {element: folds, px: FOLD_WIDTH_PX},
+    )
+    // Until the next render, at the scale of the last view (a relayout keeps the view).
+    const scale = this.lastScale ?? 1
+    outline.setAttribute("stroke-width", SEAM_WIDTH_PX / scale)
+    folds.setAttribute("stroke-width", FOLD_WIDTH_PX / scale)
     const grainline = svgElement("line", {
       stroke: "currentColor",
       "stroke-width": 1,
@@ -374,18 +641,49 @@ const PatternView = {
       "marker-end": `url(#${id}-arrow)`,
     })
     const notches = svgElement("g")
+    const cutNotches = svgElement("g", {"data-notches": "cutting"})
     const label = svgElement("text", {
       fill: "currentColor",
       "dominant-baseline": "middle",
     })
-    label.textContent = text
-    group.append(outline, grainline, notches, label)
-    return {group, outline, grainline, notches, label}
+    // One tspan per line, the block centred on the label's y.
+    const lines = [name, cut].filter(Boolean)
+    label.append(
+      ...lines.map((line, i) => {
+        const dy = i === 0 ? (-(lines.length - 1) / 2) * LABEL_LINE_HEIGHT : LABEL_LINE_HEIGHT
+        const tspan = svgElement("tspan", {dy: `${dy}em`, "dominant-baseline": "middle"})
+        tspan.textContent = line
+        return tspan
+      }),
+    )
+    group.append(cutting, outline, folds, grainline, notches, cutNotches, label)
+    return {
+      group,
+      cutting,
+      outline,
+      folds,
+      grainline,
+      notches,
+      cutNotches,
+      label,
+      name,
+      labelText: lines.join("\n"),
+    }
   },
 
-  // Where part `part` is drawn: the offset its coordinates are moved by.
-  partOffset(part) {
-    return this.partOffsets?.get(part) ?? {dx: 0, dy: 0}
+  // Where piece `piece` of part `part` is drawn: the offset its coordinates are moved by in the
+  // drawing (its part's and its own).
+  pieceOffset(part, piece) {
+    return this.pieceOffsets?.get(part)?.get(piece) ?? this.partOffsets?.get(part) ?? {dx: 0, dy: 0}
+  },
+
+  // Where point `name` of part `part` is drawn: the offset of the piece it goes with (the engine's
+  // pointPieces at the layout), or its part's for a point that goes with none.
+  pointOffset(part, name) {
+    const owner = this.pointOwners?.get(part)?.get(name)
+    return owner === undefined
+      ? (this.partOffsets?.get(part) ?? {dx: 0, dy: 0})
+      : this.pieceOffset(part, owner)
   },
 
   setView(viewBox) {
@@ -410,6 +708,12 @@ const PatternView = {
     const {area, scale} = visibleArea(this.viewBox, width, height)
     this.minorGrid.setAttribute("d", this.gridAt(area, scale, 10))
     this.majorGrid.setAttribute("d", this.gridAt(area, scale, 100))
+    if (scale > 0) {
+      this.lastScale = scale
+      for (const {element, px} of this.scaledStrokes) {
+        element.setAttribute("stroke-width", px / scale)
+      }
+    }
     this.editor?.scaleHandles(scale)
   },
 
@@ -465,6 +769,8 @@ const PatternView = {
       this.dragAt = at
       return
     }
+    // Only a lone press can be a tap; a second pointer makes it a pinch.
+    this.tap = this.pointers.size === 0 ? {id: event.pointerId, ...at} : null
     this.el.setPointerCapture(event.pointerId)
     this.pointers.set(event.pointerId, at)
   },
@@ -486,6 +792,9 @@ const PatternView = {
     if (!previous) this.hover(event)
     if (!previous || !this.svg) return
     const current = {x: event.clientX, y: event.clientY}
+    const tap = this.tap
+    const moved = tap && Math.hypot(current.x - tap.x, current.y - tap.y) >= TAP_DISTANCE_PX
+    if (tap?.id === event.pointerId && moved) this.tap = null
 
     if (this.pointers.size === 1) {
       const scale = this.pixelScale()
@@ -522,9 +831,14 @@ const PatternView = {
     if (event.pointerId === this.dragPointer) {
       this.dragPointer = null
       this.editor.endDrag()
+      this.relayoutIfStale()
       return
     }
+    const tapped = this.tap?.id === event.pointerId && this.pointers.size === 1
+    this.tap = null
     this.pointers.delete(event.pointerId)
+    if (tapped && this.svg) this.editor?.tap(event)
+    this.relayoutIfStale()
   },
 
   // The browser took the pointer away (or capture was lost): a drag ends without a change.
@@ -532,9 +846,12 @@ const PatternView = {
     if (event.pointerId === this.dragPointer) {
       this.dragPointer = null
       this.editor.cancelDrag()
+      this.relayoutIfStale()
       return
     }
+    if (this.tap?.id === event.pointerId) this.tap = null
     this.pointers.delete(event.pointerId)
+    this.relayoutIfStale()
   },
 
   // A mouse over a point shows the move cursor.

@@ -1,10 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { evaluatePattern } from "./evaluate";
+import { cuttingLineNotches, NOTCH_LENGTH } from "./notches";
 import { polygonArea } from "./offset";
-import { type CuttingPiece, cuttingLine, type SeamAllowances } from "./seam-allowance";
-import { distance, type Point } from "./vector";
+import { evaluateProject } from "./project";
+import {
+  type CuttingPiece,
+  cuttingLine,
+  pieceSeamAllowances,
+  type SeamAllowances,
+} from "./seam-allowance";
+import type { ComputedPiece } from "./types";
+import { distance, type Point, pointSegmentDistance } from "./vector";
 
 // Smoothness and orientation checks of the cutting line of the real blocks over the whole line,
 // dart peaks included (seam-allowance.test.ts excludes the dart zones from its distance checks).
@@ -148,4 +156,64 @@ describe("no jog next to the dart peak", () => {
       }
     }
   });
+});
+
+/** Every piece of every block, evaluated in one project, by `<block>.<piece>`. */
+function allBlockPieces(measurements: Record<string, number>): [string, ComputedPiece][] {
+  const parts = readdirSync(BLOCKS_DIR)
+    .filter((file) => file.endsWith(".json"))
+    .map((file) => ({
+      name: file.replace(/\.json$/, ""),
+      definition: JSON.parse(readFileSync(join(BLOCKS_DIR, file), "utf8")),
+    }));
+  const project = evaluateProject(parts, {
+    measurements: { ...measurements, arm_length: 580, upper_arm: 280, wrist: 160 },
+  });
+  expect(project.ok).toBe(true);
+  return Object.entries(project.parts).flatMap(([block, part]) =>
+    Object.values(part.pieces).map((piece): [string, ComputedPiece] => [
+      `${block}.${piece.name}`,
+      piece,
+    ]),
+  );
+}
+
+/** The distance from `point` to the nearest segment of the closed polygon `line`. */
+function lineDistance(line: readonly Point[], point: Point): number {
+  return Math.min(
+    ...line.map((a, i) => pointSegmentDistance(point, a, line[(i + 1) % line.length]!)),
+  );
+}
+
+describe("the blocks with their markings (ADR 0011)", () => {
+  for (const [profile, measurements] of Object.entries(PROFILES)) {
+    test(`${profile}: every piece gets a line, on its fold edges, with its notches on the line`, () => {
+      const pieces = allBlockPieces(measurements);
+      expect(pieces.map(([name]) => name).sort()).toEqual([
+        "bodice.back",
+        "bodice.front",
+        "straight_skirt.back",
+        "straight_skirt.front",
+        "straight_sleeve.sleeve",
+      ]);
+      for (const [, piece] of pieces) {
+        const line = lineOf(piece, pieceSeamAllowances(piece, 10));
+        for (const fold of piece.folds) {
+          const edge = piece.outline.find((curve) => curve.name === fold)!;
+          expect(lineDistance(line, edge.from)).toBeLessThan(1e-6);
+          expect(lineDistance(line, edge.to)).toBeLessThan(1e-6);
+        }
+        expect(piece.notches.length).toBeGreaterThan(0);
+        const moved = cuttingLineNotches(piece.notches, line);
+        expect(moved).toHaveLength(piece.notches.length);
+        for (const notch of moved) {
+          expect(lineDistance(line, notch.point)).toBeLessThan(0.05);
+          for (const mark of notch.marks) {
+            expect(lineDistance(line, mark.from)).toBeLessThan(0.05);
+            expect(distance(mark.from, mark.to)).toBeCloseTo(NOTCH_LENGTH, 9);
+          }
+        }
+      }
+    });
+  }
 });

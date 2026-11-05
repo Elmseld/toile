@@ -28,6 +28,9 @@ export const MAX_SECTION_ENTRIES = 20_000;
  */
 export const MAX_OUTLINE_ENTRIES = 1_000;
 
+/** The largest `cut` count of a piece (how many times it is cut from the fabric). */
+export const MAX_CUT = 100;
+
 /** An import reference: `<part>.<value>`, both identifiers (ADR 0007). */
 const IMPORT_REFERENCE = /^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -82,7 +85,9 @@ const ANY_CURVE_FIELDS: ReadonlySet<string> = new Set([
  * `MAX_OUTLINE_ENTRIES` (notch lists likewise) and pieces whose outlines and notches have more than
  * `MAX_SECTION_ENTRIES` entries in total (at `/pieces`; the items are then not checked). `imports`
  * must map names to references `"<part>.<value>"` (two identifiers); a notch has a string `curve`,
- * a formula `distance` and optional `marks` 1 or 2 (default 1). An object that throws while being
+ * a formula `distance` and optional `marks` 1 or 2 (default 1); an outline entry has a string
+ * `curve` and an optional boolean `fold` (default `false`); a piece has an optional `cut`, an
+ * integer from 1 to `MAX_CUT` (absent by default). An object that throws while being
  * read (a hostile getter or proxy) is reported as `invalid_definition` at the root.
  */
 export function validateDefinition(value: unknown): ValidationResult {
@@ -251,7 +256,7 @@ class Validator {
 
   private piece(value: unknown, path: string): PieceDefinition | undefined {
     if (!isObject(value)) return this.problem(path, "A piece must be an object");
-    this.unknownFields(value, path, new Set(["name", "outline", "grainline", "notches"]));
+    this.unknownFields(value, path, new Set(["name", "outline", "grainline", "notches", "cut"]));
     const name = this.requiredString(value, "name", path, "must be a piece name (a string)");
 
     let outline: OutlineEntry[] | undefined;
@@ -291,7 +296,16 @@ class Validator {
         this.notch(item, itemPath),
       );
     }
-    return { name, outline, grainline, notches } as PieceDefinition;
+    let cut: { cut?: number } = {};
+    if (Object.hasOwn(value, "cut")) {
+      const item = value.cut;
+      if (typeof item === "number" && Number.isInteger(item) && item >= 1 && item <= MAX_CUT) {
+        cut = { cut: item };
+      } else {
+        this.problem(`${path}/cut`, `must be a whole number from 1 to ${MAX_CUT}`);
+      }
+    }
+    return { name, outline, grainline, notches, ...cut } as PieceDefinition;
   }
 
   private notch(value: unknown, path: string): NotchDefinition | undefined {
@@ -336,10 +350,17 @@ class Validator {
   }
 
   private outlineEntry(value: unknown, path: string): OutlineEntry | undefined {
-    if (!isObject(value)) return this.problem(path, "An outline entry must be an object { curve }");
-    this.unknownFields(value, path, new Set(["curve"]));
+    if (!isObject(value)) {
+      return this.problem(path, "An outline entry must be an object { curve, fold? }");
+    }
+    this.unknownFields(value, path, new Set(["curve", "fold"]));
     const curve = this.requiredString(value, "curve", path, "must be a curve name (a string)");
-    return curve === undefined ? undefined : { curve };
+    let fold: boolean | undefined = false;
+    if (Object.hasOwn(value, "fold")) {
+      const item = value.fold;
+      fold = typeof item === "boolean" ? item : this.problem(`${path}/fold`, "must be true or false");
+    }
+    return curve === undefined || fold === undefined ? undefined : { curve, fold };
   }
 
   /** An optional top-level array; each item is checked by `item`, which reports its problems. */

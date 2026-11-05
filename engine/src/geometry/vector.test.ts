@@ -13,6 +13,7 @@ import {
   perpendicularOffset,
   type Point,
   pointSegmentDistance,
+  raySegmentHit,
   reflectAcross,
   rotateAbout,
   scale,
@@ -214,5 +215,21 @@ describe("rotateAbout and reflectAcross", () => {
     const reflected = reflectAcross(point, p(1, 1), p(1, 1));
     expect(reflected).toEqual(point);
     expect(reflected).not.toBe(point);
+  });
+});
+
+describe("raySegmentHit", () => {
+  test("the ray parameter where it crosses the segment, negative behind the origin", () => {
+    expect(raySegmentHit(p(0, 0), p(1, 0), p(5, -1), p(5, 1))).toBeCloseTo(5, 12);
+    expect(raySegmentHit(p(0, 0), p(2, 0), p(5, -1), p(5, 1))).toBeCloseTo(2.5, 12);
+    expect(raySegmentHit(p(0, 0), p(-1, 0), p(5, -1), p(5, 1))).toBeCloseTo(-5, 12);
+    expect(raySegmentHit(p(0, 0), p(1, 0), p(5, 0), p(5, 1))).toBeCloseTo(5, 12);
+  });
+
+  test("null when the line misses the segment or runs parallel to it", () => {
+    expect(raySegmentHit(p(0, 0), p(1, 0), p(5, 1), p(5, 2))).toBeNull();
+    expect(raySegmentHit(p(0, 0), p(1, 0), p(1, 1), p(5, 1))).toBeNull();
+    expect(raySegmentHit(p(0, 0), p(1, 0), p(1, 0), p(5, 0))).toBeNull();
+    expect(raySegmentHit(p(0, 0), p(0, 0), p(5, -1), p(5, 1))).toBeNull();
   });
 });

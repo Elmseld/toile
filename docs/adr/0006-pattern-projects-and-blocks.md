@@ -56,6 +56,13 @@ engine in the browser.
   engine (`placeLabel` in `engine/src/geometry/label.ts`, typed and tested with the rest of it)
   and every view (pattern view, editor, PDF) shares it. Drawing is the view's: the hook draws the
   text at the returned point and size, and the arrowheads at the engine's `GRAINLINE_ARROW_SIZE`.
+  Since ticket 0015 a label has two lines: the piece name, then the cutting instruction ("klipp 2" /
+  "klipp 1 i fold"). The server sends the instructions as `data-piece-cuts` (`{part: {piece: text}}`,
+  only for pieces with a `cut`; a project created before 0015 has none and shows the name alone).
+  `textBox` and `placeLabel` take text split on `"\n"`: the width is the longest line and the
+  height is `size * (1 + (lines - 1) * LABEL_LINE_HEIGHT)` (1.2); one line keeps its old box.
+  Projects keep their block copies, so existing ones get no `fold`/`cut` or skirt notches
+  (improving a block never updates a project); they still get cutting lines and editable allowances.
 - jsonb does not preserve object key order. The engine's results do not depend on it; only the
   order of reported errors can differ. Arrays keep their order.
 

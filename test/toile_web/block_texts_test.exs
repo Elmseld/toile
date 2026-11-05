@@ -37,4 +37,11 @@ defmodule ToileWeb.BlockTextsTest do
     assert BlockTexts.piece_label("sleeve") == "Sleeve"
     assert BlockTexts.piece_label("pocket") == "pocket"
   end
+
+  test "the cutting instruction says how many times and whether on the fold" do
+    assert BlockTexts.cut_instruction(2, false) == "cut 2"
+    assert BlockTexts.cut_instruction(1, false) == "cut 1"
+    assert BlockTexts.cut_instruction(1, true) == "cut 1 on fold"
+    assert BlockTexts.cut_instruction(4, true) == "cut 4 on fold"
+  end
 end

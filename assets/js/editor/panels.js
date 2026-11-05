@@ -10,15 +10,20 @@
 // are filled here in the display unit with the engine's units, so the conversion has one source.
 // The editor passes the working parts, `{partName: {parameters}}`, to the constructor, which
 // writes their overrides with renderParameters.
+//
+// The seam allowance panel (#seam-allowance-panel,
+// docs/adr/0011-markings-and-seam-allowance-storage.md) renders with an empty project default
+// input and its hint, the edge select (option values `<part>.<curve>`) and an empty
+// #edge-details; renderSeamAllowanceDefault and renderEdge fill them in cm. Curve names are shown
+// as text only.
 
-import {formatDisplay, pointFields, toDisplay} from "../../../engine/src/index"
-
-/** `template` with every `%{key}` replaced by `values[key]`. */
-export function fill(template, values = {}) {
-  return String(template ?? "").replace(/%\{(\w+)\}/g, (match, key) =>
-    Object.hasOwn(values, key) ? String(values[key]) : match,
-  )
-}
+import {
+  DEFAULT_SEAM_ALLOWANCE,
+  formatDisplay,
+  pointFields,
+  toDisplay,
+} from "../../../engine/src/index"
+import {fill} from "../text"
 
 /** The name an engine error's text mentions: the reference, function or dependency it is about. */
 function errorSubject(error) {
@@ -65,6 +70,10 @@ export class Panels {
     this.alert = aside.querySelector("#editor-alert")
     this.pointSelect = aside.querySelector("#point-select")
     this.details = aside.querySelector("#point-details")
+    this.defaultInput = aside.querySelector("#seam-allowance-default-input")
+    this.defaultHint = aside.querySelector("#seam-allowance-default-hint")
+    this.edgeSelect = aside.querySelector("#edge-select")
+    this.edgeDetails = aside.querySelector("#edge-details")
     // HEEx renders the rows once and never patches them (phx-update="ignore").
     this.rows = [...aside.querySelectorAll("[data-parameter]")].map(row => ({
       part: row.dataset.part,
@@ -190,6 +199,86 @@ export class Panels {
     this.details.appendChild(reset)
   }
 
+  /** A length in mm as cm text with its unit ("1,5 cm"). */
+  lengthText(mm) {
+    return `${centimetres(mm, this.texts)} ${this.texts.units?.length ?? ""}`.trim()
+  }
+
+  /**
+   * Writes the project default of `allowances` into its input in cm, with the hint for an empty
+   * field (DEFAULT_SEAM_ALLOWANCE), and clears its error.
+   */
+  renderSeamAllowanceDefault(allowances) {
+    if (this.defaultHint) {
+      this.defaultHint.textContent = fill(this.texts.seam_allowance?.default_hint, {
+        value: this.lengthText(DEFAULT_SEAM_ALLOWANCE),
+      })
+    }
+    if (!this.defaultInput) return
+    this.defaultInput.value = centimetres(allowances.default, this.texts)
+    this.setError(this.defaultInput, null)
+  }
+
+  /**
+   * Fills #edge-details for the selected edge `edge`, `{part, curve}` (or empties it for null):
+   * the curve name, an input with the edge's allowance `allowance` (`{value}` in mm) in cm, and
+   * the hint for an empty field, `fallback` (`{fold, value}`: the fold rule's 0 or the project
+   * default). The same edge again keeps its elements and only updates them, so the focus stays.
+   * With `keepInvalid` an input holding a rejected value (aria-invalid) keeps its text and error;
+   * only the hint is updated.
+   */
+  renderEdge(edge, allowance = null, fallback = null, {keepInvalid = false} = {}) {
+    const key = edge ? `${edge.part}.${edge.curve}` : ""
+    if (this.edgeSelect) this.edgeSelect.value = key
+    if (!this.edgeDetails) return
+    if (!edge) {
+      this.edgeDetails.replaceChildren()
+      delete this.edgeDetails.dataset.edge
+      return
+    }
+    if (this.edgeDetails.dataset.edge !== key) this.buildEdge(edge.curve)
+    this.edgeDetails.dataset.edge = key
+
+    const texts = this.texts.seam_allowance ?? {}
+    const input = this.edgeDetails.querySelector(`#edge-allowance-input`)
+    const hint = this.edgeDetails.querySelector(`#edge-allowance-hint`)
+    if (hint) {
+      const template = fallback?.fold ? texts.fold_hint : texts.default_hint
+      hint.textContent = fill(template, {value: this.lengthText(fallback?.value ?? 0)})
+    }
+    const rejected = keepInvalid && input?.getAttribute("aria-invalid") === "true"
+    if (input && !rejected) {
+      input.value = centimetres(allowance?.value ?? 0, this.texts)
+      this.setError(input, null)
+    }
+  }
+
+  buildEdge(curve) {
+    const id = "edge-allowance-input"
+    const wrapper = element("div", {class: "fieldset"})
+    const label = element("label", {for: id})
+    label.appendChild(
+      element("span", {class: "label mb-1"}, this.texts.seam_allowance?.edge_label ?? ""),
+    )
+    label.appendChild(
+      element("input", {
+        type: "text",
+        id,
+        inputmode: "decimal",
+        autocomplete: "off",
+        "aria-describedby": "edge-allowance-hint edge-allowance-error",
+        class: "w-full input min-h-11",
+      }),
+    )
+    wrapper.appendChild(label)
+    this.edgeDetails.replaceChildren(
+      element("p", {id: "edge-name", class: "font-mono font-semibold break-all"}, curve),
+      wrapper,
+      element("p", {id: "edge-allowance-hint", class: "-mt-1 text-sm text-base-content/70"}),
+      element("p", {id: "edge-allowance-error", class: "text-sm text-error"}),
+    )
+  }
+
   /** Shows `text` under the formula field `field` of the shown point (null clears it). */
   setFieldError(field, text) {
     this.setError(this.details?.querySelector(`#point-field-${CSS.escape(field)}`), text)
@@ -239,6 +328,7 @@ export class Panels {
     return input ? document.getElementById(`${input.id.replace(/-input$/, "")}-error`) : null
   }
 
+  /** Shows `text` under `input` (its `<id>-error` paragraph; null clears it) and marks it. */
   setError(input, text) {
     if (!input) return
     const error = this.errorElement(input)

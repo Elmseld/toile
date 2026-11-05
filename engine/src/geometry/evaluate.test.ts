@@ -989,6 +989,18 @@ describe("notches", () => {
     expect(plain.pieces.p?.notches).toEqual([]);
   });
 
+  test("folds lists the fold curves in outline order, [] without folds", () => {
+    expect(pieceOf(rectangle([])).folds).toEqual([]);
+    const marked = rectangle([]);
+    const [entry] = marked.pieces as Json[];
+    const folds: (boolean | undefined)[] = [undefined, true, false, true];
+    const outline = (entry!.outline as Json[]).map((e, i) =>
+      folds[i] === undefined ? e : { ...e, fold: folds[i] },
+    );
+    const folded = { ...marked, pieces: [{ ...entry, outline }] };
+    expect(pieceOf(folded).folds).toEqual(["e1", "e3"]);
+  });
+
   test("distance 0 is the start of the curve, which owns the corner", () => {
     const [notch] = pieceOf(rectangle([{ curve: "e1", distance: "0" }])).notches;
     expectPoint(notch!.point, 100, 0);

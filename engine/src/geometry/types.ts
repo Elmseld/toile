@@ -45,11 +45,12 @@ export type CurveDefinition =
   | { name: string; type: "cubic"; from: string; c1: string; c2: string; to: string };
 
 /**
- * One edge of a piece outline: the curve it follows, in the curve's own direction. An object
- * rather than a bare name so later versions can add per-edge data (reversed, seam allowance, fold)
- * as optional fields without changing the shape.
+ * One edge of a piece outline: the curve it follows, in the curve's own direction, and whether the
+ * edge lies on the fold of the fabric (ADR 0004 decision 19; `false` when the definition omits it).
+ * An object rather than a bare name so later versions can add per-edge data as optional fields
+ * without changing the shape.
  */
-export type OutlineEntry = { curve: string };
+export type OutlineEntry = { curve: string; fold: boolean };
 
 /**
  * A balance mark on a piece outline (ADR 0004 decision 17): it lies `distance` mm (a formula)
@@ -60,14 +61,16 @@ export type OutlineEntry = { curve: string };
 export type NotchDefinition = { curve: string; distance: string; marks: 1 | 2 };
 
 /**
- * A pattern piece: an outline of curves that closes by point name, a grainline and its notches
- * (`[]` when the definition has none).
+ * A pattern piece: an outline of curves that closes by point name, a grainline, its notches (`[]`
+ * when the definition has none) and how many times it is cut (an integer 1..MAX_CUT, absent when
+ * the definition does not say, so the normalised copy validates again; ADR 0004 decision 19).
  */
 export type PieceDefinition = {
   name: string;
   outline: OutlineEntry[];
   grainline: { from: string; to: string };
   notches: NotchDefinition[];
+  cut?: number;
 };
 
 /** A validated, normalised pattern definition (defaults filled in). */
@@ -155,6 +158,8 @@ export type ComputedPiece = {
   readonly grainline: { readonly from: ResultPoint; readonly to: ResultPoint };
   /** In definition order; empty when the piece has none. */
   readonly notches: readonly ComputedNotch[];
+  /** The curve names of the outline entries on the fold, in outline order; empty when none. */
+  readonly folds: readonly string[];
 };
 
 /**

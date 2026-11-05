@@ -1,6 +1,16 @@
 // Public API of the editor helpers (docs/adr/0008-pattern-editor.md): pure edits of a stored
-// pattern definition, the undo/redo history and parameter display units, for the browser editor.
+// pattern definition, the undo/redo history, parameter display units and seam allowance edges
+// (docs/adr/0011-markings-and-seam-allowance-storage.md), for the browser editor.
 
+export {
+  type EdgeAllowance,
+  edgeAllowance,
+  pickEdge,
+  type ProjectSeamAllowances,
+  readSeamAllowances,
+  setDefaultAllowance,
+  setEdgeAllowance,
+} from "./edges";
 export {
   controlPoints,
   type EditorField,

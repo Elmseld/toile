@@ -8,8 +8,10 @@ defmodule ToileWeb.PatternLive.Show do
   to the `PatternView` hook (`assets/js/hooks/pattern_view.js`) in data attributes. The hook
   evaluates all parts together in the browser (`compileProject`), so a part that imports values
   from another (the sleeve from the bodice armhole, ADR 0007) is recomputed with it on every
-  draw, lays them out side by side and draws the pieces and their notches in SVG over a
-  centimetre grid, with zoom and pan.
+  draw, lays them out side by side and draws the pieces in SVG over a centimetre grid, with zoom
+  and pan: each piece's seam line (its outline, dashed) inside its cutting line (solid, from the
+  project's seam allowances), its fold edges, its notches on both lines and a label with the
+  piece's name and cutting instruction (`docs/adr/0011-markings-and-seam-allowance-storage.md`).
 
   Exactly one of three states is rendered:
 
@@ -38,11 +40,30 @@ defmodule ToileWeb.PatternLive.Show do
   id names the parts (`pattern-editor-<part>-<part>`), so adding a part renders a new aside with
   the new part's rows and points; the hook moves the editor over to it and keeps its history.
 
+  `data-piece-labels` holds each piece's label and `data-piece-cuts` its cutting instruction
+  ("cut 2", "cut 1 on fold"; `ToileWeb.BlockTexts.cut_instruction/2`), both by part and then
+  piece name; a piece without a `cut` (a project created before ticket 0015) has no instruction.
+  `data-notes` names `#pattern-notes`, the list under the drawing where the hook says, as plain
+  text, which pieces have no cutting line or one the engine had to approximate.
+
+  The seam allowance panel (`#seam-allowance-panel`, in the aside) holds the project default
+  (`#seam-allowance-default-input`, empty in HEEx, filled in cm by the hook), the edge select
+  (`#edge-select`, option values `<part>.<curve>` for every curve of each part's piece outlines,
+  grouped by piece, under "<part>: <piece>" when there are several parts) and `#edge-details`,
+  which the hook fills for the selected edge. The stored allowances, `%{"default" => mm, "edges"
+  => %{part => %{curve => mm}}}` (`Toile.Patterns.seam_allowances/1`), are in
+  `data-seam-allowances`. That attribute is assigned only in `assign_state/3`, never derived
+  from `@project` in the template, so a save reply does not patch it (ADR 0008); the editor owns
+  the allowances after mount and ignores later values.
+
   Every committed edit is saved by the hook with the `save_pattern` event, one part per event:
   `%{"part" => name, "definition" => map, "parameters" => map}`, which
   `Toile.Patterns.update_pattern_edits/4` accepts only where the definition differs from the
   part's stored one in user offsets and point formulas. The reply is `%{ok: true}` or
-  `%{ok: false}`. A save does not send the definitions back to the hook. The whole event must fit
+  `%{ok: false}`. The seam allowances are saved as one unit with the `save_seam_allowances`
+  event, `%{"default" => mm, "edges" => %{part => %{curve => mm}}}`, which
+  `Toile.Patterns.update_seam_allowances/3` accepts only for parts and outline curves of the
+  project as stored and numbers from 0 to 100 mm; the reply is the same. A save does not send the definitions back to the hook. The whole event must fit
   one websocket frame: `data-max-save-bytes` (`Toile.Patterns.PatternProject.max_save_bytes/0`)
   is the most a part's definition and parameters may add up to, in bytes of encoded JSON, and
   `data-max-definition-bytes` (`Toile.Patterns.PatternProject.max_definition_bytes/0`) the most
@@ -197,6 +218,9 @@ defmodule ToileWeb.PatternLive.Show do
               data-parts={@parts_json}
               data-input={JSON.encode!(@engine_input)}
               data-piece-labels={JSON.encode!(@piece_labels)}
+              data-piece-cuts={JSON.encode!(@piece_cuts)}
+              data-seam-allowances={@seam_allowances_json}
+              data-notes="pattern-notes"
               data-texts={@editor_texts_json}
               data-editor={@editor_id}
               data-max-save-bytes={PatternProject.max_save_bytes()}
@@ -214,6 +238,14 @@ defmodule ToileWeb.PatternLive.Show do
                 "Drag a point to move it; drag anywhere else to move the view. Scroll or pinch to zoom. Ctrl+Z undoes, Ctrl+Shift+Z redoes. With the keyboard: arrow keys move, + and - zoom, 0 fits to the screen."
               )}
             </p>
+            <ul
+              id="pattern-notes"
+              phx-update="ignore"
+              role="status"
+              aria-live="polite"
+              class="space-y-1 text-sm text-warning"
+            >
+            </ul>
           </div>
 
           <%!--
@@ -264,6 +296,46 @@ defmodule ToileWeb.PatternLive.Show do
                 {gettext("Formulas count in millimetres.")}
               </p>
               <div id="point-details" class="space-y-2"></div>
+            </section>
+
+            <section
+              id="seam-allowance-panel"
+              class="space-y-2"
+              aria-labelledby="seam-allowance-panel-heading"
+            >
+              <h2 id="seam-allowance-panel-heading" class="font-semibold">
+                {gettext("Seam allowance")}
+              </h2>
+              <div id="seam-allowance-default" data-seam-allowance-default>
+                <.input
+                  type="text"
+                  name="seam_allowance_default"
+                  id="seam-allowance-default-input"
+                  value=""
+                  label={gettext("Seam allowance for every edge (cm)")}
+                  inputmode="decimal"
+                  autocomplete="off"
+                  aria-describedby="seam-allowance-default-hint seam-allowance-default-error"
+                  class="w-full input min-h-11"
+                />
+                <p id="seam-allowance-default-hint" class="-mt-1 text-sm text-base-content/70"></p>
+                <p id="seam-allowance-default-error" class="text-sm text-error"></p>
+              </div>
+              <.input
+                type="select"
+                name="edge"
+                id="edge-select"
+                value=""
+                options={@edge_options}
+                prompt={gettext("Choose an edge")}
+                aria-labelledby="seam-allowance-panel-heading"
+                aria-describedby="edge-select-help"
+                class="w-full select min-h-11"
+              />
+              <p id="edge-select-help" class="text-sm text-base-content/70">
+                {gettext("Click or tap an edge in the pattern to select it.")}
+              </p>
+              <div id="edge-details" class="space-y-2"></div>
             </section>
 
             <section
@@ -362,6 +434,21 @@ defmodule ToileWeb.PatternLive.Show do
 
   def handle_event("save_pattern", _params, socket), do: {:reply, %{ok: false}, socket}
 
+  def handle_event("save_seam_allowances", %{"default" => default, "edges" => edges}, socket)
+      when is_map(edges) do
+    scope = socket.assigns.current_scope
+    attrs = %{"default" => default, "edges" => edges}
+
+    # As with save_pattern, only the project is assigned: `@seam_allowances_json` stays as
+    # mounted, so the reply does not patch the hook's data attributes.
+    case Patterns.update_seam_allowances(scope, socket.assigns.project, attrs) do
+      {:ok, project} -> {:reply, %{ok: true}, assign(socket, :project, project)}
+      {:error, _changeset} -> {:reply, %{ok: false}, socket}
+    end
+  end
+
+  def handle_event("save_seam_allowances", _params, socket), do: {:reply, %{ok: false}, socket}
+
   def handle_event("select_profile", %{"measurement_profile_id" => ""}, socket) do
     {:noreply, socket}
   end
@@ -440,6 +527,9 @@ defmodule ToileWeb.PatternLive.Show do
         |> assign(:point_options, point_options(parts))
         |> assign(:parameter_groups, parameter_groups(parts))
         |> assign(:piece_labels, piece_labels(parts))
+        |> assign(:piece_cuts, piece_cuts(parts))
+        |> assign(:edge_options, edge_options(parts))
+        |> assign(:seam_allowances_json, JSON.encode!(Patterns.seam_allowances(project)))
 
       missing ->
         socket
@@ -462,6 +552,62 @@ defmodule ToileWeb.PatternLive.Show do
   end
 
   defp piece_names(_definition), do: []
+
+  # The cutting instruction of each piece that has a valid `cut`, by part name and then piece
+  # name; a part none of whose pieces has one (a project created before ticket 0015) is left out.
+  # On the fold means that an outline entry has `"fold" => true`.
+  defp piece_cuts(parts) do
+    for %{"name" => part, "definition" => definition} <- parts,
+        cuts = part_piece_cuts(definition),
+        cuts != %{},
+        into: %{} do
+      {part, cuts}
+    end
+  end
+
+  defp part_piece_cuts(%{"pieces" => pieces}) when is_list(pieces) do
+    # The engine rejects a definition whose `cut` is out of range; this only needs a count.
+    for %{"name" => name, "cut" => cut} = piece
+        when is_binary(name) and is_integer(cut) and cut > 0 <- pieces,
+        into: %{} do
+      {name, BlockTexts.cut_instruction(cut, on_fold?(piece))}
+    end
+  end
+
+  defp part_piece_cuts(_definition), do: %{}
+
+  defp on_fold?(%{"outline" => outline}) when is_list(outline),
+    do: Enum.any?(outline, &match?(%{"fold" => true}, &1))
+
+  defp on_fold?(_piece), do: false
+
+  # The edge select's options, valued `<part>.<curve>`, grouped by piece: under the piece's label
+  # for one part, under "<part>: <piece>" for several. The curves come from
+  # `Patterns.outline_curves/1`, the same list the server validates a save against.
+  defp edge_options([%{"name" => part, "definition" => definition}]) do
+    for {piece, options} <- part_edge_options(part, definition) do
+      {BlockTexts.piece_label(piece), options}
+    end
+  end
+
+  defp edge_options(parts) do
+    for %{"name" => part, "definition" => definition} <- parts,
+        {piece, options} <- part_edge_options(part, definition) do
+      label =
+        gettext("%{part}: %{piece}",
+          part: BlockTexts.project_label(part),
+          piece: BlockTexts.piece_label(piece)
+        )
+
+      {label, options}
+    end
+  end
+
+  defp part_edge_options(part, definition) do
+    for {piece, curves} <- Patterns.outline_curves(definition) do
+      {piece, Enum.map(curves, &{&1, "#{part}.#{&1}"})}
+    end
+  end
 
   # The parts' parameter rows, one group per part that has any, in part order.
   defp parameter_groups(parts) do

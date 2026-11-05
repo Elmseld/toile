@@ -10,6 +10,7 @@ defmodule Toile.PatternsTest do
   alias Toile.Patterns.Blocks
   alias Toile.Patterns.PatternPart
   alias Toile.Patterns.PatternProject
+  alias Toile.Patterns.SeamAllowances
 
   defp valid_attrs(scope, attrs \\ %{}) do
     profile = measurement_profile_fixture(scope, measurements: complete_measurements())
@@ -1200,6 +1201,281 @@ defmodule Toile.PatternsTest do
           Ecto.UUID.dump!(id)
         ])
       end
+    end
+  end
+
+  describe "outline_curves/1" do
+    test "lists each piece's outline curves in order, each curve once under its first piece" do
+      definition = %{
+        "pieces" => [
+          %{
+            "name" => "front",
+            "outline" => [%{"curve" => "cf"}, %{"curve" => "side"}, %{"curve" => "cf"}]
+          },
+          %{"name" => "facing", "outline" => [%{"curve" => "cf"}, %{"curve" => "edge"}]},
+          %{"name" => "copy", "outline" => [%{"curve" => "side"}]}
+        ]
+      }
+
+      assert Patterns.outline_curves(definition) == [
+               {"front", ["cf", "side"]},
+               {"facing", ["edge"]}
+             ]
+    end
+
+    test "lists every block's outline curves" do
+      for key <- Blocks.keys(),
+          definition = Blocks.definition(key),
+          Map.get(definition, "pieces", []) != [] do
+        curves = Patterns.outline_curves(definition)
+
+        assert Enum.map(curves, &elem(&1, 0)) ==
+                 for(%{"name" => name} <- definition["pieces"], do: name),
+               "a piece of #{key} has no curves of its own"
+      end
+    end
+
+    test "skips malformed definitions, pieces and outline entries" do
+      assert Patterns.outline_curves(nil) == []
+      assert Patterns.outline_curves(%{}) == []
+      assert Patterns.outline_curves(%{"pieces" => "front"}) == []
+
+      definition = %{
+        "pieces" => [
+          "piece",
+          %{"outline" => [%{"curve" => "nameless"}]},
+          %{"name" => "no_outline"},
+          %{"name" => "bad_outline", "outline" => %{"curve" => "x"}},
+          %{"name" => "empty", "outline" => [%{"curve" => 1}, %{}, "x"]},
+          %{"name" => "front", "outline" => [%{"curve" => 1}, %{"curve" => "cf"}]}
+        ]
+      }
+
+      assert Patterns.outline_curves(definition) == [{"front", ["cf"]}]
+    end
+  end
+
+  describe "update_seam_allowances/3 and seam_allowances/1" do
+    test "a new project has the default allowance and no edges" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+
+      assert %SeamAllowances{default: 10.0, edges: %{}} = pattern_project.seam_allowances
+      assert Patterns.seam_allowances(pattern_project) == %{"default" => 10.0, "edges" => %{}}
+
+      reloaded = Patterns.get_pattern_project!(scope, pattern_project.id)
+      assert Patterns.seam_allowances(reloaded) == %{"default" => 10.0, "edges" => %{}}
+    end
+
+    test "a row stored before the column existed reads as 10 mm and no edges" do
+      scope = user_scope_fixture()
+      {1, _} = insert_projects(scope, 1)
+      [%{id: id}] = Patterns.list_pattern_projects(scope)
+
+      assert %SeamAllowances{default: 10.0, edges: %{}} =
+               Patterns.get_pattern_project!(scope, id).seam_allowances
+
+      for bad <- [
+            ~s|[]|,
+            ~s|{}|,
+            ~s|{"edges": {}}|,
+            ~s|{"default": 10}|,
+            ~s|{"default": "10", "edges": {}}|,
+            ~s|{"default": null, "edges": {}}|,
+            ~s|{"default": 10, "edges": []}|
+          ] do
+        assert_raise Postgrex.Error, ~r/seam_allowances_must_have_default_and_edges/, fn ->
+          Repo.query!(
+            "UPDATE pattern_projects SET seam_allowances = $1::text::jsonb WHERE id = $2",
+            [bad, Ecto.UUID.dump!(id)]
+          )
+        end
+      end
+
+      assert %{num_rows: 1} =
+               Repo.query!(
+                 "UPDATE pattern_projects SET seam_allowances = $1::text::jsonb WHERE id = $2",
+                 [~s|{"default": 12.5, "edges": {"skirt": {"hem": 0}}}|, Ecto.UUID.dump!(id)]
+               )
+    end
+
+    test "stores the default and the edges, and they read back the same" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      edges = %{"straight_skirt" => %{"f_cf" => 0, "b_side_lower" => 25.5}}
+
+      assert {:ok, %PatternProject{} = updated} =
+               Patterns.update_seam_allowances(scope, pattern_project, %{
+                 "default" => 15,
+                 "edges" => edges
+               })
+
+      assert updated.measurement_profile.id == pattern_project.measurement_profile_id
+      assert Patterns.seam_allowances(updated) == %{"default" => 15.0, "edges" => edges}
+
+      reloaded = Patterns.get_pattern_project!(scope, pattern_project.id)
+      assert Patterns.seam_allowances(reloaded) == %{"default" => 15.0, "edges" => edges}
+      assert reloaded.definition == pattern_project.definition
+      assert reloaded.parameters == pattern_project.parameters
+
+      assert {:ok, cleared} =
+               Patterns.update_seam_allowances(scope, reloaded, %{"default" => 0, "edges" => %{}})
+
+      assert Patterns.seam_allowances(cleared) == %{"default" => 0.0, "edges" => %{}}
+    end
+
+    test "accepts edges of an added part" do
+      scope = user_scope_fixture()
+
+      pattern_project =
+        scope
+        |> pattern_project_fixture(block: "bodice")
+        |> then(&pattern_part_fixture(scope, &1))
+
+      edges = %{"bodice" => %{"b_cb" => 5}, "straight_sleeve" => %{"s_hem" => 30}}
+
+      assert {:ok, updated} =
+               Patterns.update_seam_allowances(scope, pattern_project, %{
+                 "default" => 10,
+                 "edges" => edges
+               })
+
+      assert updated.seam_allowances.edges == edges
+    end
+
+    test "counts a part added in another tab after the project was loaded" do
+      scope = user_scope_fixture()
+      stale = pattern_project_fixture(scope, block: "bodice")
+      _with_sleeve = pattern_part_fixture(scope, stale)
+      attrs = %{"default" => 10, "edges" => %{"straight_sleeve" => %{"s_hem" => 30}}}
+
+      assert {:ok, updated} = Patterns.update_seam_allowances(scope, stale, attrs)
+      assert [%PatternPart{name: "straight_sleeve"}] = updated.parts
+      assert updated.seam_allowances.edges == %{"straight_sleeve" => %{"s_hem" => 30}}
+    end
+
+    test "rejects an invalid save and leaves the stored value as it was" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+
+      {:ok, saved} =
+        Patterns.update_seam_allowances(scope, pattern_project, %{
+          "default" => 12,
+          "edges" => %{"straight_skirt" => %{"f_cf" => 0}}
+        })
+
+      for attrs <- [
+            %{"default" => 101, "edges" => %{}},
+            %{"default" => -1, "edges" => %{}},
+            %{"default" => "10", "edges" => %{}},
+            %{"default" => 10, "edges" => %{"bodice" => %{"f_cf" => 0}}},
+            %{"default" => 10, "edges" => %{"straight_skirt" => %{"nope" => 0}}},
+            %{"default" => 10, "edges" => %{"straight_skirt" => %{"f_cf" => 100.5}}},
+            %{"default" => 10, "edges" => %{"straight_skirt" => 0}},
+            %{"default" => 10, "edges" => []},
+            %{"edges" => %{}, "default" => nil}
+          ] do
+        assert {:error, %Ecto.Changeset{}} =
+                 Patterns.update_seam_allowances(scope, saved, attrs),
+               "expected #{inspect(attrs)} to be rejected"
+      end
+
+      reloaded = Patterns.get_pattern_project!(scope, pattern_project.id)
+
+      assert Patterns.seam_allowances(reloaded) == %{
+               "default" => 12.0,
+               "edges" => %{"straight_skirt" => %{"f_cf" => 0}}
+             }
+    end
+
+    test "a curve of a malformed outline cannot be given an allowance" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+
+      definition =
+        Map.put(pattern_project.definition, "pieces", [
+          %{"name" => "back", "outline" => [%{"curve" => "ok"}, %{"curve" => 1}, "x"]},
+          %{"name" => "front", "outline" => "f_cf"},
+          %{"outline" => [%{"curve" => "nameless"}]},
+          %{"name" => 7, "outline" => [%{"curve" => "numbered"}]},
+          "piece"
+        ])
+
+      {1, _} =
+        Repo.update_all(from(p in PatternProject, where: p.id == ^pattern_project.id),
+          set: [definition: definition]
+        )
+
+      edges = fn curve -> %{"default" => 10, "edges" => %{"straight_skirt" => %{curve => 1}}} end
+      assert {:ok, _} = Patterns.update_seam_allowances(scope, pattern_project, edges.("ok"))
+      assert {:error, _} = Patterns.update_seam_allowances(scope, pattern_project, edges.("f_cf"))
+
+      # The edge select cannot list a piece without a name, so the server refuses its curves too.
+      assert {:error, _} =
+               Patterns.update_seam_allowances(scope, pattern_project, edges.("nameless"))
+
+      assert {:error, _} =
+               Patterns.update_seam_allowances(scope, pattern_project, edges.("numbered"))
+
+      assert Patterns.outline_curves(definition) == [{"back", ["ok"]}]
+    end
+
+    test "raises for another user's project" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+
+      assert_raise MatchError, fn ->
+        Patterns.update_seam_allowances(user_scope_fixture(), pattern_project, %{
+          "default" => 10,
+          "edges" => %{}
+        })
+      end
+    end
+
+    test "raises for a project that no longer exists" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      {:ok, _} = Patterns.delete_pattern_project(scope, pattern_project)
+
+      assert_raise Ecto.NoResultsError, fn ->
+        Patterns.update_seam_allowances(scope, pattern_project, %{"default" => 10, "edges" => %{}})
+      end
+    end
+
+    test "a save is not broadcast" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      Patterns.subscribe_pattern_projects(scope)
+
+      assert {:ok, _} =
+               Patterns.update_seam_allowances(scope, pattern_project, %{
+                 "default" => 12,
+                 "edges" => %{}
+               })
+
+      refute_receive {_event, %PatternProject{}}, 50
+    end
+
+    test "saving the editor's work on a part keeps the seam allowances" do
+      scope = user_scope_fixture()
+      pattern_project = pattern_project_fixture(scope)
+      attrs = %{"default" => 20, "edges" => %{"straight_skirt" => %{"f_cf" => 0}}}
+      {:ok, _saved} = Patterns.update_seam_allowances(scope, pattern_project, attrs)
+
+      # The stale struct still holds the old allowances; the edit must not write them back.
+      assert {:ok, _} =
+               Patterns.update_pattern_edits(scope, pattern_project, pattern_project.block, %{
+                 "definition" => pattern_project.definition,
+                 "parameters" => %{"ease_hip" => 50}
+               })
+
+      reloaded = Patterns.get_pattern_project!(scope, pattern_project.id)
+      assert reloaded.parameters == %{"ease_hip" => 50}
+
+      assert Patterns.seam_allowances(reloaded) == %{
+               "default" => 20.0,
+               "edges" => %{"straight_skirt" => %{"f_cf" => 0}}
+             }
     end
   end
 

@@ -2,6 +2,8 @@ defmodule ToileWeb.EditorTextsTest do
   use ExUnit.Case, async: true
 
   alias Toile.Patterns.PointOps
+  alias Toile.Patterns.SeamAllowances
+  alias ToileWeb.Centimeters
   alias ToileWeb.EditorTexts
 
   setup do
@@ -52,6 +54,24 @@ defmodule ToileWeb.EditorTextsTest do
     assert texts["reset_offset"] == "Reset position"
     assert texts["not_saved"] == "Not saved: the pattern keeps the last value that worked."
     assert texts["decimal_separator"] == "."
+  end
+
+  test "has the seam allowance and cutting line texts, with their placeholders", %{texts: texts} do
+    assert texts["seam_allowance"] == %{
+             "edge_label" => "Seam allowance for this edge (cm)",
+             "default_hint" => "Default: %{value}",
+             "fold_hint" => "Fold: %{value}",
+             "range_error" => "Enter a seam allowance from 0 to 10.0 cm"
+           }
+
+    assert texts["seam_allowance"]["range_error"] =~
+             " #{Centimeters.format(SeamAllowances.max_mm())} cm"
+
+    assert texts["cutting_line"]["failed"] == "No cutting line could be drawn for %{piece}."
+
+    for kind <- ~w(failed safe_construction dart_without_peak) do
+      assert texts["cutting_line"][kind] =~ "%{piece}", "no %{piece} in #{kind}"
+    end
   end
 
   test "encodes to JSON" do

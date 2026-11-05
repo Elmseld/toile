@@ -109,6 +109,7 @@
   "pieces": [
     {
       "name": "back",
+      "cut": 2,
       "outline": [
         { "curve": "b_waist_cb_seg" },
         { "curve": "b_dart_leg_cb" },
@@ -119,21 +120,24 @@
         { "curve": "b_hem" },
         { "curve": "b_cb" }
       ],
-      "grainline": { "from": "b_grain_top", "to": "b_grain_bottom" }
+      "grainline": { "from": "b_grain_top", "to": "b_grain_bottom" },
+      "notches": [{ "curve": "b_side_lower", "distance": "0", "marks": 2 }]
     },
     {
       "name": "front",
+      "cut": 1,
       "outline": [
         { "curve": "f_waist_side_seg" },
         { "curve": "f_dart_leg_side" },
         { "curve": "f_dart_leg_cf" },
         { "curve": "f_waist_cf_seg" },
-        { "curve": "f_cf" },
+        { "curve": "f_cf", "fold": true },
         { "curve": "f_hem" },
         { "curve": "f_side_lower" },
         { "curve": "f_hip_curve" }
       ],
-      "grainline": { "from": "f_grain_top", "to": "f_grain_bottom" }
+      "grainline": { "from": "f_grain_top", "to": "f_grain_bottom" },
+      "notches": [{ "curve": "f_hip_curve", "distance": "0" }]
     }
   ]
 }

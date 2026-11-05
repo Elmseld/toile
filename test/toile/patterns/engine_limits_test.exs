@@ -3,13 +3,16 @@ defmodule Toile.Patterns.EngineLimitsTest do
   Pins the server's bounds on editor values to the engine's constants, so the two cannot drift:
   `PatternProject`'s largest parameter override is the engine's `MAX_PARAMETER`
   (`engine/src/editor/units.ts`) and `DefinitionEdit`'s largest user offset is its
-  `MAX_COORDINATE` (`engine/src/geometry/vector.ts`). Each bound is checked at the edge: the
-  engine's value is accepted and the next number up is rejected.
+  `MAX_COORDINATE` (`engine/src/geometry/vector.ts`). `SeamAllowances`' largest allowance and
+  its default are the engine's `MAX_SEAM_ALLOWANCE` and `DEFAULT_SEAM_ALLOWANCE`
+  (`engine/src/geometry/seam-allowance.ts`). Each bound is checked at the edge: the engine's value
+  is accepted and the next number up is rejected.
   """
   use ExUnit.Case, async: true
 
   alias Toile.Patterns.DefinitionEdit
   alias Toile.Patterns.PatternProject
+  alias Toile.Patterns.SeamAllowances
 
   @engine Path.expand("../../../engine/src", __DIR__)
 
@@ -54,5 +57,27 @@ defmodule Toile.Patterns.EngineLimitsTest do
     assert validate.(max) == :ok
     assert validate.(-max) == :ok
     assert validate.(max + 1) == {:error, "/points/0/user_offset"}
+  end
+
+  test "seam allowances are bounded by the engine's MAX_SEAM_ALLOWANCE" do
+    max = engine_constant("geometry/seam-allowance.ts", "MAX_SEAM_ALLOWANCE")
+    assert SeamAllowances.max_mm() == max
+    curves = %{"skirt" => MapSet.new(["hem"])}
+
+    valid? = fn default, edge ->
+      attrs = %{"default" => default, "edges" => %{"skirt" => %{"hem" => edge}}}
+      SeamAllowances.changeset(%SeamAllowances{}, attrs, curves).valid?
+    end
+
+    assert valid?.(max, max)
+    assert valid?.(0, 0)
+    refute valid?.(max + 1, 0)
+    refute valid?.(0, max + 1)
+  end
+
+  test "a new project's seam allowance is the engine's DEFAULT_SEAM_ALLOWANCE" do
+    default = engine_constant("geometry/seam-allowance.ts", "DEFAULT_SEAM_ALLOWANCE")
+    assert SeamAllowances.default_mm() == default
+    assert %SeamAllowances{}.default == default
   end
 end
