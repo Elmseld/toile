@@ -80,27 +80,30 @@ reputation. The limit must not reveal whether an address has an account (ADR 000
   not parse, every client resolves to the proxy address and all of them share one budget of 20
   email requests per hour. A single abuser then blocks login links and registration emails for everyone
   until the window passes. Check this setting whenever a reverse proxy is added or changed.
-- **Background delivery of login links (ticket 0016).** `request_login_instructions/3` does the
-  user lookup and the one `hit/4` in the request. After an allowed hit it starts a task under
+- **Background delivery of login links (ticket 0016).** `request_login_instructions/3` does the user
+  lookup and the one `hit/4` in the request. After an allowed hit it starts a task under
   `Toile.Accounts.EmailDeliverySupervisor` (a `Task.Supervisor` in the application tree), for
-  unknown addresses too; that task does nothing. The token insert (under the user lock, ADR 0002
-  §3) and the send run in the task, so the reply does not depend on account state. Spawning is
-  bounded by the limiter, since a task starts only after an allowed hit, and by `max_children:
-  100` on the supervisor, since each running task holds a database connection while it issues the
-  token. A delivery that cannot start (`{:error, :max_children}`, or the supervisor is down) is
-  logged like a failed one (`reason=:max_children` or `reason=:supervisor_unavailable`, masked
-  address) and the reply stays the same; it is never raised, which would crash the LiveView with
-  a crash report holding the address. A raise, exit or throw in the task is logged like a failed
-  delivery (masked address, class only), never as a crash report. `UserNotifier` bounds an HTTP
-  API send (`Swoosh.ApiClient.Req`, `client_options`) to 5 s connect and 10 s receive, instead of
-  Req's 30 s and 15 s, so a hanging provider cannot pile up tasks; this also bounds the
-  synchronous sends of registration and email change. A stopping app gives a delivery in flight
-  20 s (the task `shutdown`) to finish, which covers those timeouts; one that is still not done,
-  or one that never started, is lost, and the user can request another link. Accepted residual difference: one indexed lookup that hits versus one that
-  misses, microseconds and far below network jitter. Rejected: sleeping or padding to constant
-  time (fragile, makes every request slow); a persistent job queue such as Oban (new dependency and
-  migration for a few emails, and a lost email is recoverable); moving the lookup and hit into the
-  task too (no back-pressure: every request, even an IP-denied one, would spawn work).
+  unknown addresses too; that task does nothing. The token insert (under the user lock, ADR 0002 §3)
+  and the send run in the task, so the reply does not depend on account state. Spawning is bounded
+  by the limiter, since a task starts only after an allowed hit, and by `max_children: 100` on the
+  supervisor, since each running task holds a database connection while it issues the token. A
+  delivery that cannot start (`{:error, :max_children}`, or the supervisor is down) is logged like a
+  failed one (`reason=:max_children` or `reason=:supervisor_unavailable`, masked address) and the
+  reply stays the same; it is never raised, which would crash the LiveView with a crash report
+  holding the address. A raise, exit or throw in the task is logged like a failed delivery (masked
+  address, class only), never as a crash report. `UserNotifier` bounds an HTTP API send
+  (`Swoosh.ApiClient.Req`, `client_options`) to 5 s connect and 10 s receive, instead of Req's 30 s
+  and 15 s, so a hanging provider cannot pile up tasks; this also bounds the synchronous sends of
+  registration and email change. The keys are Req's: the Finch and Hackney API clients use other
+  names and `Swoosh.Adapters.Mailchannels` rejects `client_options`, so revisit them when the
+  production adapter is chosen. A stopping app gives a delivery in flight 20 s (the task `shutdown`)
+  to finish, which covers those timeouts; one that is still not done, or one that never started, is
+  lost, and the user can request another link. Accepted residual difference: one indexed lookup that
+  hits versus one that misses, microseconds and far below network jitter. Rejected: sleeping or
+  padding to constant time (fragile, makes every request slow); a persistent job queue such as Oban
+  (new dependency and migration for a few emails, and a lost email is recoverable); moving the
+  lookup and hit into the task too (no back-pressure: every request, even an IP-denied one, would
+  spawn work).
 - **Delivery errors.** A failed send (mailer returns `{:error, reason}`) does not raise: raising only
   for addresses with an account would reveal that the account exists. It is logged at `warning` with
   the flow, the masked address and only the class of the reason (a provider response can echo the

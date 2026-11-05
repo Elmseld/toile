@@ -69,8 +69,7 @@ defmodule ToileWeb.UserLive.LoginTimingTest do
   # the time from submit to redirect in ms, with the redirect. Mounting is
   # not timed.
   defp timed_submit(email) do
-    conn =
-      build_conn_with_unique_peer()
+    conn = build_conn_with_unique_peer()
 
     {:ok, lv, _html} = live(conn, ~p"/users/log-in")
     started = System.monotonic_time(:millisecond)

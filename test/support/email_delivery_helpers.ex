@@ -15,10 +15,10 @@ defmodule Toile.EmailDeliveryHelpers do
   emails (`Swoosh.Adapters.Test` sends them to the test process via `$callers`),
   tokens and log lines are in place. Raises after `timeout` ms.
 
-  Returns at once while the supervisor is stopped. A delivery is started before `Accounts.request_login_instructions/3` (and so
+  A delivery is started before `Accounts.request_login_instructions/3` (and so
   a `render_submit/2` of the login form) returns, so it is always among the
   children seen here. In async runs this also waits for other tests'
-  deliveries, which is harmless.
+  deliveries, which is harmless. Returns at once while the supervisor is stopped.
   """
   def await_email_deliveries(timeout \\ 5_000) do
     deadline = System.monotonic_time(:millisecond) + timeout

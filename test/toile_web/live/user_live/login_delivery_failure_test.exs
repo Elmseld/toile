@@ -65,8 +65,7 @@ defmodule ToileWeb.UserLive.LoginDeliveryFailureTest do
   defp submit_known_and_unknown(known) do
     results =
       for email <- [known, unique_user_email()] do
-        conn =
-          build_conn_with_unique_peer()
+        conn = build_conn_with_unique_peer()
 
         {:ok, lv, _html} = live(conn, ~p"/users/log-in")
 

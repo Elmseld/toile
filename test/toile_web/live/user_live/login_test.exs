@@ -158,8 +158,7 @@ defmodule ToileWeb.UserLive.LoginTest do
       assert {"/users/log-in", %{"info" => "If your email address is registered" <> _}} = over
 
       # Another IP still gets the link.
-      other_conn =
-        build_conn_with_unique_peer()
+      other_conn = build_conn_with_unique_peer()
 
       assert submit_magic(other_conn, user.email) == over
       await_email_deliveries()
