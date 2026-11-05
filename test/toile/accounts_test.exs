@@ -859,6 +859,71 @@ defmodule Toile.AccountsTest do
     end
   end
 
+  # Copilot finding C4480635386: an attacker who owns an account can probe
+  # whether a target address has one through the shared IP budget. The budget
+  # must be used up the same way whether or not the target exists.
+  describe "IP budget and account existence" do
+    test "registrations of a taken and of a free address use the same IP budget" do
+      existing = user_fixture().email
+      unused = unique_user_email()
+
+      results =
+        for target <- [existing, unused] do
+          ip = unique_remote_ip()
+          for _ <- 1..16, do: request_login(unique_user_email(), ip)
+
+          # Taken: 3 notices, the 4th denied by recipient. Free: 1 confirmation
+          # and 3 notices.
+          for _ <- 1..4 do
+            {:ok, _} =
+              Accounts.register_user_and_deliver_instructions(
+                %{email: target},
+                &"http://localhost/users/log-in/#{&1}",
+                "http://localhost/users/log-in",
+                remote_ip: ip
+              )
+          end
+
+          probe_sends?(ip)
+        end
+
+      assert results == [false, false]
+    end
+
+    test "login requests for case variants of a known address and for unknown addresses use the same IP budget" do
+      known = user_fixture(%{email: "kiki#{System.unique_integer([:positive])}@example.com"})
+
+      # citext matches "İ" to "i", so these share the recipient bucket of the
+      # stored address and the 4th is denied by recipient.
+      variants =
+        for v <- ["kİki", "kikİ", "kİkİ", "KİKİ"], do: String.replace(known.email, "kiki", v)
+
+      unknown = for _ <- 1..4, do: unique_user_email()
+
+      results =
+        for targets <- [variants, unknown] do
+          ip = unique_remote_ip()
+          for _ <- 1..16, do: request_login(unique_user_email(), ip)
+          for email <- targets, do: request_login(email, ip)
+          probe_sends?(ip)
+        end
+
+      assert results == [false, false]
+    end
+
+    test "a login request denied by recipient still uses an IP slot" do
+      user = user_fixture()
+      ip = unique_remote_ip()
+      for _ <- 1..3, do: :ok = EmailRateLimiter.hit(:login_link, user.email, nil)
+
+      request_login(user.email, ip)
+      for _ <- 1..19, do: request_login(unique_user_email(), ip)
+
+      refute Repo.get_by(UserToken, user_id: user.id, context: "login")
+      refute probe_sends?(ip)
+    end
+  end
+
   describe "deliver_login_instructions/2" do
     setup do
       %{user: unconfirmed_user_fixture()}
@@ -882,6 +947,18 @@ defmodule Toile.AccountsTest do
     test "does not include password" do
       refute inspect(%User{password: "123456"}) =~ "password: \"123456\""
     end
+  end
+
+  defp request_login(email, ip) do
+    :ok = Accounts.request_login_instructions(email, &"http://x/#{&1}", remote_ip: ip)
+  end
+
+  # Whether a login request from `ip` for a fresh account of the attacker's own
+  # is still sent, that is whether the IP budget has room left.
+  defp probe_sends?(ip) do
+    attacker = user_fixture()
+    request_login(attacker.email, ip)
+    Repo.exists?(from(t in UserToken, where: t.user_id == ^attacker.id and t.context == "login"))
   end
 
   # Uses up the IP budget with login requests for unknown addresses.

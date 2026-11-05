@@ -12,8 +12,10 @@ reputation. The limit must not reveal whether an address has an account (ADR 000
   `:registration_attempt_notice`, `:email_change_link`, `:email_change_attempt_notice`.
   - Per recipient address and flow: at most 3 emails in a sliding 15 minutes. Addresses are
     compared case-insensitively (like the `citext` column).
-  - Per client IP, all flows together: at most 20 emails in a sliding hour. IPv6 is counted per /64
-    prefix; IPv4-mapped IPv6 counts as the IPv4 address.
+  - Per client IP, all flows together: at most 20 requests in a sliding hour. IPv6 is counted per
+    /64 prefix; IPv4-mapped IPv6 counts as the IPv4 address. This bucket counts requests, not
+    sends: a request that the recipient limit denies still takes a slot (see *IP budget is no
+    oracle* below).
   - Both are read at call time from `config :toile, Toile.Accounts.EmailRateLimiter`
     (`per_recipient:` and `per_ip:`, each `[limit: n, window: ms]`).
   - In dev, `config/dev.exs` raises the per-IP limit to 1000 an hour: under Docker every request
@@ -25,9 +27,10 @@ reputation. The limit must not reveal whether an address has an account (ADR 000
   already recorded. A periodic sweep drops entries older than the configured windows. Reasons:
   - *Exact sliding window.* Hammer's default ETS backend uses a fixed window, which allows up to
     twice the limit across a window boundary.
-  - *Atomic two-bucket check.* A send is allowed only if both the recipient and the IP bucket have
-    room, and only then are both recorded, in one `GenServer.call`. Two independent Hammer hits would
-    let a denied send use up the other bucket and would race under concurrency.
+  - *Atomic two-bucket check.* In one `GenServer.call` the IP bucket is checked first: if it is
+    full the request is denied and nothing is recorded. Otherwise the request is recorded in the
+    IP bucket, and the send is allowed (and recorded in the recipient bucket) only if the recipient
+    bucket has room. Two independent Hammer hits would race under concurrency.
   - *Volume is tiny*, so one process serialising sends costs nothing, and each list holds at most
     `limit` entries.
   - Rejected: **Postgres** (survives restarts and works across nodes, but needs a migration, a
@@ -47,14 +50,22 @@ reputation. The limit must not reveal whether an address has an account (ADR 000
   taken/new decision needs the insert); the user can request a login link later.
 - **Unknown addresses count.** `request_login_instructions/3` records exactly one hit whether or not
   the address has an account, so a request for an unknown address uses the same recipient and IP
-  budget as a known one. The IP budget is therefore no oracle for account existence. For a known
-  address the recipient key is the stored address, not the input: the `citext` lookup matches
-  case variants that `String.downcase/1` does not (`İ` for `i`), and each would otherwise get its
-  own bucket.
+  budget as a known one. For a known address the recipient key is the stored address, not the
+  input: the `citext` lookup matches case variants that `String.downcase/1` does not (`İ` for
+  `i`), and each would otherwise get its own bucket.
+- **IP budget is no oracle.** Every entry point makes exactly one hit per request, known address or
+  not, but which recipient bucket it hits does depend on account state: registration of a taken
+  address hits `:registration_attempt_notice` and of a free one `:registration_confirmation`, and
+  login case variants of a known address share one recipient bucket while unknown ones each get
+  their own. If only allowed sends were charged to the IP bucket, a client could fill its IP budget
+  to an exact count, make requests for a target, and learn from whether a login link to its own
+  address still arrives whether the target has an account. So the IP bucket is charged for every
+  request that passes the IP check, regardless of the recipient outcome; its consumption then
+  depends only on the number of requests. The recipient bucket is still only charged for sends.
 - **Hashed keys.** The recipient key is a SHA-256 of the lowercased address. Addresses are not kept
   in memory, and attacker-chosen input (up to the socket frame limit) becomes a fixed-size key.
-  Only allowed sends are recorded, so the entries one client IP can create are bounded by the IP
-  limit. Total memory is not bounded: it grows with the number of distinct client IPs (IPv6 /64
+  A request denied by the IP bucket records nothing and recipient entries are only recorded for
+  allowed sends, so the entries one client IP can create are bounded by the IP limit. Total memory is not bounded: it grows with the number of distinct client IPs (IPv6 /64
   prefixes) within an hour. A call without an IP (no peer data, which does not happen for a real
   socket connection) skips the IP bucket and is bounded only per recipient.
 - **Client IP.** `ToileWeb.ClientIP` resolves the IP in LiveView `mount/3` from the `/live` socket's
@@ -67,7 +78,7 @@ reputation. The limit must not reveal whether an address has an account (ADR 000
   can forge their IP.
   **Deployment risk:** behind a proxy without this setting, or with a proxy whose entries still do
   not parse, every client resolves to the proxy address and all of them share one budget of 20
-  emails per hour. A single abuser then blocks login links and registration emails for everyone
+  email requests per hour. A single abuser then blocks login links and registration emails for everyone
   until the window passes. Check this setting whenever a reverse proxy is added or changed.
 - **Logging.** Each denied send is logged once at `info`: flow, which bucket was full (`recipient` or
   `ip`), the IP and a masked address (`j***@example.com`, the domain cut to 100 bytes). The full

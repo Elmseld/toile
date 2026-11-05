@@ -481,10 +481,12 @@ defmodule Toile.Accounts do
   A confirmed user gets a magic link, an unconfirmed one a confirmation email;
   both are built with `magic_link_url_fun`. The request is rate limited
   (`Toile.Accounts.EmailRateLimiter`, flow `:login_link`) by address and by the
-  client IP given as `opts[:remote_ip]`. The hit is counted for unknown
-  addresses too, so an unknown address uses the same budget as a known one. For
-  a known address the recipient is the stored address, so case variants that
-  the `citext` lookup matches (such as `İ` for `i`) share one budget.
+  client IP given as `opts[:remote_ip]`. Every request is one hit, for unknown
+  addresses too, and it takes one slot of the IP budget whether or not the
+  recipient bucket is full, so the IP budget does not reveal whether the address
+  has an account. For a known address the recipient is the stored address, so
+  case variants that the `citext` lookup matches (such as `İ` for `i`) share one
+  recipient budget.
 
   Always returns `:ok`.
 

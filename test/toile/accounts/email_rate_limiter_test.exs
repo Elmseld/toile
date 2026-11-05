@@ -62,17 +62,46 @@ defmodule Toile.Accounts.EmailRateLimiterTest do
       assert hit(server, :login_link, "a@example.com", nil, @window + 1_000) == :ok
     end
 
-    test "a denied recipient uses no IP budget", %{server: server} do
+    test "a recipient-denied hit uses one IP slot", %{server: server} do
       hits(server, 3, :login_link, fn _ -> "a@example.com" end, @ip)
 
       for _ <- 1..10 do
         assert hit(server, :login_link, "a@example.com", @ip) == {:error, :rate_limited}
       end
 
-      assert hits(server, 17, :login_link, &"other#{&1}@example.com", @ip) ==
-               List.duplicate(:ok, 17)
+      # 3 sends and 10 denied requests: 13 of the 20 IP slots.
+      assert hits(server, 7, :login_link, &"other#{&1}@example.com", @ip) ==
+               List.duplicate(:ok, 7)
 
       assert hit(server, :login_link, "last@example.com", @ip) == {:error, :rate_limited}
+    end
+
+    test "a recipient-denied hit records no recipient hit", %{server: server} do
+      hits(server, 3, :login_link, fn _ -> "a@example.com" end, @ip, 0)
+
+      assert hit(server, :login_link, "a@example.com", @ip, @window - 1) ==
+               {:error, :rate_limited}
+
+      # Had the denied hit been recorded, it would still be in the window here.
+      assert hit(server, :login_link, "a@example.com", @ip, @window) == :ok
+    end
+
+    test "the IP budget does not depend on which recipient bucket a request hits",
+         %{server: server} do
+      # One budget: the 4th request to the same address is denied by recipient.
+      same = hits(server, 4, :login_link, fn _ -> "known@example.com" end, @ip)
+      # The other: four distinct addresses, all sent.
+      distinct = hits(server, 4, :login_link, &"unknown#{&1}@example.com", {10, 0, 0, 2})
+
+      assert same == [:ok, :ok, :ok, {:error, :rate_limited}]
+      assert distinct == List.duplicate(:ok, 4)
+
+      for ip <- [@ip, {10, 0, 0, 2}] do
+        assert hits(server, 16, :login_link, &"filler#{&1}@example.com", ip) ==
+                 List.duplicate(:ok, 16)
+
+        assert hit(server, :login_link, "probe@example.com", ip) == {:error, :rate_limited}
+      end
     end
   end
 
@@ -96,12 +125,14 @@ defmodule Toile.Accounts.EmailRateLimiterTest do
       assert hit(server, :login_link, "b@example.com", @ip, @ip_window) == :ok
     end
 
-    test "a denied IP records no recipient hit", %{server: server} do
+    test "an IP-denied hit records nothing", %{server: server, pid: pid} do
       hits(server, 20, :login_link, &"a#{&1}@example.com", @ip)
 
       for _ <- 1..5 do
         assert hit(server, :login_link, "victim@example.com", @ip) == {:error, :rate_limited}
       end
+
+      assert length(Map.fetch!(:sys.get_state(pid), {:ip, {:ipv4, @ip}})) == 20
 
       assert hits(server, 3, :login_link, fn _ -> "victim@example.com" end, {10, 0, 0, 2}) ==
                [:ok, :ok, :ok]

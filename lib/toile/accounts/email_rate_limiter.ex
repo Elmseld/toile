@@ -3,14 +3,23 @@ defmodule Toile.Accounts.EmailRateLimiter do
   Caps how many account emails the app sends, per recipient address and per
   client IP (ADR 0010).
 
-  Every email flow calls `hit/4` before sending. A send is allowed only if both
-  buckets have room:
+  Every email flow calls `hit/4` once per request, before sending. A send is
+  allowed only if both buckets have room:
 
-    * the recipient bucket: one per flow and address, compared
-      case-insensitively like the `citext` column;
-    * the IP bucket: one per client IP, shared by all flows. IPv6 addresses are
+    * the IP bucket: one per client IP, shared by all flows. It counts
+      requests, not sends: every request that finds room in it is recorded,
+      even if the recipient bucket then denies the send. IPv6 addresses are
       counted per /64 prefix and an IPv4-mapped IPv6 address counts as the IPv4
-      address. Without an IP (`nil`) this bucket is skipped.
+      address. Without an IP (`nil`) this bucket is skipped;
+    * the recipient bucket: one per flow and address, compared
+      case-insensitively like the `citext` column. It counts sends: it is
+      recorded only when the send is allowed.
+
+  The IP bucket is checked first. Which recipient bucket a request hits, and
+  whether it is full, depends on whether the address has an account (the flow,
+  and the stored address for Unicode case variants). Charging the IP bucket
+  regardless of that outcome keeps the IP budget, which a client can observe
+  through its own address, independent of account existence (ADR 0002 §1).
 
   Both are sliding windows. The limits are read on every call from
 
@@ -23,7 +32,8 @@ defmodule Toile.Accounts.EmailRateLimiter do
   The state lives in this one process on this node: a map from bucket key to the
   times of the sends it counts. A send counts while it is younger than the
   window configured at the time of the check, so a changed window applies to
-  sends already recorded. Only allowed sends are recorded, so the entries one
+  sends already recorded. A request denied by the IP bucket records nothing and
+  recipient entries are only recorded for allowed sends, so the entries one
   client IP can create are bounded by the IP limit; total memory still grows
   with the number of distinct client IPs (IPv6 /64 prefixes), and calls without
   an IP are bounded by nothing but the per-recipient limit. Addresses are
@@ -67,13 +77,14 @@ defmodule Toile.Accounts.EmailRateLimiter do
   end
 
   @doc """
-  Records an email of `flow` to `email` requested from `remote_ip`, if both the
-  recipient and the IP bucket have room.
+  Records a request for an email of `flow` to `email` from `remote_ip`, and
+  whether it may be sent.
 
-  Returns `:ok` if the email may be sent (and counts it), or
-  `{:error, :rate_limited}` if either bucket is full, in which case nothing is
-  counted and an `info` line with the flow, the full bucket, the IP and a masked
-  address is logged.
+  Returns `:ok` if both the IP and the recipient bucket have room; both are
+  counted. Returns `{:error, :rate_limited}` otherwise and logs an `info` line
+  with the flow, the full bucket, the IP and a masked address. If the IP bucket
+  is full nothing is counted; if only the recipient bucket is full the request
+  still counts against the IP bucket, but not against the recipient bucket.
 
   Options (mainly for tests):
 
@@ -90,13 +101,11 @@ defmodule Toile.Accounts.EmailRateLimiter do
     now = Keyword.get_lazy(opts, :now, fn -> System.monotonic_time(:millisecond) end)
     server = Keyword.get(opts, :server, __MODULE__)
 
-    buckets = [
+    recipient_bucket =
       {{:recipient, flow, :crypto.hash(:sha256, String.downcase(email))},
        bucket_limits(limits, :per_recipient)}
-      | ip_buckets(remote_ip, limits)
-    ]
 
-    case call(server, {:hit, buckets, now}) do
+    case call(server, {:hit, ip_bucket(remote_ip, limits), recipient_bucket, now}) do
       :ok ->
         :ok
 
@@ -110,8 +119,8 @@ defmodule Toile.Accounts.EmailRateLimiter do
     end
   end
 
-  defp ip_buckets(nil, _limits), do: []
-  defp ip_buckets(ip, limits), do: [{{:ip, ip_key(ip)}, bucket_limits(limits, :per_ip)}]
+  defp ip_bucket(nil, _limits), do: nil
+  defp ip_bucket(ip, limits), do: {{:ip, ip_key(ip)}, bucket_limits(limits, :per_ip)}
 
   defp bucket_limits(limits, bucket) do
     config = Keyword.fetch!(limits, bucket)
@@ -180,28 +189,15 @@ defmodule Toile.Accounts.EmailRateLimiter do
   end
 
   @impl true
-  def handle_call({:hit, buckets, now}, _from, state) do
-    current =
-      Enum.map(buckets, fn {key, {limit, window}} ->
-        {key, limit, live_entries(state, key, now - window)}
-      end)
-
-    case Enum.find(current, fn {_key, limit, entries} -> length(entries) >= limit end) do
-      nil ->
-        state =
-          Enum.reduce(current, state, fn {key, _limit, entries}, acc ->
-            Map.put(acc, key, [now | entries])
-          end)
-
-        {:reply, :ok, state}
-
-      {full_key, _limit, _entries} ->
-        state =
-          Enum.reduce(current, state, fn {key, _limit, entries}, acc ->
-            put_entries(acc, key, entries)
-          end)
-
-        {:reply, {:deny, bucket_name(full_key)}, state}
+  def handle_call({:hit, ip_bucket, recipient_bucket, now}, _from, state) do
+    # The IP bucket is charged before, and independently of, the recipient
+    # check, so that the IP budget never depends on which recipient bucket a
+    # request hits (see the moduledoc).
+    with {:ok, state} <- charge_ip(state, ip_bucket, now),
+         {:ok, state} <- check_and_record(state, recipient_bucket, now) do
+      {:reply, :ok, state}
+    else
+      {:deny, bucket, state} -> {:reply, {:deny, bucket}, state}
     end
   end
 
@@ -223,6 +219,21 @@ defmodule Toile.Accounts.EmailRateLimiter do
 
     schedule_sweep()
     {:noreply, state}
+  end
+
+  defp charge_ip(state, nil, _now), do: {:ok, state}
+  defp charge_ip(state, ip_bucket, now), do: check_and_record(state, ip_bucket, now)
+
+  # Records `now` in the bucket if it has room. Either way expired entries are
+  # dropped.
+  defp check_and_record(state, {key, {limit, window}}, now) do
+    entries = live_entries(state, key, now - window)
+
+    if length(entries) < limit do
+      {:ok, Map.put(state, key, [now | entries])}
+    else
+      {:deny, bucket_name(key), put_entries(state, key, entries)}
+    end
   end
 
   # The entries of `key` sent after `cutoff`, that is within the window.

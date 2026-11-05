@@ -23,13 +23,14 @@ defmodule Toile.Accounts.EmailRateLimiterConfigTest do
   test "reads the limits from the config at call time", %{server: server} do
     Application.put_env(:toile, EmailRateLimiter,
       per_recipient: [limit: 1, window: 60_000],
-      per_ip: [limit: 2, window: 60_000]
+      per_ip: [limit: 3, window: 60_000]
     )
 
     ip = {10, 255, 255, 1}
 
     assert EmailRateLimiter.hit(:login_link, "a@example.com", ip, server: server) == :ok
 
+    # Denied by recipient, but it still takes the 2nd IP slot.
     assert EmailRateLimiter.hit(:login_link, "a@example.com", ip, server: server) ==
              {:error, :rate_limited}
 
