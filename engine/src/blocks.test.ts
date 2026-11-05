@@ -2,8 +2,9 @@
 // so the files are read here with fs; the Phoenix app reads them at compile time.
 
 import { describe, expect, test } from "bun:test";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { BLOCKS_DIR, blockFiles, readJson } from "../test/support/blocks";
 import {
   compilePattern,
   compileProject,
@@ -25,7 +26,6 @@ import { cubicAt } from "./geometry/bezier";
 import { insidePolygon, outlinePolygon } from "./geometry/label";
 import { isMeasurementKey, MEASUREMENT_KEYS } from "./measurements";
 
-const BLOCKS_DIR = join(import.meta.dir, "..", "blocks");
 const SKIRT_PATH = join(BLOCKS_DIR, "straight_skirt.json");
 const BODICE_PATH = join(BLOCKS_DIR, "bodice.json");
 const SLEEVE_PATH = join(BLOCKS_DIR, "straight_sleeve.json");
@@ -59,16 +59,6 @@ const FULL_PROFILE: Measurements = {
   wrist: 160,
   height: 1650,
 };
-
-function blockFiles(): string[] {
-  return readdirSync(BLOCKS_DIR)
-    .filter((file) => file.endsWith(".json"))
-    .sort();
-}
-
-function readJson(path: string): unknown {
-  return JSON.parse(readFileSync(path, "utf8"));
-}
 
 /** The part names (block keys) a definition's imports refer to, each once. */
 function importedParts(definition: unknown): string[] {

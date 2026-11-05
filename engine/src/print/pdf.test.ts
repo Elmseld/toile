@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { contentStreams, decodePdf, expectWellFormed } from "../../test/support/pdf-check";
+import { project, rectangles } from "../../test/support/print-fixtures";
 import type { ProjectSeamAllowances } from "../editor/edges";
 import { DEFAULT_SEAM_ALLOWANCE } from "../geometry/seam-allowance";
 import type { ComputedPattern } from "../geometry/types";
@@ -14,9 +16,7 @@ import {
   pieceContent,
   wrapText,
 } from "./pdf";
-import { contentStreams, decodePdf, expectWellFormed } from "./pdf-check";
 import { pdfText } from "./pdf-writer";
-import { project, rectangles } from "./print-fixtures";
 import { printedTiles, tileGrid, tileLabel, tileRect } from "./tiles";
 
 const K = PT_PER_MM;

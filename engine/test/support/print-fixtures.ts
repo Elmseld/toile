@@ -1,31 +1,15 @@
 // Projects for the print tests (not part of the engine's API): the real blocks against a medium
 // profile, and hand-built rectangles.
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { evaluatePattern } from "../geometry/evaluate";
-import { evaluateProject, type ProjectResult } from "../geometry/project";
-import type { ComputedPattern } from "../geometry/types";
-
-const BLOCKS_DIR = join(import.meta.dir, "..", "..", "blocks");
-
-// The medium profile of seam-allowance-blocks.test.ts, with the arm measurements of blocks.test.ts.
-// prettier-ignore
-export const MEDIUM: Record<string, number> = {
-  bust: 880, waist: 680, hip: 940, neck: 370, shoulder_width: 122, back_width: 344,
-  chest_width: 324, back_length: 410, armhole_depth: 210, front_length: 445, bust_height: 265,
-  bust_distance: 190, hip_height: 206, skirt_length: 600, upper_arm: 280, arm_length: 580,
-  wrist: 160,
-};
-
-export function block(name: string): unknown {
-  return JSON.parse(readFileSync(join(BLOCKS_DIR, `${name}.json`), "utf8"));
-}
+import { evaluatePattern } from "../../src/geometry/evaluate";
+import { evaluateProject, type ProjectResult } from "../../src/geometry/project";
+import type { ComputedPattern } from "../../src/geometry/types";
+import { MEDIUM, readBlock } from "./blocks";
 
 /** An ok project of the given blocks (part name = block name), for the medium profile. */
 export function project(...blocks: string[]): ProjectResult {
   const result = evaluateProject(
-    blocks.map((name) => ({ name, definition: block(name) })),
+    blocks.map((name) => ({ name, definition: readBlock(name) })),
     { measurements: MEDIUM },
   );
   if (!result.ok) throw new Error(JSON.stringify(result.errors));

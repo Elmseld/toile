@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { project, rectangles } from "../../test/support/print-fixtures";
 import type { ProjectSeamAllowances } from "../editor/edges";
 import { outlinePolygon } from "../geometry/label";
 import { PART_GAP, PIECE_GAP } from "../geometry/layout";
@@ -8,7 +9,6 @@ import {
   pieceSeamAllowances,
 } from "../geometry/seam-allowance";
 import { PRINT_LABEL_SIZE, type PrintPiece, printDrawing } from "./drawing";
-import { project, rectangles } from "./print-fixtures";
 import { boxOf } from "./tiles";
 
 const DEFAULTS: ProjectSeamAllowances = { default: DEFAULT_SEAM_ALLOWANCE, edges: {} };

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { contentStreams, decodePdf, expectWellFormed } from "./pdf-check";
+import { contentStreams, decodePdf, expectWellFormed } from "../../test/support/pdf-check";
 import { pdfNumber, pdfText, winAnsiBytes, writePdf } from "./pdf-writer";
 
 describe("pdfNumber", () => {

@@ -1,4 +1,4 @@
-// Structural checks of a written PDF for the print tests (not part of the engine's API).
+// Structural checks of a written PDF for the print tests (test support, not part of the engine).
 
 import { expect } from "bun:test";
 
