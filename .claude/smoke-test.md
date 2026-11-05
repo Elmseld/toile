@@ -27,7 +27,7 @@ Expected: redirect to `/users/log-in` with the flash "Du måste logga in för at
 Expected: (1) the Swedish validation error "måste innehålla @ och får inte innehålla mellanslag" on the form; (2) redirect to `/users/log-in` with "Vi har skickat ett mejl till …".
 
 ### Magic-link login
-1. Open the newest mail in `/dev/mailbox` and follow the `/users/log-in/<token>` link.
+1. Open the newest mail in `/dev/mailbox` (login links are delivered in a background task, so reload once if it is not there yet) and follow the `/users/log-in/<token>` link.
 2. Click "Bekräfta och logga in bara den här gången".
 Expected: `/patterns` with "Mina mönster", "Du har inga mönster än." and the logged-in nav (`#nav-log-out`).
 
@@ -50,7 +50,7 @@ Expected: (1) "Fel e-post eller lösenord." and still logged out; (2) `/patterns
 1. Log out. On `/users/log-in`, request a login link for the same address 4 times.
 2. Log in, and on `/users/settings` request an email change to a new address 4 times.
 Expected: (1) every request shows the flash "Om din e-postadress finns hos oss får du snart ett mejl med instruktioner för att logga in.", but `/dev/mailbox` holds only 3 login mails; the 4th request sends nothing and the server log has an info line "Email not sent, rate limit reached" with a masked address; (2) every request shows "Vi har skickat en länk till den nya adressen. Öppna den för att bekräfta ändringen.", `/dev/mailbox` holds only 3 change mails, and the 4th sends nothing.
-Notes: in dev all browser requests share the Docker gateway IP, so `config/dev.exs` raises the per-IP limit to 1000 an hour (the per-recipient limit of 3 per 15 minutes stays). Changes under `config/` need an app restart (`docker compose restart app`); the code reloader does not pick them up.
+Notes: in dev all browser requests share the Docker gateway IP, so `config/dev.exs` raises the per-IP limit to 1000 an hour (the per-recipient limit of 3 per 15 minutes stays). Changes under `config/` and `lib/toile/application.ex` (supervision tree) need an app restart (`docker compose restart app`); the code reloader does not pick them up.
 
 ### Measurement profiles
 1. Logged in, click `#nav-measurements` ("Mått") and create a profile with a name and "72,5" for Midjevidd.

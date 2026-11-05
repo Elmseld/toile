@@ -1,7 +1,7 @@
 ---
 id: 0016
 title: Login page response time reveals whether an account exists
-status: in-progress
+status: done
 type: bug
 ---
 
@@ -23,12 +23,12 @@ change this: under the limit, the known address still takes the slow path.
 The time to answer a login-link request does not depend on whether the address has an account.
 
 ## Acceptance criteria
-- [ ] The token insert and email delivery for a login link no longer run inside the request that answers the user (for example delivered by a background task), so known and unknown addresses take the same path before the reply.
-- [ ] A test measures that the reply path does not wait on the mailer: with a mailer that sleeps (or a stub with a deliberate delay), the reply for a known address is not slower than for an unknown one beyond a small tolerance.
-- [ ] The same flash and redirect are shown for known, unknown and rate-limited addresses (no regression of 0011).
-- [ ] The email is still sent exactly once for a known address, and tokens are still created under the user lock (ADR 0002 §3). Failed deliveries are logged without the full address.
-- [ ] Registration and email change are checked for the same timing difference (taken versus free address); if present, they are fixed or a follow-up ticket is written.
-- [ ] ADR 0002 or 0010 records the chosen approach.
+- [x] The token insert and email delivery for a login link no longer run inside the request that answers the user (for example delivered by a background task), so known and unknown addresses take the same path before the reply.
+- [x] A test measures that the reply path does not wait on the mailer: with a mailer that sleeps (or a stub with a deliberate delay), the reply for a known address is not slower than for an unknown one beyond a small tolerance.
+- [x] The same flash and redirect are shown for known, unknown and rate-limited addresses (no regression of 0011).
+- [x] The email is still sent exactly once for a known address, and tokens are still created under the user lock (ADR 0002 §3). Failed deliveries are logged without the full address.
+- [x] Registration and email change are checked for the same timing difference (taken versus free address); if present, they are fixed or a follow-up ticket is written.
+- [x] ADR 0002 or 0010 records the chosen approach.
 
 ## Out of scope
 - Constant-time padding of unrelated endpoints.
