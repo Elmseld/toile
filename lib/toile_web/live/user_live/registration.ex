@@ -55,11 +55,11 @@ defmodule ToileWeb.UserLive.Registration do
   end
 
   @impl true
-  def handle_event("save", %{"user" => user_params}, socket) do
+  def handle_event("save", params, socket) do
     # A taken email gets the same response as a new one so the form does not
     # reveal which addresses have accounts.
     case Accounts.register_user_and_deliver_instructions(
-           user_params,
+           user_params(params),
            &url(~p"/users/log-in/#{&1}"),
            url(~p"/users/log-in")
          ) do
@@ -80,10 +80,19 @@ defmodule ToileWeb.UserLive.Registration do
     end
   end
 
-  def handle_event("validate", %{"user" => user_params}, socket) do
-    changeset = Accounts.change_user_email(%User{}, user_params, validate_unique: false)
+  def handle_event("validate", params, socket) do
+    changeset = Accounts.change_user_email(%User{}, user_params(params), validate_unique: false)
     {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
   end
+
+  # The form has a single field. A malformed submit (no "user" map, or an email
+  # that is not a string) is treated as an empty form so it gets validation
+  # errors instead of crashing the LiveView: a non-string value would otherwise
+  # be put back into the rendered input.
+  defp user_params(%{"user" => %{"email" => email}}) when is_binary(email),
+    do: %{"email" => email}
+
+  defp user_params(_params), do: %{}
 
   defp assign_form(socket, %Ecto.Changeset{} = changeset) do
     form = to_form(changeset, as: "user")

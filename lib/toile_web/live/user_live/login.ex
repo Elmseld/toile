@@ -2,6 +2,7 @@ defmodule ToileWeb.UserLive.Login do
   use ToileWeb, :live_view
 
   alias Toile.Accounts
+  alias Toile.Accounts.User
 
   @impl true
   def render(assigns) do
@@ -125,8 +126,11 @@ defmodule ToileWeb.UserLive.Login do
     {:noreply, assign(socket, :trigger_submit, true)}
   end
 
-  def handle_event("submit_magic", %{"user" => %{"email" => email}}, socket) do
-    if user = Accounts.get_user_by_email(email) do
+  def handle_event("submit_magic", params, socket) do
+    # A malformed submit (no email, or not a string) gets the same response as
+    # an unknown address instead of crashing the LiveView.
+    with %{"user" => %{"email" => email}} when is_binary(email) <- params,
+         %User{} = user <- Accounts.get_user_by_email(email) do
       Accounts.deliver_login_instructions(
         user,
         &url(~p"/users/log-in/#{&1}")

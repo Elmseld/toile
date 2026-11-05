@@ -100,6 +100,27 @@ defmodule ToileWeb.UserLive.RegistrationTest do
     end
   end
 
+  describe "malformed submits" do
+    for {name, params} <- [
+          {"no user params", %{}},
+          {"non-map user", %{"user" => "a@example.com"}},
+          {"non-string email", %{"user" => %{"email" => %{"a" => "b"}}}}
+        ] do
+      test "save renders errors instead of crashing for #{name}", %{conn: conn} do
+        {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+        assert render_hook(lv, "save", unquote(Macro.escape(params))) =~ "Create an account"
+        refute_received {:email, _}
+      end
+
+      test "validate renders errors instead of crashing for #{name}", %{conn: conn} do
+        {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+        assert render_hook(lv, "validate", unquote(Macro.escape(params))) =~ "Create an account"
+      end
+    end
+  end
+
   describe "registration navigation" do
     test "redirects to login page when the Log in button is clicked", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/users/register")

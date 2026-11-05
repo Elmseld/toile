@@ -70,6 +70,27 @@ defmodule ToileWeb.UserLive.LoginTest do
     end
   end
 
+  describe "user login - malformed magic link submit" do
+    for {name, params} <- [
+          {"no user params", %{}},
+          {"no email", %{"user" => %{}}},
+          {"non-string email", %{"user" => %{"email" => %{"a" => "b"}}}},
+          {"list email", %{"user" => %{"email" => ["a@example.com"]}}},
+          {"non-map user", %{"user" => "a@example.com"}}
+        ] do
+      test "responds like an unknown address to #{name}", %{conn: conn} do
+        {:ok, lv, _html} = live(conn, ~p"/users/log-in")
+
+        render_hook(lv, "submit_magic", unquote(Macro.escape(params)))
+
+        {path, flash} = assert_redirect(lv)
+        assert path == ~p"/users/log-in"
+        assert flash["info"] =~ "If your email address is registered with us"
+        refute_received {:email, _}
+      end
+    end
+  end
+
   describe "user login - password" do
     test "redirects if user logs in with valid credentials", %{conn: conn} do
       user = user_fixture() |> set_password()
