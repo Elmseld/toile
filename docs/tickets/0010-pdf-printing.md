@@ -1,7 +1,7 @@
 ---
 id: 0010
 title: PDF printing at 1:1 scale on A4
-status: in-progress
+status: done
 type: feature
 ---
 
@@ -13,12 +13,12 @@ From the project page the user can download a PDF where the pattern is at 1:1 sc
 with overlap, so the pages can be taped together.
 
 ## Acceptance criteria
-- [ ] The PDF contains all pattern pieces at 1:1 scale, with the seam allowance from 0009 and the markings from 0015.
-- [ ] The pages have a margin and alignment marks/edges for matching them up. Each page is labelled with row and column (e.g. "B3").
-- [ ] The first page contains a test square of exactly 10 × 10 cm and an overview map of the pages.
-- [ ] Empty pages (with no pattern) are not printed.
-- [ ] An automated test checks that the test square is 10 × 10 cm in PDF coordinates (283.46 pt) and that a known line in the pattern has the correct length.
-- [ ] The user chooses A4 or Letter (A4 by default).
+- [x] The PDF contains all pattern pieces at 1:1 scale, with the seam allowance from 0009 and the markings from 0015.
+- [x] The pages have a margin and alignment marks/edges for matching them up. Each page is labelled with row and column (e.g. "B3").
+- [x] The first page contains a test square of exactly 10 × 10 cm and an overview map of the pages.
+- [x] Empty pages (with no pattern) are not printed.
+- [x] An automated test checks that the test square is 10 × 10 cm in PDF coordinates (283.46 pt) and that a known line in the pattern has the correct length.
+- [x] The user chooses A4 or Letter (A4 by default).
 
 ## Out of scope
 - A0/plotter, projector mode, marker layout.
