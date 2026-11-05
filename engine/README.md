@@ -297,6 +297,7 @@ cuttingLine(piece, { default: 10, edges: { b_hem: 40, b_cb: 0 } })
   laptop), twice that with the safe fallback; the worst hostile outlines at the entry limit take
   at most about 0.2 s. A view that computes it on every update (the editor's drag) caches it by
   outline and allowances (ADR 0011 decision 8).
+
 ## Printing
 
 `src/print/` makes the 1:1 PDF the project page offers (`docs/adr/0012-pdf-printing.md`). No DOM and
