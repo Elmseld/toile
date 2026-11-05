@@ -1,7 +1,7 @@
 ---
 id: 0007
 title: Sleeve block, fitted to the bodice
-status: todo
+status: in-review
 type: feature
 ---
 
@@ -13,11 +13,11 @@ When the user creates a bodice project, a sleeve can be added. The sleeve is dra
 measurements and from the bodice armhole length, and is recomputed when the bodice changes.
 
 ## Acceptance criteria
-- [ ] The block "Rak ärm" (Straight sleeve; a simple one-piece sleeve) as a pattern definition, with parameters for sleeve length, width, and cap height/cap ease.
-- [ ] The sleeve can reference values from another pattern piece in the same project (the armhole length).
-- [ ] Sleeve cap length = armhole length + cap ease, within 2 mm, verified with an engine test.
-- [ ] If the bodice changes so that the armhole gets longer, the sleeve follows.
-- [ ] Notches (front/back) are marked on the sleeve cap and at the corresponding place on the armhole.
+- [x] The block "Rak ärm" (Straight sleeve; a simple one-piece sleeve) as a pattern definition, with parameters for sleeve length, width, and cap height/cap ease.
+- [x] The sleeve can reference values from another pattern piece in the same project (the armhole length).
+- [x] Sleeve cap length = armhole length + cap ease, within 2 mm, verified with an engine test.
+- [x] If the bodice changes so that the armhole gets longer, the sleeve follows.
+- [x] Notches (front/back) are marked on the sleeve cap and at the corresponding place on the armhole.
 
 ## Out of scope
 - Two-piece sleeve, puff sleeve and other variants.
@@ -32,3 +32,34 @@ sleeve consumes them is for this ticket to decide. The bodice's front and back s
 always level, but its front armhole is about 10 to 17 mm longer than the back one in the test
 figures (shape of the front armhole curve), so the sleeve should not assume front and back
 armholes of equal length.
+
+## Decisions
+- **Drafting method:** based on Aldrich, *Metric Pattern Cutting for Women's Wear*, 6th ed., the
+  one-piece sleeve. Deviations are stated in the block's `source`: the cap is constructed rather
+  than drawn, its height is solved so the cap equals the imported bodice armhole plus `cap_ease`,
+  the crown is shifted so each half matches its own armhole half, all cap ease lies between the
+  notches, and the hem tapers to wrist plus ease.
+- **Cap shape:** each half runs diagonally, as a drafted cap does: a convex circular arc from the
+  crown, a straight piece sloping `cap_inflection_tilt` (15 degrees) steeper than the guide line
+  from the crown to the underarm point, and a concave arc of the same turn into the underarm, so
+  the crown rises above the guide line and a shallower hollow lies below it. The inflection is
+  sloped (about 52 to 66 degrees for the test figures), not vertical: two arcs alone would meet
+  vertically when the cap is about as high as the half is wide, a dome on vertical sides
+  (smoke finding V1). Where the tilt reaches the guide angle the half falls back to two arcs; the
+  turn never exceeds 90 degrees, so the cap never overhangs. Shape constants out of range, or a
+  solve that leaves a half more than 0.1 mm off its target (a far too narrow sleeve), give an
+  error, not a looped cap or one of the wrong length. Details in `engine/README.md`.
+- **Starting values are ours:** `ease_upper_arm` 50, `ease_wrist` 80, `cap_ease` 30,
+  `length_adjustment` 0 (mm), `cap_convex_share` 0.6 and `cap_inflection_tilt` 15 degrees. They
+  are pinned by engine tests and to be adjusted after test fitting (a toile).
+- **Cap height is computed**, not a parameter, so the cap always fits; sleeve width and cap ease
+  are the parameters. A sleeve wider than its armhole gives an error instead of a drawing.
+- **Imports and parts:** the sleeve takes the bodice's armhole values through `imports`, and a
+  project holds the bodice as its main part and the sleeve as an added part: ADR 0007.
+- **Notches:** a piece field (ADR 0004 decision 17). Bodice: double at the back width point,
+  single at the chest point. Sleeve: double at the back, single at the front and a single at the
+  crown.
+- **UI:** the sleeve is added from the project page ("Lägg till i mönstret" > "Rak ärm"), not in
+  "Nytt mönster", so existing bodice projects can get one. Bodice projects created before this
+  ticket lack the values the sleeve imports and are not offered it. Removing a sleeve is not part
+  of this ticket.

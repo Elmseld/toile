@@ -101,6 +101,21 @@ a drag. The definition and its formulas are untrusted user input. This ADR build
     entry.
     Limits on the stored size of a definition (bytes per project, projects per user) belong to the
     Phoenix app and are set in ADR 0006 (1 000 000 bytes, 100 projects per user).
+17. **Notches are an optional piece field** (ticket 0007; additive, no version bump):
+    `"notches": [{ "curve": "<outline curve>", "distance": "<formula>", "marks": 1 | 2 }]`. A
+    notch lies `distance` mm along the outline, walking forward in outline order from the start of
+    `curve` and crossing into the following curves (cyclically); a distance exactly at a junction
+    belongs to the following curve, and zero-length curves are skipped. `marks` defaults to 1; 2 is
+    the conventional double (back) notch. The engine returns each notch's point and its marks as
+    short segments (`NOTCH_LENGTH`, 6 mm) pointing into the piece (inward is taken from the
+    outline's orientation); a double notch has two marks centred on the point, `NOTCH_PAIR_SPACING`
+    (4 mm) apart. A `curve` not in the piece's outline is `invalid_notch` at compile time, and a
+    distance that is not finite or outside `[0, outline length)` is `invalid_notch` at evaluation;
+    both fail the piece. Notches only mark positions; 0009 adds them to the cutting line.
+18. **Top-level `imports`** (ticket 0007; additive, no version bump): values taken from another
+    part of the same project, `{ "<local name>": "<part>.<value>" }`. The local name is a value in
+    the single namespace (decision 4) with source `import`. A missing one is `missing_import`.
+    Evaluating several parts together is decided in ADR 0007.
 
 Rejected alternatives:
 - A schema/validation dependency (zod, a JSON Schema validator): a new dependency for a small
@@ -120,6 +135,6 @@ Rejected alternatives:
   as `invalid_definition` rather than drawing it wrongly.
 - The angle convention (0 = right, 90 = down) is confirmed. Changing it now needs a version bump
   and a migration of stored definitions.
-- References between pieces or projects (0007) are not part of version 1: `length(curve)` only sees
-  curves of the same definition. Until then the caller measures across patterns: evaluate pattern 1,
-  read `curves.<name>.length` or a formula value, and pass it as a measurement to pattern 2.
+- `length(curve)` only sees curves of the same definition. References across the blocks of a
+  project go through `imports` and the engine's project API (decision 18, ADR 0007), not through
+  formulas.

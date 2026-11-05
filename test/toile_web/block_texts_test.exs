@@ -13,9 +13,10 @@ defmodule ToileWeb.BlockTextsTest do
     end
   end
 
-  test "labels the bodice and the straight skirt" do
+  test "labels the bodice, the straight skirt and the straight sleeve" do
     assert BlockTexts.label("bodice") == "Bodice"
     assert BlockTexts.label("straight_skirt") == "Straight skirt"
+    assert BlockTexts.label("straight_sleeve") == "Straight sleeve"
   end
 
   test "block labels are distinct" do
@@ -30,9 +31,10 @@ defmodule ToileWeb.BlockTextsTest do
     end
   end
 
-  test "labels the skirt pieces and falls back to the piece name" do
+  test "labels the pieces and falls back to the piece name" do
     assert BlockTexts.piece_label("back") == "Back"
     assert BlockTexts.piece_label("front") == "Front"
-    assert BlockTexts.piece_label("sleeve") == "sleeve"
+    assert BlockTexts.piece_label("sleeve") == "Sleeve"
+    assert BlockTexts.piece_label("pocket") == "pocket"
   end
 end

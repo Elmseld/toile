@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { cubicAt, cubicLength } from "./bezier";
+import { cubicAt, cubicLength, cubicLengthTo, cubicParameterAtLength, cubicTangent } from "./bezier";
 import { distance, type Point } from "./vector";
 
 const p = (x: number, y: number): Point => ({ x, y });
@@ -57,5 +57,71 @@ describe("cubicLength", () => {
   test("reversing the control order gives the same length", () => {
     const [a, b, c, d] = [p(0, 0), p(30, 80), p(120, -40), p(150, 20)];
     expect(cubicLength(d, c, b, a)).toBeCloseTo(cubicLength(a, b, c, d), 9);
+  });
+});
+
+describe("cubicLengthTo", () => {
+  const curve = [p(0, 0), p(30, 80), p(120, -40), p(150, 20)] as const;
+
+  test("at t = 1 is exactly cubicLength, at t = 0 is 0", () => {
+    expect(cubicLengthTo(...curve, 1)).toBe(cubicLength(...curve));
+    expect(cubicLengthTo(...curve, 0)).toBe(0);
+  });
+
+  test("matches a fine polyline up to t", () => {
+    const t = 0.37;
+    let total = 0;
+    let previous = curve[0];
+    for (let i = 1; i <= 100_000; i++) {
+      const next = cubicAt(...curve, (t * i) / 100_000);
+      total += distance(previous, next);
+      previous = next;
+    }
+    expect(Math.abs(cubicLengthTo(...curve, t) - total)).toBeLessThan(0.01);
+  });
+});
+
+describe("cubicParameterAtLength", () => {
+  test("inverts cubicLengthTo within 0.01 mm", () => {
+    const k = 0.5522847498;
+    for (const curve of [
+      [p(0, 0), p(30, 80), p(120, -40), p(150, 20)],
+      [p(100, 0), p(100, 100 * k), p(100 * k, 100), p(0, 100)],
+      [p(0, 0), p(0, 0), p(50, 0), p(100, 0)],
+      [p(0, 0), p(100, 100), p(0, 100), p(100, 0)],
+    ] as const) {
+      const total = cubicLength(...curve);
+      for (const fraction of [0.001, 0.1, 0.25, 0.5, 0.9, 0.999]) {
+        const t = cubicParameterAtLength(...curve, total * fraction);
+        expect(t).toBeGreaterThanOrEqual(0);
+        expect(t).toBeLessThanOrEqual(1);
+        expect(Math.abs(cubicLengthTo(...curve, t) - total * fraction)).toBeLessThan(0.01);
+      }
+    }
+  });
+
+  test("clamps lengths outside the curve to its ends", () => {
+    const curve = [p(0, 0), p(10, 0), p(20, 0), p(30, 0)] as const;
+    expect(cubicParameterAtLength(...curve, -5)).toBe(0);
+    expect(cubicParameterAtLength(...curve, 0)).toBe(0);
+    expect(cubicParameterAtLength(...curve, 30)).toBe(1);
+    expect(cubicParameterAtLength(...curve, 40)).toBe(1);
+    expect(cubicParameterAtLength(...curve, Number.NaN)).toBe(0);
+  });
+
+  test("evenly spaced straight controls give the length fraction exactly", () => {
+    expect(cubicParameterAtLength(p(0, 0), p(10, 0), p(20, 0), p(30, 0), 12)).toBeCloseTo(0.4, 9);
+  });
+});
+
+describe("cubicTangent", () => {
+  test("is the derivative", () => {
+    expect(cubicTangent(p(0, 0), p(10, 0), p(20, 10), p(30, 10), 0)).toEqual(p(30, 0));
+    expect(cubicTangent(p(0, 0), p(10, 0), p(20, 10), p(30, 10), 1)).toEqual(p(30, 0));
+  });
+
+  test("falls back to the chord where the derivative vanishes", () => {
+    expect(cubicTangent(p(0, 0), p(0, 0), p(20, 10), p(30, 10), 0)).toEqual(p(30, 10));
+    expect(cubicTangent(p(5, 5), p(5, 5), p(5, 5), p(5, 5), 0.5)).toEqual(p(0, 0));
   });
 });

@@ -33,3 +33,9 @@ Piece labels are placed by the engine's `placeLabel` (`engine/src/geometry/label
 takes about 7 to 14 ms per bodice piece (about 20 ms per bodice render). Recomputing it on every
 pointer move would eat most of a frame, so cache the placement per outline or recompute the
 labels only after a drag ends.
+
+A project has parts since 0007 (ADR 0007): the main definition plus added blocks such as a
+sleeve. The editor edits and saves the definition and parameters of each part (the size cap
+applies per definition), and `compileProject` is the drag-time entry point. Offsets per part
+still need to be added to its input then. Labels and notch marks of all parts are redrawn on a
+drag too.

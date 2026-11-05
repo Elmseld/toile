@@ -17,7 +17,7 @@ defmodule ToileWeb.PatternLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} list>
       <section id="my-patterns">
         <.header>
           {gettext("My patterns")}

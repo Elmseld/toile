@@ -29,12 +29,16 @@ const minimal = (extra: Record<string, unknown> = {}): Record<string, unknown> =
 const startPoint = { name: "A", op: "start", x: "0", y: "0" };
 
 describe("validateDefinition", () => {
-  test("the example validates and normalises to an equal copy", () => {
+  test("the example validates and normalises to an equal copy with the defaults filled in", () => {
     const raw = example();
     const result = validateDefinition(raw);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.definition).toEqual(raw as never);
+    const pieces = (raw.pieces as Record<string, unknown>[]).map((piece) => ({
+      ...piece,
+      notches: [],
+    }));
+    expect(result.definition).toEqual({ ...raw, imports: {}, pieces } as never);
     expect(result.definition).not.toBe(raw);
     expect(result.definition.points).not.toBe(raw.points);
     expect(result.definition.points[0]).not.toBe((raw.points as unknown[])[0]);
@@ -47,6 +51,7 @@ describe("validateDefinition", () => {
       definition: {
         version: 1,
         measurements: [],
+        imports: {},
         parameters: {},
         formulas: {},
         points: [],
@@ -333,7 +338,7 @@ describe("validateDefinition", () => {
       {
         kind: "invalid_definition",
         path: "/pieces",
-        message: "The outlines must have at most 20000 entries in total",
+        message: "The outlines and notches must have at most 20000 entries in total",
       },
     ]);
     // Reported once, and the outlines past the total are not checked: this stays fast although
@@ -346,5 +351,130 @@ describe("validateDefinition", () => {
     expect(pathsOf(minimal({ pieces: [...pieces(full), ...pieces(1, oversized)] }))).toEqual([
       `/pieces/${full}/outline`,
     ]);
+  });
+});
+
+describe("validateDefinition: imports", () => {
+  test("imports map local names to <part>.<value> references", () => {
+    const result = validateDefinition(
+      minimal({ imports: { armhole: "bodice.armhole_length", _x: "_p._v9" } }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.definition.imports).toEqual({ armhole: "bodice.armhole_length", _x: "_p._v9" });
+  });
+
+  test("imports that are not an object of references are invalid_definition at their path", () => {
+    expect(pathsOf(minimal({ imports: [] }))).toEqual(["/imports"]);
+    expect(pathsOf(minimal({ imports: "bodice.armhole" }))).toEqual(["/imports"]);
+    expect(
+      pathsOf(
+        minimal({
+          imports: {
+            number: 5,
+            no_dot: "armhole_length",
+            two_dots: "a.b.c",
+            bad_part: "1bodice.armhole",
+            bad_value: "bodice.arm-hole",
+            empty_value: "bodice.",
+            spaces: " bodice.armhole",
+            "a/b": null,
+          },
+        }),
+      ),
+    ).toEqual([
+      "/imports/number",
+      "/imports/no_dot",
+      "/imports/two_dots",
+      "/imports/bad_part",
+      "/imports/bad_value",
+      "/imports/empty_value",
+      "/imports/spaces",
+      "/imports/a~1b",
+    ]);
+  });
+
+  test("at most MAX_SECTION_ENTRIES imports", () => {
+    const imports = (count: number) =>
+      Object.fromEntries(Array.from({ length: count }, (_, i) => [`n${i}`, "p.v"]));
+    expect(validateDefinition(minimal({ imports: imports(MAX_SECTION_ENTRIES) })).ok).toBe(true);
+    expect(pathsOf(minimal({ imports: imports(MAX_SECTION_ENTRIES + 1) }))).toEqual(["/imports"]);
+  });
+});
+
+describe("validateDefinition: notches", () => {
+  const withNotches = (notches: unknown): Record<string, unknown> =>
+    minimal({
+      pieces: [{ name: "p", outline: [{ curve: "c" }], grainline: { from: "A", to: "B" }, notches }],
+    });
+
+  test("notches are normalised with marks 1 by default; a piece without notches gets []", () => {
+    const result = validateDefinition(
+      withNotches([
+        { curve: "c", distance: "10" },
+        { curve: "c", distance: "length(c) / 2", marks: 2 },
+        { curve: "c", distance: "0", marks: 1 },
+      ]),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.definition.pieces[0]?.notches).toEqual([
+      { curve: "c", distance: "10", marks: 1 },
+      { curve: "c", distance: "length(c) / 2", marks: 2 },
+      { curve: "c", distance: "0", marks: 1 },
+    ]);
+    const plain = validateDefinition(
+      minimal({ pieces: [{ name: "p", outline: [{ curve: "c" }], grainline: { from: "A", to: "B" } }] }),
+    );
+    expect(plain.ok && plain.definition.pieces[0]?.notches).toEqual([]);
+  });
+
+  test("malformed notches are invalid_definition at their path", () => {
+    expect(pathsOf(withNotches({}))).toEqual(["/pieces/0/notches"]);
+    expect(pathsOf(withNotches("c"))).toEqual(["/pieces/0/notches"]);
+    expect(
+      pathsOf(
+        withNotches([
+          null,
+          { distance: "1" },
+          { curve: "c" },
+          { curve: "c", distance: 10 },
+          { curve: 3, distance: "1" },
+          { curve: "c", distance: "1", marks: 0 },
+          { curve: "c", distance: "1", marks: 3 },
+          { curve: "c", distance: "1", marks: 1.5 },
+          { curve: "c", distance: "1", marks: "2" },
+          { curve: "c", distance: "1", side: "left" },
+        ]),
+      ),
+    ).toEqual([
+      "/pieces/0/notches/0",
+      "/pieces/0/notches/1/curve",
+      "/pieces/0/notches/2/distance",
+      "/pieces/0/notches/3/distance",
+      "/pieces/0/notches/4/curve",
+      "/pieces/0/notches/5/marks",
+      "/pieces/0/notches/6/marks",
+      "/pieces/0/notches/7/marks",
+      "/pieces/0/notches/8/marks",
+      "/pieces/0/notches/9/side",
+    ]);
+  });
+
+  test("at most MAX_OUTLINE_ENTRIES notches per piece, counted toward the total of all pieces", () => {
+    const notches = (count: number) =>
+      Array.from({ length: count }, () => ({ curve: "c", distance: "0" }));
+    expect(validateDefinition(withNotches(notches(MAX_OUTLINE_ENTRIES))).ok).toBe(true);
+    expect(pathsOf(withNotches(notches(MAX_OUTLINE_ENTRIES + 1)))).toEqual(["/pieces/0/notches"]);
+
+    const outline = Array.from({ length: MAX_OUTLINE_ENTRIES }, () => ({ curve: "c" }));
+    const full = MAX_SECTION_ENTRIES / MAX_OUTLINE_ENTRIES;
+    const pieces = Array.from({ length: full }, (_, i) => ({
+      name: `p${i}`,
+      outline,
+      grainline: { from: "A", to: "B" },
+      ...(i === full - 1 ? { notches: notches(1) } : {}),
+    }));
+    expect(pathsOf(minimal({ pieces }))).toEqual(["/pieces"]);
   });
 });

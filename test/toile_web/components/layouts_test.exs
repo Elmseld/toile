@@ -58,8 +58,15 @@ defmodule ToileWeb.LayoutsTest do
   end
 
   describe "content width" do
-    test "is narrow by default and wide on request" do
+    test "is narrow by default, wider for lists and wide on request" do
       narrow = render_component(&ToileWeb.Layouts.app/1, flash: %{}, inner_block: slot("x"))
+
+      list =
+        render_component(&ToileWeb.Layouts.app/1, flash: %{}, list: true, inner_block: slot("x"))
+
+      assert list =~ ~r/id="main-content" class="[^"]*max-w-5xl/
+      refute list =~ "max-w-2xl"
+      refute narrow =~ "max-w-5xl"
 
       wide =
         render_component(&ToileWeb.Layouts.app/1, flash: %{}, wide: true, inner_block: slot("x"))
