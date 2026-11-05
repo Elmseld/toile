@@ -13,7 +13,7 @@ export const PAPER_SIZES: Readonly<Record<Paper, PaperSize>> = Object.freeze({
   letter: Object.freeze({ width: 215.9, height: 279.4 }),
 });
 
-/** PDF points per mm: a point is 1/72 inch, an inch 25.4 mm. All lengths are drawn at this scale. */
+/** PDF points per mm (a point is 1/72 inch, an inch 25.4 mm); every length is drawn at it. */
 export const PT_PER_MM = 72 / 25.4;
 
 /** The margin (mm) on every side of a page; nothing of the pattern is drawn in it. */
