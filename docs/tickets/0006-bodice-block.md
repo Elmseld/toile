@@ -1,7 +1,7 @@
 ---
 id: 0006
 title: Bodice block
-status: in-review
+status: done
 type: feature
 ---
 

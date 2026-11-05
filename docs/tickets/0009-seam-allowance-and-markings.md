@@ -1,7 +1,7 @@
 ---
 id: 0009
 title: Seam allowance in the engine
-status: in-review
+status: done
 type: feature
 ---
 
@@ -14,10 +14,10 @@ Given a pattern piece and a seam allowance for each of its outline edges, the en
 cutting line around the piece: the outline offset outwards, with correct corners and darts.
 
 ## Acceptance criteria
-- [ ] The engine computes a seam allowance outline (offset) around each pattern piece, with correct corners where edges meet, including at curves.
-- [ ] The seam allowance is engine input per outline edge (including 0, e.g. at a fold line), with a default value that the caller passes.
-- [ ] The seam allowance at darts gets the correct dart peak (shaped as if the dart were closed and pressed, so the cut edge is right when sewn), or a simpler approximation is documented in an ADR.
-- [ ] Engine tests for the offset of a rectangle, a curve and a piece with a dart.
+- [x] The engine computes a seam allowance outline (offset) around each pattern piece, with correct corners where edges meet, including at curves.
+- [x] The seam allowance is engine input per outline edge (including 0, e.g. at a fold line), with a default value that the caller passes.
+- [x] The seam allowance at darts gets the correct dart peak (shaped as if the dart were closed and pressed, so the cut edge is right when sewn), or a simpler approximation is documented in an ADR.
+- [x] Engine tests for the offset of a rectangle, a curve and a piece with a dart.
 
 ## Out of scope
 - Markings in the block definitions, drawing the seam and cutting lines, and setting the seam

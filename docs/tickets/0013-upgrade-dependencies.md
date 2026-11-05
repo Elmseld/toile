@@ -1,7 +1,7 @@
 ---
 id: 0013
 title: Upgrade Elixir and dependencies
-status: in-review
+status: done
 type: chore
 ---
 
