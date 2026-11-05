@@ -94,16 +94,17 @@ reputation. The limit must not reveal whether an address has an account (ADR 000
   address, class only), never as a crash report. `UserNotifier` bounds an HTTP API send
   (`Swoosh.ApiClient.Req`, `client_options`) to 5 s connect and 10 s receive, instead of Req's 30 s
   and 15 s, so a hanging provider cannot pile up tasks; this also bounds the synchronous sends of
-  registration and email change. The keys are Req's: the Finch and Hackney API clients use other
-  names and `Swoosh.Adapters.Mailchannels` rejects `client_options`, so revisit them when the
-  production adapter is chosen. A stopping app gives a delivery in flight 20 s (the task `shutdown`)
-  to finish, which covers those timeouts; one that is still not done, or one that never started, is
-  lost, and the user can request another link. Accepted residual difference: one indexed lookup that
-  hits versus one that misses, microseconds and far below network jitter. Rejected: sleeping or
-  padding to constant time (fragile, makes every request slow); a persistent job queue such as Oban
-  (new dependency and migration for a few emails, and a lost email is recoverable); moving the
-  lookup and hit into the task too (no back-pressure: every request, even an IP-denied one, would
-  spawn work).
+  registration and email change. The keys are Req's: the Hackney API client uses other names and
+  ignores them, the Finch API client raises `ArgumentError` on `connect_options` (Finch sets connect
+  timeouts on the pool) and `Swoosh.Adapters.Mailchannels` rejects any `client_options`, so revisit
+  them when the production adapter is chosen. A stopping app gives a delivery in flight 20 s (the
+  task `shutdown`) to finish, which covers those timeouts; one that is still not done, or one that
+  never started, is lost, and the user can request another link. Accepted residual difference: one
+  indexed lookup that hits versus one that misses, microseconds and far below network jitter.
+  Rejected: sleeping or padding to constant time (fragile, makes every request slow); a persistent
+  job queue such as Oban (new dependency and migration for a few emails, and a lost email is
+  recoverable); moving the lookup and hit into the task too (no back-pressure: every request, even
+  an IP-denied one, would spawn work).
 - **Delivery errors.** A failed send (mailer returns `{:error, reason}`) does not raise: raising only
   for addresses with an account would reveal that the account exists. It is logged at `warning` with
   the flow, the masked address and only the class of the reason (a provider response can echo the

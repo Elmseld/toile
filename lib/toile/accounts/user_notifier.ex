@@ -9,11 +9,12 @@ defmodule Toile.Accounts.UserNotifier do
   # Bounds a send through an HTTP API adapter (`Swoosh.ApiClient.Req` in
   # production): Req's defaults wait up to 30 s to connect and 15 s for the
   # response, which would hold a request (registration, email change) or a
-  # background login-link delivery that long. The keys are Req's: the Finch and
-  # Hackney API clients use other names, so the bounds do not apply there, and
-  # `Swoosh.Adapters.Mailchannels` rejects any `client_options`
-  # (`{:error, :unsupported_client_options}`). Revisit when the production
-  # adapter and API client are chosen.
+  # background login-link delivery that long. The keys are Req's: the Hackney
+  # API client uses other names, so the bounds do not apply there; the Finch API
+  # client raises `ArgumentError` on `connect_options` (Finch sets connect
+  # timeouts on the pool); and `Swoosh.Adapters.Mailchannels` rejects any
+  # `client_options` (`{:error, :unsupported_client_options}`). Revisit when the
+  # production adapter and API client are chosen.
   @client_options [connect_options: [timeout: 5_000], receive_timeout: 10_000]
 
   # Delivers the email using the application mailer.
