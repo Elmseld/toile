@@ -931,6 +931,207 @@ defmodule ToileWeb.PatternLive.ShowTest do
       assert Patterns.get_pattern_project!(scope, project.id) == project
     end
 
+    test "renders the seam allowance panel and hands the allowances to the hook", %{
+      conn: conn,
+      scope: scope
+    } do
+      project = pattern_project_fixture(scope)
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      assert has_element?(
+               view,
+               "#pattern-editor-straight_skirt #seam-allowance-panel h2",
+               "Seam allowance"
+             )
+
+      assert has_element?(
+               view,
+               ~s(#seam-allowance-default[data-seam-allowance-default] #seam-allowance-default-input[value=""][inputmode="decimal"])
+             )
+
+      assert has_element?(
+               view,
+               ~s(label[for="seam-allowance-default-input"]),
+               "Seam allowance for every edge (cm)"
+             )
+
+      assert has_element?(view, "#seam-allowance-default-hint")
+      assert has_element?(view, "#seam-allowance-default-error")
+      assert has_element?(view, ~s(#edge-select option[value=""]), "Choose an edge")
+      assert has_element?(view, "#edge-select-help", "Click or tap an edge in the pattern")
+      assert has_element?(view, "#edge-details")
+
+      # One part: grouped by piece label, a curve once per part.
+      assert has_element?(
+               view,
+               ~s(#edge-select optgroup[label="Front"] option[value="straight_skirt.f_cf"]),
+               "f_cf"
+             )
+
+      assert has_element?(
+               view,
+               ~s(#edge-select optgroup[label="Back"] option[value="straight_skirt.b_side_lower"])
+             )
+
+      for %{"name" => piece, "outline" => outline} <- project.definition["pieces"],
+          %{"curve" => curve} <- outline do
+        label = ToileWeb.BlockTexts.piece_label(piece)
+
+        assert has_element?(
+                 view,
+                 ~s(#edge-select optgroup[label="#{label}"] option[value="straight_skirt.#{curve}"])
+               )
+      end
+
+      assert has_element?(view, ~s(#pattern-canvas[data-notes="pattern-notes"]))
+
+      assert has_element?(
+               view,
+               ~s(#pattern-notes[phx-update="ignore"][role="status"][aria-live="polite"])
+             )
+
+      assert canvas_data(view, "seam-allowances") == %{"default" => 10.0, "edges" => %{}}
+
+      assert canvas_data(view, "piece-cuts") == %{
+               "straight_skirt" => %{"back" => "cut 2", "front" => "cut 1 on fold"}
+             }
+    end
+
+    test "groups the edges by part and piece for a bodice with a sleeve", %{
+      conn: conn,
+      scope: scope
+    } do
+      project = pattern_project_fixture(scope, block: "bodice")
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      assert has_element?(
+               view,
+               ~s(#edge-select optgroup[label="Back"] option[value="bodice.b_cb"])
+             )
+
+      view |> element("#add-part-straight_sleeve") |> render_click()
+
+      assert has_element?(
+               view,
+               ~s(#edge-select optgroup[label="Bodice: Back"] option[value="bodice.b_cb"])
+             )
+
+      assert has_element?(
+               view,
+               ~s(#edge-select optgroup[label="Straight sleeve: Sleeve"] option[value="straight_sleeve.s_hem"])
+             )
+
+      assert canvas_data(view, "piece-cuts") == %{
+               "bodice" => %{"back" => "cut 1 on fold", "front" => "cut 1 on fold"},
+               "straight_sleeve" => %{"sleeve" => "cut 2"}
+             }
+    end
+
+    test "a project without cut counts has no cutting instructions", %{conn: conn, scope: scope} do
+      project = pattern_project_fixture(scope)
+
+      old_pieces =
+        Enum.map(project.definition["pieces"], fn piece ->
+          piece
+          |> Map.delete("cut")
+          |> Map.update!("outline", fn outline -> Enum.map(outline, &Map.delete(&1, "fold")) end)
+        end)
+
+      malformed = [
+        %{"name" => "odd", "cut" => "2", "outline" => []},
+        %{"name" => "zero", "cut" => 0, "outline" => "x"},
+        "piece"
+      ]
+
+      definition = Map.put(project.definition, "pieces", old_pieces ++ malformed)
+
+      {1, _} =
+        Repo.update_all(from(p in PatternProject, where: p.id == ^project.id),
+          set: [definition: definition]
+        )
+
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      assert canvas_data(view, "piece-cuts") == %{}
+      assert has_element?(view, ~s(#edge-select option[value="straight_skirt.f_cf"]))
+    end
+
+    test "saves the seam allowances through save_seam_allowances and draws them after a reload",
+         %{conn: conn, scope: scope} do
+      project = pattern_project_fixture(scope)
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+      edges = %{"straight_skirt" => %{"f_cf" => 0, "b_side_lower" => 20}}
+
+      render_hook(view, "save_seam_allowances", %{"default" => 15, "edges" => edges})
+      assert_reply(view, %{ok: true})
+
+      # The reply does not patch the hook's attribute.
+      assert canvas_data(view, "seam-allowances") == %{"default" => 10.0, "edges" => %{}}
+
+      assert Patterns.seam_allowances(Patterns.get_pattern_project!(scope, project.id)) == %{
+               "default" => 15.0,
+               "edges" => edges
+             }
+
+      {:ok, view2, _html} = live(conn, ~p"/patterns/#{project}")
+      assert canvas_data(view2, "seam-allowances") == %{"default" => 15.0, "edges" => edges}
+    end
+
+    test "a seam allowance save keeps the saved parts and parameters", %{conn: conn, scope: scope} do
+      project = pattern_project_fixture(scope)
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      render_hook(view, "save_pattern", %{
+        "part" => project.block,
+        "definition" => project.definition,
+        "parameters" => %{"ease_hip" => 50}
+      })
+
+      assert_reply(view, %{ok: true})
+      render_hook(view, "save_seam_allowances", %{"default" => 5, "edges" => %{}})
+      assert_reply(view, %{ok: true})
+
+      render_hook(view, "save_pattern", %{
+        "part" => project.block,
+        "definition" => project.definition,
+        "parameters" => %{"ease_hip" => 60}
+      })
+
+      assert_reply(view, %{ok: true})
+
+      stored = Patterns.get_pattern_project!(scope, project.id)
+      assert stored.parameters == %{"ease_hip" => 60}
+      assert Patterns.seam_allowances(stored) == %{"default" => 5.0, "edges" => %{}}
+    end
+
+    test "rejects invalid and malformed seam allowance saves and stores nothing", %{
+      conn: conn,
+      scope: scope
+    } do
+      project = pattern_project_fixture(scope)
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      for params <- [
+            %{"default" => 10, "edges" => %{"straight_skirt" => %{"nope" => 0}}},
+            %{"default" => 10, "edges" => %{"bodice" => %{"f_cf" => 0}}},
+            %{"default" => 101, "edges" => %{}},
+            %{"default" => 10, "edges" => %{"straight_skirt" => %{"f_cf" => 101}}},
+            %{"default" => "10", "edges" => %{}},
+            %{"default" => 10, "edges" => [1]},
+            %{"default" => 10},
+            %{"edges" => %{}},
+            %{}
+          ] do
+        render_hook(view, "save_seam_allowances", params)
+        assert_reply(view, %{ok: false})
+      end
+
+      assert Patterns.seam_allowances(Patterns.get_pattern_project!(scope, project.id)) == %{
+               "default" => 10.0,
+               "edges" => %{}
+             }
+    end
+
     test "raises for another user's project", %{conn: conn} do
       other = pattern_project_fixture(user_scope_fixture())
 

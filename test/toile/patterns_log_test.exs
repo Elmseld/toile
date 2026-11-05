@@ -81,7 +81,7 @@ defmodule Toile.PatternsLogTest do
       capture_log([level: :info], fn ->
         assert {:error, _changeset} =
                  Patterns.update_seam_allowances(scope, pattern_project, %{
-                   "default" => 101,
+                   "default" => 150.25,
                    "edges" => %{"secret\n[info] forged" => %{"x" => 1}}
                  })
       end)
@@ -90,6 +90,7 @@ defmodule Toile.PatternsLogTest do
              "Rejected seam allowances for project #{pattern_project.id}: seam_allowances.default, seam_allowances.edges"
 
     refute log =~ "secret"
-    refute log =~ "101"
+    # A dotted number, since the project id in the line can hold any run of hex digits.
+    refute log =~ "150.25"
   end
 end

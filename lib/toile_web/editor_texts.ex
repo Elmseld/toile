@@ -33,6 +33,13 @@ defmodule ToileWeb.EditorTexts do
     * `"default"`: the hint under a parameter input, with `%{value}` for its default in the
       display unit, followed by the unit text.
     * `"decimal_separator"`: the locale's decimal separator.
+    * `"seam_allowance"`: the seam allowance panel (ADR 0011): `"edge_label"` labels the input
+      of the selected edge; `"default_hint"` (the project default) and `"fold_hint"` (a fold
+      edge) are the hints with the value an empty field stands for, as `%{value}` in cm with its
+      unit; `"range_error"` is shown for a value that is not a number from 0 to 10 cm.
+    * `"cutting_line"`: the notes under the drawing, each with `%{piece}` for the piece's label:
+      `"failed"` when a piece has no cutting line, and `"safe_construction"` and
+      `"dart_without_peak"` for the engine's approximations of that kind.
 
   It is a function rather than a module attribute because the texts depend on the locale of the
   calling process.
@@ -62,7 +69,22 @@ defmodule ToileWeb.EditorTexts do
           &{Atom.to_string(&1), ParameterTexts.unit_label(&1)}
         ),
       "default" => gettext("Default: %{value}", value: "%{value}"),
-      "decimal_separator" => pgettext("decimal separator", ".")
+      "decimal_separator" => pgettext("decimal separator", "."),
+      "seam_allowance" => %{
+        "edge_label" => gettext("Seam allowance for this edge (cm)"),
+        "default_hint" => gettext("Default: %{value}", value: "%{value}"),
+        "fold_hint" => gettext("Fold: %{value}", value: "%{value}"),
+        "range_error" => gettext("Enter a seam allowance from 0 to 10 cm")
+      },
+      "cutting_line" => %{
+        "failed" => gettext("No cutting line could be drawn for %{piece}.", piece: "%{piece}"),
+        "safe_construction" =>
+          gettext("The cutting line of %{piece} is drawn with rounded corners.",
+            piece: "%{piece}"
+          ),
+        "dart_without_peak" =>
+          gettext("The cutting line of %{piece} has no dart peak at a dart.", piece: "%{piece}")
+      }
     }
   end
 

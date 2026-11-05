@@ -1,7 +1,8 @@
 defmodule ToileWeb.BlockTexts do
   @moduledoc """
   The UI labels of the blocks in `Toile.Patterns.Blocks` and of the pieces in their
-  definitions.
+  definitions, and the cutting instruction drawn under a piece's label
+  (`docs/adr/0011-markings-and-seam-allowance-storage.md`).
 
   Every text is a literal gettext call so `mix gettext.extract` finds it and the translation
   test covers it. `label/1` deliberately has no catch-all clause: a block file added to
@@ -58,4 +59,21 @@ defmodule ToileWeb.BlockTexts do
   def piece_label("front"), do: pgettext("pattern piece", "Front")
   def piece_label("sleeve"), do: pgettext("pattern piece", "Sleeve")
   def piece_label(name) when is_binary(name), do: name
+
+  @doc """
+  Returns the cutting instruction of a piece that is cut `count` times, on the fold when
+  `on_fold?` (the piece has an outline edge marked `fold`).
+
+      iex> ToileWeb.BlockTexts.cut_instruction(2, false)
+      "cut 2"
+
+      iex> ToileWeb.BlockTexts.cut_instruction(1, true)
+      "cut 1 on fold"
+  """
+  @spec cut_instruction(pos_integer(), boolean()) :: String.t()
+  def cut_instruction(count, false) when is_integer(count) and count > 0,
+    do: ngettext("cut %{count}", "cut %{count}", count)
+
+  def cut_instruction(count, true) when is_integer(count) and count > 0,
+    do: ngettext("cut %{count} on fold", "cut %{count} on fold", count)
 end

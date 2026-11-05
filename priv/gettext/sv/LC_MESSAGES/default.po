@@ -1395,3 +1395,72 @@ msgstr "Rak ärm"
 msgctxt "pattern piece"
 msgid "Sleeve"
 msgstr "Ärm"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "%{part}: %{piece}"
+msgstr "%{part}: %{piece}"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Choose an edge"
+msgstr "Välj en kant"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Click or tap an edge in the pattern to select it."
+msgstr "Klicka eller tryck på en kant i mönstret för att välja den."
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Enter a seam allowance from 0 to 10 cm"
+msgstr "Ange en sömsmån från 0 till 10 cm"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Fold: %{value}"
+msgstr "Fold: %{value}"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "No cutting line could be drawn for %{piece}."
+msgstr "Ingen klipplinje kunde ritas för %{piece}."
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Seam allowance"
+msgstr "Sömsmån"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Seam allowance for every edge (cm)"
+msgstr "Sömsmån för alla kanter (cm)"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Seam allowance for this edge (cm)"
+msgstr "Sömsmån för den här kanten (cm)"
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The cutting line of %{piece} has no dart peak at a dart."
+msgstr "Klipplinjen för %{piece} saknar inprovningsspets vid en inprovning."
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The cutting line of %{piece} is drawn with rounded corners."
+msgstr "Klipplinjen för %{piece} ritas med rundade hörn."
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgid "cut %{count}"
+msgid_plural "cut %{count}"
+msgstr[0] "klipp %{count}"
+msgstr[1] "klipp %{count}"
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgid "cut %{count} on fold"
+msgid_plural "cut %{count} on fold"
+msgstr[0] "klipp %{count} i fold"
+msgstr[1] "klipp %{count} i fold"

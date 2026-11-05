@@ -54,6 +54,21 @@ defmodule ToileWeb.EditorTextsTest do
     assert texts["decimal_separator"] == "."
   end
 
+  test "has the seam allowance and cutting line texts, with their placeholders", %{texts: texts} do
+    assert texts["seam_allowance"] == %{
+             "edge_label" => "Seam allowance for this edge (cm)",
+             "default_hint" => "Default: %{value}",
+             "fold_hint" => "Fold: %{value}",
+             "range_error" => "Enter a seam allowance from 0 to 10 cm"
+           }
+
+    assert texts["cutting_line"]["failed"] == "No cutting line could be drawn for %{piece}."
+
+    for kind <- ~w(failed safe_construction dart_without_peak) do
+      assert texts["cutting_line"][kind] =~ "%{piece}", "no %{piece} in #{kind}"
+    end
+  end
+
   test "encodes to JSON" do
     assert is_binary(JSON.encode!(EditorTexts.texts()))
   end

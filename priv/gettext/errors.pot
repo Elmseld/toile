@@ -18,6 +18,7 @@ msgstr ""
 ## From Ecto.Changeset.put_change/3
 #: lib/toile/patterns.ex
 #: lib/toile/patterns/pattern_project.ex
+#: lib/toile/patterns/seam_allowances.ex
 #, elixir-autogen
 msgid "is invalid"
 msgstr ""
