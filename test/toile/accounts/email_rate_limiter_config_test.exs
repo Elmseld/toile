@@ -45,4 +45,25 @@ defmodule Toile.Accounts.EmailRateLimiterConfigTest do
 
     assert EmailRateLimiter.hit(:login_link, "a@example.com", ip, server: server) == :ok
   end
+
+  test "reads the windows from the config at call time", %{server: server} do
+    Application.put_env(:toile, EmailRateLimiter,
+      per_recipient: [limit: 1, window: 1_000],
+      per_ip: [limit: 1, window: 5_000]
+    )
+
+    ip = {10, 255, 255, 2}
+    opts = &[server: server, now: &1]
+
+    assert EmailRateLimiter.hit(:login_link, "w@example.com", ip, opts.(0)) == :ok
+
+    assert EmailRateLimiter.hit(:login_link, "w@example.com", ip, opts.(999)) ==
+             {:error, :rate_limited}
+
+    # Recipient window (1s) has passed, the IP window (5s) has not.
+    assert EmailRateLimiter.hit(:login_link, "w@example.com", ip, opts.(1_000)) ==
+             {:error, :rate_limited}
+
+    assert EmailRateLimiter.hit(:login_link, "w@example.com", ip, opts.(5_000)) == :ok
+  end
 end
