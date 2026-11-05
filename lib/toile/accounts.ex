@@ -6,7 +6,7 @@ defmodule Toile.Accounts do
   import Ecto.Query, warn: false
   alias Toile.Repo
 
-  alias Toile.Accounts.{User, UserToken, UserNotifier}
+  alias Toile.Accounts.{EmailRateLimiter, User, UserToken, UserNotifier}
 
   ## Database getters
 
@@ -92,30 +92,47 @@ defmodule Toile.Accounts do
   Returns `{:ok, email}` in both of those cases, or `{:error, changeset}` for
   any other validation error.
 
+  Both emails are rate limited (`Toile.Accounts.EmailRateLimiter`, flows
+  `:registration_confirmation` and `:registration_attempt_notice`) by
+  recipient and by the client IP given as `opts[:remote_ip]`. Over a limit
+  nothing is sent but the result is the same; a new user is still created and
+  can ask for a login link later.
+
+  ## Options
+
+    * `:remote_ip` - the client IP (`t::inet.ip_address/0`), or `nil` to limit
+      by recipient only
+
   ## Examples
 
-      iex> register_user_and_deliver_instructions(%{email: "new@example.com"}, &url/1, url)
+      iex> register_user_and_deliver_instructions(%{email: "new@example.com"}, &url/1, url, remote_ip: ip)
       {:ok, "new@example.com"}
 
-      iex> register_user_and_deliver_instructions(%{email: "taken@example.com"}, &url/1, url)
+      iex> register_user_and_deliver_instructions(%{email: "taken@example.com"}, &url/1, url, remote_ip: ip)
       {:ok, "taken@example.com"}
 
-      iex> register_user_and_deliver_instructions(%{email: "bad"}, &url/1, url)
+      iex> register_user_and_deliver_instructions(%{email: "bad"}, &url/1, url, remote_ip: ip)
       {:error, %Ecto.Changeset{}}
 
   """
-  def register_user_and_deliver_instructions(attrs, magic_link_url_fun, login_url)
+  def register_user_and_deliver_instructions(attrs, magic_link_url_fun, login_url, opts \\ [])
       when is_function(magic_link_url_fun, 1) and is_binary(login_url) do
+    remote_ip = opts[:remote_ip]
+
     case register_user(attrs) do
       {:ok, user} ->
-        {:ok, _} = deliver_login_instructions(user, magic_link_url_fun)
+        with :ok <- EmailRateLimiter.hit(:registration_confirmation, user.email, remote_ip) do
+          {:ok, _} = deliver_login_instructions(user, magic_link_url_fun)
+        end
+
         {:ok, user.email}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         if only_email_taken_error?(changeset) do
           email = Ecto.Changeset.get_field(changeset, :email)
 
-          if user = get_user_by_email(email) do
+          with %User{} = user <- get_user_by_email(email),
+               :ok <- EmailRateLimiter.hit(:registration_attempt_notice, user.email, remote_ip) do
             {:ok, _} = UserNotifier.deliver_registration_attempt_notice(user, login_url)
           end
 
@@ -375,6 +392,9 @@ defmodule Toile.Accounts do
   @doc ~S"""
   Delivers the update email instructions to the given user.
 
+  Not rate limited; UI flows must go through `request_login_instructions/3`,
+  `register_user_and_deliver_instructions/4` or `request_user_email_change/4`.
+
   ## Examples
 
       iex> deliver_user_update_email_instructions(user, current_email, &url(~p"/users/settings/confirm-email/#{&1}"))
@@ -401,35 +421,49 @@ defmodule Toile.Accounts do
   Returns `{:ok, new_email}` in both of those cases, or `{:error, changeset}`
   for any other validation error (bad format, unchanged email, ...).
 
+  Both emails are rate limited (`Toile.Accounts.EmailRateLimiter`, flows
+  `:email_change_link` and `:email_change_attempt_notice`) by recipient and by
+  the client IP given as `opts[:remote_ip]`. Over a limit no token is created
+  and nothing is sent, but the result is the same.
+
+  ## Options
+
+    * `:remote_ip` - the client IP (`t::inet.ip_address/0`), or `nil` to limit
+      by recipient only
+
   ## Examples
 
-      iex> request_user_email_change(user, %{email: "free@example.com"}, &url(~p"/users/settings/confirm-email/#{&1}"))
+      iex> request_user_email_change(user, %{email: "free@example.com"}, &url(~p"/users/settings/confirm-email/#{&1}"), remote_ip: ip)
       {:ok, "free@example.com"}
 
-      iex> request_user_email_change(user, %{email: "taken@example.com"}, &url(~p"/users/settings/confirm-email/#{&1}"))
+      iex> request_user_email_change(user, %{email: "taken@example.com"}, &url(~p"/users/settings/confirm-email/#{&1}"), remote_ip: ip)
       {:ok, "taken@example.com"}
 
-      iex> request_user_email_change(user, %{email: "bad"}, &url(~p"/users/settings/confirm-email/#{&1}"))
+      iex> request_user_email_change(user, %{email: "bad"}, &url(~p"/users/settings/confirm-email/#{&1}"), remote_ip: ip)
       {:error, %Ecto.Changeset{}}
 
   """
-  def request_user_email_change(%User{} = user, attrs, update_email_url_fun)
+  def request_user_email_change(%User{} = user, attrs, update_email_url_fun, opts \\ [])
       when is_function(update_email_url_fun, 1) do
     changeset = change_user_email(user, attrs)
+    remote_ip = opts[:remote_ip]
 
     cond do
       changeset.valid? ->
         new_user = Ecto.Changeset.apply_action!(changeset, :update)
 
-        {:ok, _} =
-          deliver_user_update_email_instructions(new_user, user.email, update_email_url_fun)
+        with :ok <- EmailRateLimiter.hit(:email_change_link, new_user.email, remote_ip) do
+          {:ok, _} =
+            deliver_user_update_email_instructions(new_user, user.email, update_email_url_fun)
+        end
 
         {:ok, new_user.email}
 
       only_email_taken_error?(changeset) ->
         email = Ecto.Changeset.get_field(changeset, :email)
 
-        if owner = get_user_by_email(email) do
+        with %User{} = owner <- get_user_by_email(email),
+             :ok <- EmailRateLimiter.hit(:email_change_attempt_notice, owner.email, remote_ip) do
           {:ok, _} = UserNotifier.deliver_email_change_attempt_notice(owner)
         end
 
@@ -440,8 +474,44 @@ defmodule Toile.Accounts do
     end
   end
 
+  @doc ~S"""
+  Sends login instructions to `email` if it belongs to an account, without
+  revealing whether it does.
+
+  A confirmed user gets a magic link, an unconfirmed one a confirmation email;
+  both are built with `magic_link_url_fun`. The request is rate limited
+  (`Toile.Accounts.EmailRateLimiter`, flow `:login_link`) by address and by the
+  client IP given as `opts[:remote_ip]`. The hit is counted before the account
+  lookup, so an unknown address uses the same budget as a known one.
+
+  Always returns `:ok`.
+
+  ## Options
+
+    * `:remote_ip` - the client IP (`t::inet.ip_address/0`), or `nil` to limit
+      by address only
+
+  ## Examples
+
+      iex> request_login_instructions("foo@example.com", &url(~p"/users/log-in/#{&1}"), remote_ip: ip)
+      :ok
+
+  """
+  def request_login_instructions(email, magic_link_url_fun, opts \\ [])
+      when is_binary(email) and is_function(magic_link_url_fun, 1) do
+    with :ok <- EmailRateLimiter.hit(:login_link, email, opts[:remote_ip]),
+         %User{} = user <- get_user_by_email(email) do
+      {:ok, _} = deliver_login_instructions(user, magic_link_url_fun)
+    end
+
+    :ok
+  end
+
   @doc """
   Delivers the magic link login instructions to the given user.
+
+  Not rate limited; UI flows must go through `request_login_instructions/3`,
+  `register_user_and_deliver_instructions/4` or `request_user_email_change/4`.
   """
   def deliver_login_instructions(%User{} = user, magic_link_url_fun)
       when is_function(magic_link_url_fun, 1) do
