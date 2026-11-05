@@ -18,7 +18,10 @@ the cutting line), and the user must set the allowance per edge, including 0 at 
    default number in 0..100, every edge key a part of the project and a curve in that part's piece
    outlines, every value a number in 0..100. Anything else is rejected and nothing is stored. The
    settable curves come from `Patterns.outline_curves/1`, which also builds the edge select, so the
-   select offers exactly what the server accepts. The bound equals the engine's
+   select offers exactly what the server accepts. Edges are stored per part and curve name, so a
+   value typed for an edge whose curve two pieces of one part share applies to every piece that
+   has that curve, including one where it is a fold (rule 4: the set value wins there). No
+   current block shares curve names between pieces. The bound equals the engine's
    `MAX_SEAM_ALLOWANCE`, and the default equals `DEFAULT_SEAM_ALLOWANCE`; `engine_limits_test.exs`
    pins both. No atoms are made from keys. The server does not broadcast. A CHECK constraint
    (`seam_allowances_must_have_default_and_edges`) requires an object with a number `default` and

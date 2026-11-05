@@ -45,9 +45,10 @@ Both groups use the same engine but get different amounts of it exposed.
    bodice, fitted to the bodice's armhole (the cap is the armhole plus a set cap ease) and
    recomputed whenever the bodice is, for example on a profile switch or an edit. Notches mark how
    the parts are sewn together: a double notch on the back armhole and the sleeve cap, a single one
-   at the front, and one at the sleeve crown (matches the shoulder seam). The skirt has a notch at the hip on each side seam, double at the back. Adding the sleeve makes
-   the page ask for the arm measurements (upper arm, arm length, wrist) if the profile lacks them.
-   A sleeve cannot be removed yet.
+   at the front, and one at the sleeve crown (matches the shoulder seam). The skirt has a notch at
+   the hip on each side seam, double at the back. Adding the sleeve makes the page ask for the arm
+   measurements (upper arm, arm length, wrist) if the profile lacks them. A sleeve cannot be
+   removed yet.
 3. **Modify**: on the project page every point of every part (the bodice and an added sleeve
    alike) is a handle that can be dragged with mouse, touch or pen; the control points of Bézier
    curves too. Dependent points, curves and pieces follow during the drag, with no server call,
@@ -68,7 +69,8 @@ Both groups use the same engine but get different amounts of it exposed.
    (solid, the seam line plus seam allowance). A piece shows its name and its cutting instruction
    ("klipp 2", or "klipp 1 i fold" with a fold), the grainline arrow, a dash-dot fold line on each
    fold edge, and its notches on both the seam line and the cutting line. The panel "Sömsmån" sets
-   the project's seam allowance (default 1 cm; an empty field means 1 cm; 0 to 10 cm). A single
+   the project's seam allowance (default 1 cm; an empty field means 1 cm; a value outside 0 to 10 cm is refused with
+   "Ange en sömsmån från 0 till 10,0 cm"). A single
    edge is selected by tapping or clicking it in the drawing, or with the select "Välj en kant",
    and its allowance set in cm (0 is allowed; an empty field removes the override). A fold edge
    has 0 unless set ("Fold: 0 cm"). Changes redraw at once, save automatically and take part in

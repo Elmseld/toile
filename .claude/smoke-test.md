@@ -4,6 +4,9 @@ Boot: the `toile` entry in `.claude/launch.json` (`docker compose up`: Postgres 
 localhost:4000; the first start compiles deps and can take a few minutes). Ready when `GET /`
 answers 200.
 
+Worktree stacks can run on another port (e.g. 4015). Magic links in `/dev/mailbox` point at 4000;
+open the same path on the stack's port.
+
 Login: no seed user. Register a fresh address (e.g. `smoke-<timestamp>@toile.test`) and log in with
 the magic link from the dev mailbox at `/dev/mailbox`. For password login, set any 12+ character
 test password under Inställningar first.
@@ -82,3 +85,11 @@ Expected: (1) the outline follows during the drag, the label moves at release an
 2. Open `/patterns/new` and look at the block select.
 3. Back on the project, switch to a profile without arm measurements.
 Expected: (1) the flash "Rak ärm har lagts till", the sleeve drawn next to the bodice with notches, and the "Rak ärm" button gone; (2) the select offers only "Liv" and "Rak kjol"; (3) "Mått som saknas för det här mönstret" lists "Ärmlängd", "Överarmsvidd" and "Handledsvidd" with nothing drawn.
+
+### Markings and seam allowance
+1. Open a "Rak kjol" project with a complete profile.
+2. Look at the pieces, then set "Sömsmån" to 2 and tap one edge (or use "Välj en kant") and set it to 0.
+3. Wait for "Sparat", then reload.
+4. Enter "11" as the default allowance.
+5. Set the default to 5.
+Expected: (2) the labels "klipp 2" (Bakstycke) and "klipp 1 i fold" (Framstycke), the seam line dashed inside the solid cutting line, a dash-dot fold line, and the edge redrawn at once; (3) both values are still there; (4) "Ange en sömsmån från 0 till 10,0 cm" and nothing is saved; (5) the pieces do not overlap.

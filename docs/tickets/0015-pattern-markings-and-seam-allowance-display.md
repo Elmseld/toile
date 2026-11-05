@@ -1,7 +1,7 @@
 ---
 id: 0015
 title: Pattern markings and seam allowance display
-status: in-progress
+status: in-review
 type: feature
 ---
 
@@ -16,9 +16,9 @@ show grainline, notches, fold line, name and cutting instructions, and the proje
 seam line and the cutting line so they are easy to tell apart.
 
 ## Acceptance criteria
-- [ ] Markings in the block definitions: notches (balance marks), fold line, piece name, and "cut 2" / "cut 1 on fold" ("klipp 2" / "klipp 1 i fold"), shown together with the grainline arrow.
-- [ ] The project view draws the seam line dashed and the cutting line solid.
-- [ ] The seam allowance can be set per edge in the UI (including 0, e.g. at a fold line). The default value (1 cm) is set per project and stored on the project.
+- [x] Markings in the block definitions: notches (balance marks), fold line, piece name, and "cut 2" / "cut 1 on fold" ("klipp 2" / "klipp 1 i fold"), shown together with the grainline arrow.
+- [x] The project view draws the seam line dashed and the cutting line solid.
+- [x] The seam allowance can be set per edge in the UI (including 0, e.g. at a fold line). The default value (1 cm) is set per project and stored on the project.
 
 ## Out of scope
 - Computing the seam allowance outline (0009).
