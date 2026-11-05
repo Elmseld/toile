@@ -1946,3 +1946,107 @@ describe("straight sleeve: cap solve and sensitivity", () => {
     expectHalvesSolved(plausible, 0.01);
   });
 });
+
+/** The English cutting instruction, as the project page builds it (ToileWeb.BlockTexts). */
+function cutText(cut: number, onFold: boolean): string {
+  return onFold ? `cut ${cut} on fold` : `cut ${cut}`;
+}
+
+/** Every block piece, evaluated in one project of every block, by block and piece name. */
+function blockPieces(): [string, ComputedPiece][] {
+  const parts = blockFiles().map((file) => ({
+    name: file.replace(/\.json$/, ""),
+    definition: readJson(join(BLOCKS_DIR, file)),
+  }));
+  const result = evaluateProject(parts, { measurements: FULL_PROFILE });
+  return Object.entries(result.parts).flatMap(([block, part]) =>
+    Object.values(expectOk(part).pieces).map((value): [string, ComputedPiece] => [
+      `${block}.${value.name}`,
+      value,
+    ]),
+  );
+}
+
+describe("block markings (ADR 0011)", () => {
+  type RawPiece = { name: string; cut?: number; outline: { curve: string; fold?: boolean }[] };
+  const markings = (definition: unknown) =>
+    (definition as { pieces: RawPiece[] }).pieces.map((entry) => ({
+      name: entry.name,
+      cut: entry.cut,
+      folds: entry.outline.filter((e) => e.fold === true).map((e) => e.curve),
+    }));
+
+  test("every piece has its cut count and fold edges", () => {
+    expect(markings(skirt())).toEqual([
+      { name: "back", cut: 2, folds: [] },
+      { name: "front", cut: 1, folds: ["f_cf"] },
+    ]);
+    expect(markings(bodice())).toEqual([
+      { name: "back", cut: 1, folds: ["b_cb"] },
+      { name: "front", cut: 1, folds: ["f_cf"] },
+    ]);
+    expect(markings(readJson(SLEEVE_PATH))).toEqual([{ name: "sleeve", cut: 2, folds: [] }]);
+  });
+
+  test("every fold curve is a line, and the computed folds match", () => {
+    for (const file of blockFiles()) {
+      const definition = readJson(join(BLOCKS_DIR, file)) as Record<string, unknown>;
+      const types = curveTypes(definition);
+      for (const entry of markings(definition)) {
+        for (const fold of entry.folds) expect(types[fold]).toBe("line");
+      }
+    }
+    const folds = Object.fromEntries(blockPieces().map(([name, value]) => [name, value.folds]));
+    expect(folds).toEqual({
+      "bodice.back": ["b_cb"],
+      "bodice.front": ["f_cf"],
+      "straight_skirt.back": [],
+      "straight_skirt.front": ["f_cf"],
+      "straight_sleeve.sleeve": [],
+    });
+  });
+
+  for (const [label, measurements] of [
+    ["A", SET_A],
+    ["B", SET_B],
+  ] as const) {
+    test(`set ${label}: the skirt's hip notches are at the hip, as far up the side seam on both pieces`, () => {
+      const result = expectOk(evaluatePattern(skirt(), { measurements }));
+      const back = piece(result, "back");
+      const front = piece(result, "front");
+      expect(back.notches).toHaveLength(1);
+      expect(front.notches).toHaveLength(1);
+      expect(back.notches[0]!.marks).toHaveLength(2);
+      expect(front.notches[0]!.marks).toHaveLength(1);
+      const backPoint = back.notches[0]!.point;
+      const frontPoint = front.notches[0]!.point;
+      expect(Math.abs(backPoint.y - point(result, "b_hip_side").y)).toBeLessThan(0.01);
+      expect(Math.abs(frontPoint.y - point(result, "f_hip_side").y)).toBeLessThan(0.01);
+      const backUp = distance(backPoint, point(result, "b_hem_side"));
+      const frontUp = distance(frontPoint, point(result, "f_hem_side"));
+      expectWithin(backUp, frontUp, 0.01);
+      for (const notch of [...back.notches, ...front.notches]) {
+        const polygon = outlinePolygon(notch === back.notches[0] ? back : front);
+        for (const mark of notch.marks) {
+          expect(insidePolygon(polygon, mark.to.x, mark.to.y)).toBe(true);
+        }
+      }
+    });
+  }
+
+  test("every block piece has room for its two-line label", () => {
+    const names: Record<string, string> = { back: "Back", front: "Front", sleeve: "Sleeve" };
+    const cuts = Object.fromEntries(
+      blockFiles().flatMap((file) =>
+        markings(readJson(join(BLOCKS_DIR, file))).map((entry) => [
+          `${file.replace(/\.json$/, "")}.${entry.name}`,
+          entry.cut,
+        ]),
+      ),
+    );
+    for (const [name, value] of blockPieces()) {
+      const text = `${names[value.name]}\n${cutText(cuts[name]!, value.folds.length > 0)}`;
+      expect(placeLabel(value, text, 14)).not.toBeNull();
+    }
+  });
+});

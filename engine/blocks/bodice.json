@@ -175,6 +175,7 @@
   "pieces": [
     {
       "name": "back",
+      "cut": 1,
       "outline": [
         { "curve": "b_neckline" },
         { "curve": "b_shoulder_neck" },
@@ -188,16 +189,17 @@
         { "curve": "b_wdart_leg_side" },
         { "curve": "b_wdart_leg_cb" },
         { "curve": "b_waist_cb_seg" },
-        { "curve": "b_cb" }
+        { "curve": "b_cb", "fold": true }
       ],
       "grainline": { "from": "b_grain_top", "to": "b_grain_bottom" },
       "notches": [{ "curve": "b_armhole_lower", "distance": "0", "marks": 2 }]
     },
     {
       "name": "front",
+      "cut": 1,
       "outline": [
         { "curve": "f_neckline" },
-        { "curve": "f_cf" },
+        { "curve": "f_cf", "fold": true },
         { "curve": "f_waist_cf_seg" },
         { "curve": "f_wdart_leg_cf" },
         { "curve": "f_wdart_leg_side" },

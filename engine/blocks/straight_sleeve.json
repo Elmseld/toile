@@ -167,6 +167,7 @@
   "pieces": [
     {
       "name": "sleeve",
+      "cut": 2,
       "outline": [
         { "curve": "s_cap_back_lower" },
         { "curve": "s_cap_back_mid" },
