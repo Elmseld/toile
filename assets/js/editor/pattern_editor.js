@@ -72,7 +72,7 @@ import {
   setUserOffset,
   undo,
 } from "../../../engine/src/index"
-import {encodedBytes, parseJSON} from "../json"
+import {encodedBytes, isObject, parseJSON} from "../json"
 import {Handles, hitRadius} from "./handles"
 import {Panels, errorText} from "./panels"
 
@@ -91,10 +91,6 @@ const ALLOWANCES = "#seam_allowances"
 /** The ids of the seam allowance inputs: the project default, and the selected edge's. */
 const DEFAULT_INPUT = "seam-allowance-default-input"
 const EDGE_INPUT = "edge-allowance-input"
-
-function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 
 /** A point's stored offset, or none (0, 0) when it has no usable one. */
 function offsetOf(point) {
@@ -699,24 +695,24 @@ export class PatternEditor {
   }
 
   /**
-   * The fold rule for the edge `curve` of part `part` in the drawn result, as the
-   * `{folds}` edgeAllowance reads (the curve on a fold when any piece of the part has it as a
-   * fold edge), or null when no piece's outline has that curve.
+   * The pieces of part `part` in the drawn result whose outline has the curve `curve`, in piece
+   * order (empty for none). The cutting line applies the fold rule per piece (the engine's
+   * pieceSeamAllowances), so each piece's fallback for the edge is its own: 0 where it is one of
+   * the piece's folds, else the project default. The panel shows the edge as it is on the first
+   * of them, the piece the edge select lists it under (Patterns.outline_curves/1).
    */
-  edgePiece(part, curve) {
+  edgePieces(part, curve) {
     const parts = this.result?.parts
-    if (!part || !curve || !parts || !Object.hasOwn(parts, part)) return null
-    const pieces = Object.values(parts[part].pieces).filter(piece =>
+    if (!part || !curve || !parts || !Object.hasOwn(parts, part)) return []
+    return Object.values(parts[part].pieces).filter(piece =>
       piece.outline.some(c => c.name === curve),
     )
-    if (pieces.length === 0) return null
-    return {folds: pieces.some(piece => piece.folds.includes(curve)) ? [curve] : []}
   }
 
   /** Selects the edge `curve` of part `part` (null for none), highlights it and shows its panel. */
   selectEdge(part, curve) {
     this.commit()
-    this.selectedEdge = this.edgePiece(part, curve) ? {part, curve} : null
+    this.selectedEdge = this.edgePieces(part, curve).length > 0 ? {part, curve} : null
     this.hook.highlightEdge()
     this.renderEdge()
   }
@@ -726,21 +722,28 @@ export class PatternEditor {
     if (!this.result || this.drag) return
     const at = this.hook.toUser(event.clientX, event.clientY)
     const radius = hitRadius(event.pointerType) / this.hook.pixelScale()
-    // The pieces of every part where they are drawn, keyed apart, so the nearest edge wins.
-    const owners = new Map()
+    // The pieces of every part where they are drawn, keyed apart, so the nearest edge wins. The
+    // curves are named `<part>.<curve>` (part names have no dot), so a tie goes to the selected
+    // edge of the selected part only, not to a curve of the same name in another part.
     const entries = []
     for (const part of this.order) {
       const pieces = this.result.parts[part]?.pieces
       if (!pieces) continue
       const {dx, dy} = this.hook.partOffset(part)
       for (const piece of Object.values(pieces)) {
-        const key = `${owners.size}`
-        owners.set(key, part)
-        entries.push([key, {outline: piece.outline.map(curve => shiftCurve(curve, dx, dy))}])
+        const outline = piece.outline.map(curve => ({
+          ...shiftCurve(curve, dx, dy),
+          name: `${part}.${curve.name}`,
+        }))
+        entries.push([`${entries.length}`, {outline}])
       }
     }
-    const picked = pickEdge(Object.fromEntries(entries), at, radius, this.selectedEdge?.curve)
-    if (picked) this.selectEdge(owners.get(picked.piece), picked.curve)
+    const edge = this.selectedEdge
+    const prefer = edge ? `${edge.part}.${edge.curve}` : undefined
+    const picked = pickEdge(Object.fromEntries(entries), at, radius, prefer)
+    if (!picked) return
+    const dot = picked.curve.indexOf(".")
+    this.selectEdge(picked.curve.slice(0, dot), picked.curve.slice(dot + 1))
   }
 
   /** Shows the working allowances in the panel: the project default and the selected edge. */
@@ -751,22 +754,25 @@ export class PatternEditor {
 
   renderEdge() {
     const edge = this.selectedEdge
-    const piece = edge && this.edgePiece(edge.part, edge.curve)
+    const [piece] = edge ? this.edgePieces(edge.part, edge.curve) : []
     if (!piece) {
       this.panels.renderEdge(null)
       return
     }
     const allowances = this.state.seamAllowances
+    const fold = piece.folds.includes(edge.curve)
     this.panels.renderEdge(edge, edgeAllowance(allowances, edge.part, piece, edge.curve), {
-      fold: piece.folds.length > 0,
-      value: piece.folds.length > 0 ? 0 : allowances.default,
+      fold,
+      value: fold ? 0 : allowances.default,
     })
   }
 
   /**
    * A keystroke in a seam allowance field (`input`: the project default's or the selected
    * edge's): parse it in cm, and if it is a valid allowance make it the working state and redraw
-   * the cutting lines. Anything else shows the range error and changes nothing.
+   * the cutting lines (and, for the default, the selected edge's panel, which may show it).
+   * Anything else shows the range error and changes nothing. An edge value is kept as the user's
+   * only where it differs from the fallback of a piece that has the edge (see edgePieces).
    */
   allowanceInput(input) {
     if (this.drag) return
@@ -785,14 +791,16 @@ export class PatternEditor {
       next = setDefaultAllowance(allowances, value ?? DEFAULT_SEAM_ALLOWANCE)
     } else {
       const edge = this.selectedEdge
-      const piece = edge && this.edgePiece(edge.part, edge.curve)
-      if (!piece) return
-      const fallback = piece.folds.length > 0 ? 0 : allowances.default
-      next = setEdgeAllowance(allowances, edge.part, edge.curve, value === fallback ? null : value)
+      const pieces = edge ? this.edgePieces(edge.part, edge.curve) : []
+      if (pieces.length === 0) return
+      const fallback = piece => (piece.folds.includes(edge.curve) ? 0 : allowances.default)
+      const same = pieces.every(piece => fallback(piece) === value)
+      next = setEdgeAllowance(allowances, edge.part, edge.curve, same ? null : value)
     }
     this.panels.setError(input, null)
     if (next === allowances) return
     this.state = {...this.state, seamAllowances: next}
+    if (input.id === DEFAULT_INPUT) this.renderEdge()
     if (this.result) this.hook.update(this.result, {labels: "keep"})
   }
 

@@ -23,13 +23,7 @@ import {
   pointFields,
   toDisplay,
 } from "../../../engine/src/index"
-
-/** `template` with every `%{key}` replaced by `values[key]`. */
-export function fill(template, values = {}) {
-  return String(template ?? "").replace(/%\{(\w+)\}/g, (match, key) =>
-    Object.hasOwn(values, key) ? String(values[key]) : match,
-  )
-}
+import {fill} from "../text"
 
 /** The name an engine error's text mentions: the reference, function or dependency it is about. */
 function errorSubject(error) {

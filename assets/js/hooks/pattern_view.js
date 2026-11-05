@@ -33,12 +33,13 @@
 // colour), the grainline, the notches as short marks into the piece from the seam line and from
 // the cutting line, and the label. The cutting line is the engine's cuttingLine for the piece's
 // allowances (pieceSeamAllowances: the project default, 0 on a fold edge, the user's value per
-// edge). It is computed on every update, also each frame of a drag, and cached by the piece's path
-// data and its allowances, so unchanged pieces cost nothing (ADR 0011 decision 8). The layout and
-// the fit cover the cutting lines. A piece without a cutting line, or one drawn with
-// approximations, gets a sentence in the notes list (data-notes), always as plain text. The
-// dashes of the seam and fold lines are in mm, so they keep their real length at every zoom; their
-// widths are set per view in pixels, like the other strokes (which are non-scaling).
+// edge). It is computed on every update, also each frame of a drag, and cached per piece (its
+// latest line, keyed by its path data, curve names and allowances), so unchanged pieces cost
+// nothing (ADR 0011 decision 8). The layout and the fit cover the cutting lines. A piece without a
+// cutting line, or one drawn with approximations, gets a sentence in the notes list (data-notes),
+// always as plain text. The dashes of the seam and fold lines are in mm, so they keep their real
+// length at every zoom; their widths are set per view in pixels, like the other strokes (which are
+// non-scaling).
 //
 // With an editor (assets/js/editor/pattern_editor.js, docs/adr/0008-pattern-editor.md) the
 // editor owns the working definitions and parameters of all parts: compute() asks it for the
@@ -82,9 +83,9 @@ import {
   placeLabel,
   readSeamAllowances,
 } from "../../../engine/src/index"
-import {fill} from "../editor/panels"
 import {PatternEditor} from "../editor/pattern_editor"
-import {parseJSON} from "../json"
+import {isObject, parseJSON} from "../json"
+import {fill} from "../text"
 import {center, fit, gridPathData, panBy, toAttribute, visibleArea, zoomAt} from "./viewport"
 
 const SVG_NS = "http://www.w3.org/2000/svg"
@@ -96,8 +97,6 @@ const KEY_PAN_FRACTION = 0.1
 const KEY_ZOOM_FACTOR = 0.8
 // Label placements kept before the cache starts over.
 const LABEL_CACHE_SIZE = 200
-// Cutting lines kept before the cache starts over.
-const CUTTING_CACHE_SIZE = 200
 // A panning press that moves less than this many pixels is a tap (it selects an edge).
 const TAP_DISTANCE_PX = 3
 // Stroke widths in pixels. The seam and fold lines are dashed in mm, so their width is set per
@@ -114,10 +113,6 @@ function svgElement(name, attributes = {}) {
   const element = document.createElementNS(SVG_NS, name)
   for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, String(value))
   return element
-}
-
-function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 /** `map[part][piece]` when it is a string (own keys only), else null. */
@@ -315,18 +310,20 @@ const PatternView = {
   },
 
   // The cutting line (the engine's CuttingLineResult) of `piece` of part `part` for the current
-  // allowances, cached by the piece's path data and its effective allowances.
+  // allowances. The cache holds the latest line of each piece (by part and piece name), with its
+  // key: the piece's path data, its outline curve names (the allowances are keyed by them) and
+  // its effective allowances. So it stays one entry per piece however long a drag runs.
   cuttingLineOf(part, piece, pathData = piecePathData(piece)) {
     const {default: fallback, edges} = this.allowances()
     const own = Object.hasOwn(edges, part) ? edges[part] : undefined
     const allowances = pieceSeamAllowances(piece, fallback, own)
-    const key = `${pathData}\n${JSON.stringify(allowances)}`
-    let line = this.cuttingCache.get(key)
-    if (!line) {
-      line = cuttingLine(piece, allowances)
-      if (this.cuttingCache.size >= CUTTING_CACHE_SIZE) this.cuttingCache.clear()
-      this.cuttingCache.set(key, line)
-    }
+    const names = piece.outline.map(curve => curve.name)
+    const key = `${pathData}\n${JSON.stringify([names, allowances])}`
+    const slot = JSON.stringify([part, piece.name])
+    const cached = this.cuttingCache.get(slot)
+    if (cached?.key === key) return cached.line
+    const line = cuttingLine(piece, allowances)
+    this.cuttingCache.set(slot, {key, line})
     return line
   },
 

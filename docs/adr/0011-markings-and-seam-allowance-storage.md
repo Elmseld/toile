@@ -42,11 +42,11 @@ the cutting line), and the user must set the allowance per edge, including 0 at 
 7. **Two-line labels** (name, then cutting instruction): see ADR 0006, "Piece labels".
 8. **Cutting line per update, cached.** This amends ADR 0009's "compute it once per drawn input".
    The hook computes `cuttingLine` for every piece on each update, including each frame of a drag,
-   with a cache keyed by the piece's path data and its effective allowances. Outlines have at most
-   13 entries because pieces are not editable, a line costs about 0.25 ms, evaluations are already
-   coalesced per frame, and unchanged pieces hit the cache. The fit and the layout cover the
-   cutting lines (`patternBounds` takes the lines). A failed line or its `approximations` is shown
-   as plain text (`#pattern-notes`), never as HTML.
+   with a cache that holds each piece's latest line, keyed by its path data, curve names and
+   effective allowances. Outlines have at most 13 entries because pieces are not editable, a line
+   costs about 0.25 ms, evaluations are already coalesced per frame, and unchanged pieces hit the
+   cache. The fit and the layout cover the cutting lines (`patternBounds` takes the lines). A
+   failed line or its `approximations` is shown as plain text (`#pattern-notes`), never as HTML.
 
 ## Alternatives rejected
 - A `seam_allowance` field on outline entries: needs piece edits in `DefinitionEdit` and
