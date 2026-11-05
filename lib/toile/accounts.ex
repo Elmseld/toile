@@ -12,6 +12,11 @@ defmodule Toile.Accounts do
 
   @delivery_supervisor Toile.Accounts.EmailDeliverySupervisor
 
+  # The name of the `Task.Supervisor` that runs background login-link
+  # deliveries, for the application tree and the test helpers.
+  @doc false
+  def delivery_supervisor, do: @delivery_supervisor
+
   ## Database getters
 
   @doc """

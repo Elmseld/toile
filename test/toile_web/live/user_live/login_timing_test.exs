@@ -70,11 +70,7 @@ defmodule ToileWeb.UserLive.LoginTimingTest do
   # not timed.
   defp timed_submit(email) do
     conn =
-      Plug.Test.put_peer_data(build_conn(), %{
-        address: unique_remote_ip(),
-        port: 1,
-        ssl_cert: nil
-      })
+      build_conn_with_unique_peer()
 
     {:ok, lv, _html} = live(conn, ~p"/users/log-in")
     started = System.monotonic_time(:millisecond)

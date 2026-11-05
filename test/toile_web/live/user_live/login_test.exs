@@ -159,11 +159,7 @@ defmodule ToileWeb.UserLive.LoginTest do
 
       # Another IP still gets the link.
       other_conn =
-        Plug.Test.put_peer_data(build_conn(), %{
-          address: unique_remote_ip(),
-          port: 1,
-          ssl_cert: nil
-        })
+        build_conn_with_unique_peer()
 
       assert submit_magic(other_conn, user.email) == over
       await_email_deliveries()
