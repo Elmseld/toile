@@ -5,10 +5,11 @@
 
 import type { ProjectSeamAllowances } from "../editor/edges";
 import { CHAR_WIDTH_RATIO, LABEL_LINE_HEIGHT } from "../geometry/label";
+import { layoutProject } from "../geometry/project-layout";
 import type { Bounds } from "../geometry/svg";
 import type { ComputedCurve, ComputedPattern } from "../geometry/types";
 import type { Point } from "../geometry/vector";
-import { type PrintDrawing, type PrintPiece, printDrawing } from "./drawing";
+import { layoutDrawing, type PrintDrawing, type PrintPiece } from "./drawing";
 import { PAPER_SIZES, type Paper, PRINT_MARGIN, PT_PER_MM, TILE_OVERLAP } from "./paper";
 import { type PdfPage, pdfNumber, pdfText, writePdf } from "./pdf-writer";
 import { boxOf, printedTiles, type Tile, type TileGrid, tileGrid } from "./tiles";
@@ -88,10 +89,12 @@ export function pdfPages(
 ):
   | { ok: true; pages: LabelledPage[] }
   | { ok: false; kind: "nothing_to_print" | "too_many_pages" } {
-  const drawing = printDrawing(input.parts, input.allowances, input.labels);
-  if (drawing.bounds === null) return { ok: false, kind: "nothing_to_print" };
-  const grid = tileGrid(drawing.bounds, input.paper);
+  // The cap is checked on the layout's box, before the labels are placed or any tile is drawn.
+  const layout = layoutProject(input.parts, input.allowances);
+  if (layout.bounds === null) return { ok: false, kind: "nothing_to_print" };
+  const grid = tileGrid(layout.bounds, input.paper);
   if (grid === null) return { ok: false, kind: "too_many_pages" };
+  const drawing = layoutDrawing(layout, input.labels);
   const tiles = printedTiles(grid, drawing.pieces.map((piece) => piece.region));
   if (tiles.length === 0) return { ok: false, kind: "nothing_to_print" };
 

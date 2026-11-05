@@ -212,6 +212,21 @@ describe("patternPdf: errors", () => {
     expect(performance.now() - start).toBeLessThan(500);
   });
 
+  test("is too_many_pages before any label is read", () => {
+    const parts = { wide: rectangles(["near", 0, 0, 10, 10], ["far", 9e6, 0, 10, 10]) };
+    const labels = {
+      get wide(): Record<string, string> {
+        throw new Error("labels read before the tile cap");
+      },
+    };
+    expect(patternPdf(input(parts, { labels }))).toEqual({ ok: false, kind: "too_many_pages" });
+    // The same labels on a printable pattern are read, and fail.
+    expect(patternPdf(input({ wide: rectangles(["near", 0, 0, 10, 10]) }, { labels }))).toEqual({
+      ok: false,
+      kind: "failed",
+    });
+  });
+
   test("is failed when something unexpected throws", () => {
     const parts = {
       get broken(): ComputedPattern {
