@@ -21,17 +21,26 @@ defmodule Toile.Accounts.EmailRateLimiter do
   (windows in milliseconds).
 
   The state lives in this one process on this node: a map from bucket key to the
-  expiry times of the sends it counts. Only allowed sends are recorded, so
-  memory is bounded by the IP limit, and addresses are stored as SHA-256 hashes,
-  never in clear. A periodic sweep drops expired entries. If the process
-  restarts the counters are lost (fail-open), and while it is unavailable
-  `hit/4` allows the send.
+  times of the sends it counts. A send counts while it is younger than the
+  window configured at the time of the check, so a changed window applies to
+  sends already recorded. Only allowed sends are recorded, so the entries one
+  client IP can create are bounded by the IP limit; total memory still grows
+  with the number of distinct client IPs (IPv6 /64 prefixes), and calls without
+  an IP are bounded by nothing but the per-recipient limit. Addresses are
+  stored as SHA-256 hashes, never in clear. A periodic sweep drops expired
+  entries, using the configured windows.
+
+  The limiter is fail-open: if the process restarts the counters are lost, and
+  while it is unavailable (not running, or not answering within the default
+  5 second `GenServer.call/3` timeout) `hit/4` allows the send and logs a
+  warning.
   """
 
   use GenServer
 
   require Logger
 
+  # Keep in sync with `t:flow/0` below.
   @flows [
     :login_link,
     :registration_confirmation,
@@ -42,6 +51,7 @@ defmodule Toile.Accounts.EmailRateLimiter do
 
   @sweep_interval :timer.minutes(5)
 
+  # Keep in sync with `@flows` above.
   @type flow ::
           :login_link
           | :registration_confirmation
@@ -69,7 +79,8 @@ defmodule Toile.Accounts.EmailRateLimiter do
 
     * `:server` - the limiter process (default `#{inspect(__MODULE__)}`)
     * `:now` - the current time in monotonic milliseconds
-    * `:limits` - the limits, in the format of the application config
+    * `:limits` - the limits, in the format of the application config. The
+      periodic sweep always uses the application config.
   """
   @spec hit(flow(), String.t(), :inet.ip_address() | nil, keyword()) ::
           :ok | {:error, :rate_limited}
@@ -121,21 +132,40 @@ defmodule Toile.Accounts.EmailRateLimiter do
     GenServer.call(server, request)
   catch
     :exit, reason ->
-      Logger.warning("Email rate limiter unavailable, allowing send: #{inspect(reason)}")
+      # Only the class: the full exit reason contains the request, with the IP
+      # and the unsalted address hash.
+      Logger.warning("Email rate limiter unavailable, allowing send: #{exit_class(reason)}")
       :ok
   end
 
+  defp exit_class({:noproc, _call}), do: :noproc
+  defp exit_class({:timeout, _call}), do: :timeout
+  defp exit_class(_reason), do: :other
+
   # Keeps the first character of the local part and the domain (cut to 100
-  # characters), so a log line hints at the address without revealing it.
+  # bytes), so a log line hints at the address without revealing it. Both are
+  # cut by bytes, since one grapheme can be arbitrarily long.
   defp mask(email) do
     case String.split(email, "@") do
       [_no_at] ->
         "***"
 
       [local | rest] ->
-        domain = rest |> Enum.join("@") |> String.slice(0, 100)
-        (String.first(local) || "") <> "***@" <> domain
+        domain = rest |> Enum.join("@") |> cut_bytes(100)
+        (local |> String.slice(0, 1) |> cut_bytes(8)) <> "***@" <> domain
     end
+  end
+
+  # Cuts `string` to at most `max` bytes at a grapheme boundary.
+  defp cut_bytes(string, max) do
+    string
+    |> String.slice(0, max)
+    |> String.graphemes()
+    |> Enum.reduce_while({"", 0}, fn grapheme, {acc, size} ->
+      size = size + byte_size(grapheme)
+      if size <= max, do: {:cont, {acc <> grapheme, size}}, else: {:halt, {acc, size}}
+    end)
+    |> elem(0)
   end
 
   defp format_ip(nil), do: "none"
@@ -153,21 +183,21 @@ defmodule Toile.Accounts.EmailRateLimiter do
   def handle_call({:hit, buckets, now}, _from, state) do
     current =
       Enum.map(buckets, fn {key, {limit, window}} ->
-        {key, limit, window, live_entries(state, key, now)}
+        {key, limit, live_entries(state, key, now - window)}
       end)
 
-    case Enum.find(current, fn {_key, limit, _window, entries} -> length(entries) >= limit end) do
+    case Enum.find(current, fn {_key, limit, entries} -> length(entries) >= limit end) do
       nil ->
         state =
-          Enum.reduce(current, state, fn {key, _limit, window, entries}, acc ->
-            Map.put(acc, key, [now + window | entries])
+          Enum.reduce(current, state, fn {key, _limit, entries}, acc ->
+            Map.put(acc, key, [now | entries])
           end)
 
         {:reply, :ok, state}
 
-      {full_key, _limit, _window, _entries} ->
+      {full_key, _limit, _entries} ->
         state =
-          Enum.reduce(current, state, fn {key, _limit, _window, entries}, acc ->
+          Enum.reduce(current, state, fn {key, _limit, entries}, acc ->
             put_entries(acc, key, entries)
           end)
 
@@ -178,19 +208,29 @@ defmodule Toile.Accounts.EmailRateLimiter do
   @impl true
   def handle_info(:sweep, state) do
     now = System.monotonic_time(:millisecond)
+    limits = Application.fetch_env!(:toile, __MODULE__)
+
+    cutoffs = %{
+      recipient: now - window(limits, :per_recipient),
+      ip: now - window(limits, :per_ip)
+    }
 
     state =
       Enum.reduce(state, %{}, fn {key, entries}, acc ->
-        put_entries(acc, key, Enum.filter(entries, &(&1 > now)))
+        cutoff = Map.fetch!(cutoffs, bucket_name(key))
+        put_entries(acc, key, Enum.filter(entries, &(&1 > cutoff)))
       end)
 
     schedule_sweep()
     {:noreply, state}
   end
 
-  defp live_entries(state, key, now) do
-    state |> Map.get(key, []) |> Enum.filter(&(&1 > now))
+  # The entries of `key` sent after `cutoff`, that is within the window.
+  defp live_entries(state, key, cutoff) do
+    state |> Map.get(key, []) |> Enum.filter(&(&1 > cutoff))
   end
+
+  defp window(limits, bucket), do: limits |> bucket_limits(bucket) |> elem(1)
 
   defp put_entries(state, key, []), do: Map.delete(state, key)
   defp put_entries(state, key, entries), do: Map.put(state, key, entries)

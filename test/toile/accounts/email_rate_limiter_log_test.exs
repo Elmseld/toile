@@ -86,6 +86,20 @@ defmodule Toile.Accounts.EmailRateLimiterLogTest do
     refute log =~ String.duplicate("d", 100)
   end
 
+  test "cuts the masked address by bytes, not by characters", %{opts: opts} do
+    # Each "ä" is two bytes; a cut by characters would keep 200 bytes of domain.
+    long_char = "e" <> String.duplicate("\u0301", 50)
+    email = long_char <> "@" <> String.duplicate("ä", 150)
+    :ok = EmailRateLimiter.hit(:login_link, email, nil, opts)
+
+    log =
+      capture_log([level: :info], fn ->
+        EmailRateLimiter.hit(:login_link, email, nil, opts)
+      end)
+
+    assert log =~ ~s(recipient="***@#{String.duplicate("ä", 50)}")
+  end
+
   test "logs one line per denied send", %{opts: opts} do
     :ok = EmailRateLimiter.hit(:login_link, "a@example.com", nil, opts)
 

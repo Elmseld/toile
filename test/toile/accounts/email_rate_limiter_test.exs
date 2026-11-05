@@ -134,10 +134,11 @@ defmodule Toile.Accounts.EmailRateLimiterTest do
     end
   end
 
-  test "the sweep drops expired entries and keeps live ones", %{server: server, pid: pid} do
+  test "the sweep drops entries older than the configured windows", %{server: server, pid: pid} do
     now = System.monotonic_time(:millisecond)
 
-    assert hit(server, :login_link, "old@example.com", @ip, now - 2 * @ip_window) == :ok
+    # The sweep uses the application config (1 hour per IP), not the test limits.
+    assert hit(server, :login_link, "old@example.com", @ip, now - :timer.hours(2)) == :ok
     assert hit(server, :login_link, "new@example.com", {10, 0, 0, 2}, now) == :ok
     assert map_size(:sys.get_state(pid)) == 4
 
@@ -164,6 +165,26 @@ defmodule Toile.Accounts.EmailRateLimiterTest do
                ) == :ok
       end)
 
-    assert log =~ "Email rate limiter unavailable"
+    assert log =~ "Email rate limiter unavailable, allowing send: noproc"
+  end
+
+  test "logs neither the IP nor the address hash when the limiter is unavailable" do
+    email = "hidden@example.com"
+    hash = :crypto.hash(:sha256, email)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert EmailRateLimiter.hit(:login_link, email, {203, 0, 113, 99},
+                 server: :no_such_limiter,
+                 limits: @limits
+               ) == :ok
+      end)
+
+    assert log =~ "noproc"
+    refute log =~ "203"
+    refute log =~ "<<"
+    refute log =~ inspect(hash)
+    refute log =~ Base.encode16(hash, case: :lower)
+    refute log =~ "hidden"
   end
 end
