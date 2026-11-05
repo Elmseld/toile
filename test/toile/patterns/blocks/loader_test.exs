@@ -4,7 +4,20 @@ defmodule Toile.Patterns.Blocks.LoaderTest do
   alias Toile.Patterns.Blocks.Loader
   alias Toile.Patterns.DefinitionSize
 
-  @moduletag :tmp_dir
+  # Not :tmp_dir (ticket 0017): its fixed path under tmp/ is a bind mount on macOS Docker and
+  # is shared by concurrent `mix test` runs, either of which can leave a read seeing an empty
+  # file. Keep System.pid() in the path so each OS process and test gets its own directory.
+  setup do
+    dir =
+      Path.join(
+        System.tmp_dir!(),
+        "toile-loader-test-#{System.pid()}-#{System.unique_integer([:positive])}"
+      )
+
+    File.mkdir_p!(dir)
+    on_exit(fn -> File.rm_rf!(dir) end)
+    %{dir: dir}
+  end
 
   defp write!(dir, name, content) do
     path = Path.join(dir, name)
@@ -12,19 +25,19 @@ defmodule Toile.Patterns.Blocks.LoaderTest do
     path
   end
 
-  test "returns the key and the decoded definition", %{tmp_dir: dir} do
+  test "returns the key and the decoded definition", %{dir: dir} do
     path = write!(dir, "a_block.json", ~s({"version": 1, "measurements": ["waist"]}))
 
     assert Loader.load!(path) == {"a_block", %{"version" => 1, "measurements" => ["waist"]}}
   end
 
-  test "raises for a key that is not snake_case", %{tmp_dir: dir} do
+  test "raises for a key that is not snake_case", %{dir: dir} do
     path = write!(dir, "A-block.json", ~s({"version": 1, "measurements": []}))
 
     assert_raise CompileError, ~r/is not a snake_case block key/, fn -> Loader.load!(path) end
   end
 
-  test "raises for a definition without the required shape", %{tmp_dir: dir} do
+  test "raises for a definition without the required shape", %{dir: dir} do
     for content <- [
           ~s([]),
           ~s({"measurements": []}),
@@ -38,7 +51,7 @@ defmodule Toile.Patterns.Blocks.LoaderTest do
     end
   end
 
-  test "loads imports of <part>.<value> references", %{tmp_dir: dir} do
+  test "loads imports of <part>.<value> references", %{dir: dir} do
     content =
       ~s({"version": 1, "measurements": [], "imports": {"armhole": "bodice.armhole_length"}})
 
@@ -48,7 +61,7 @@ defmodule Toile.Patterns.Blocks.LoaderTest do
              Loader.load!(path)
   end
 
-  test "raises for malformed imports", %{tmp_dir: dir} do
+  test "raises for malformed imports", %{dir: dir} do
     for imports <- [
           ~s([]),
           ~s("bodice.armhole_length"),
@@ -68,7 +81,7 @@ defmodule Toile.Patterns.Blocks.LoaderTest do
     end
   end
 
-  test "raises for a definition larger than a project may store", %{tmp_dir: dir} do
+  test "raises for a definition larger than a project may store", %{dir: dir} do
     source = String.duplicate("a", DefinitionSize.max_bytes())
     content = JSON.encode!(%{"version" => 1, "measurements" => [], "source" => source})
     path = write!(dir, "big.json", content)
@@ -77,7 +90,7 @@ defmodule Toile.Patterns.Blocks.LoaderTest do
     assert_raise CompileError, message, fn -> Loader.load!(path) end
   end
 
-  test "accepts a definition at the cap", %{tmp_dir: dir} do
+  test "accepts a definition at the cap", %{dir: dir} do
     overhead = byte_size(JSON.encode!(%{"measurements" => [], "source" => "", "version" => 1}))
     source = String.duplicate("a", DefinitionSize.max_bytes() - overhead)
     definition = %{"version" => 1, "measurements" => [], "source" => source}
