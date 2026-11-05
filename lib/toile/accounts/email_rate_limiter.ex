@@ -151,10 +151,20 @@ defmodule Toile.Accounts.EmailRateLimiter do
   defp exit_class({:timeout, _call}), do: :timeout
   defp exit_class(_reason), do: :other
 
-  # Keeps the first character of the local part and the domain (cut to 100
-  # bytes), so a log line hints at the address without revealing it. Both are
-  # cut by bytes, since one grapheme can be arbitrarily long.
-  defp mask(email) do
+  @doc """
+  Masks `email` for a log line: keeps the first character of the local part
+  and the domain (cut to 100 bytes), so the line hints at the address without
+  revealing it.
+
+  ## Examples
+
+      iex> mask("user@example.com")
+      "u***@example.com"
+
+  """
+  @spec mask(String.t()) :: String.t()
+  # Both parts are cut by bytes, since one grapheme can be arbitrarily long.
+  def mask(email) when is_binary(email) do
     case String.split(email, "@") do
       [_no_at] ->
         "***"

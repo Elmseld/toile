@@ -6,6 +6,8 @@ defmodule Toile.Accounts do
   import Ecto.Query, warn: false
   alias Toile.Repo
 
+  require Logger
+
   alias Toile.Accounts.{EmailRateLimiter, User, UserToken, UserNotifier}
 
   ## Database getters
@@ -122,7 +124,9 @@ defmodule Toile.Accounts do
     case register_user(attrs) do
       {:ok, user} ->
         with :ok <- EmailRateLimiter.hit(:registration_confirmation, user.email, remote_ip) do
-          {:ok, _} = deliver_login_instructions(user, magic_link_url_fun)
+          user
+          |> deliver_login_instructions(magic_link_url_fun)
+          |> handle_delivery(:registration_confirmation, user.email)
         end
 
         {:ok, user.email}
@@ -150,7 +154,7 @@ defmodule Toile.Accounts do
     case get_user_by_email(email) do
       %User{} = owner ->
         with :ok <- EmailRateLimiter.hit(flow, owner.email, remote_ip) do
-          {:ok, _} = notify.(owner)
+          owner |> notify.() |> handle_delivery(flow, owner.email)
         end
 
       nil ->
@@ -470,8 +474,9 @@ defmodule Toile.Accounts do
         new_user = Ecto.Changeset.apply_action!(changeset, :update)
 
         with :ok <- EmailRateLimiter.hit(:email_change_link, new_user.email, remote_ip) do
-          {:ok, _} =
-            deliver_user_update_email_instructions(new_user, user.email, update_email_url_fun)
+          new_user
+          |> deliver_user_update_email_instructions(user.email, update_email_url_fun)
+          |> handle_delivery(:email_change_link, new_user.email)
         end
 
         {:ok, new_user.email}
@@ -528,11 +533,33 @@ defmodule Toile.Accounts do
     # Exactly one hit either way, so the IP budget reveals nothing.
     with :ok <- EmailRateLimiter.hit(:login_link, recipient, opts[:remote_ip]),
          %User{} <- user do
-      {:ok, _} = deliver_login_instructions(user, magic_link_url_fun)
+      user
+      |> deliver_login_instructions(magic_link_url_fun)
+      |> handle_delivery(:login_link, user.email)
     end
 
     :ok
   end
+
+  # A failed send is logged and otherwise ignored. Raising would answer a
+  # request for an address with an account differently from one for an unknown
+  # or rate-limited address, revealing whether the account exists (ADR 0010).
+  defp handle_delivery({:ok, _email}, _flow, _recipient), do: :ok
+
+  defp handle_delivery({:error, reason}, flow, recipient) do
+    # Only the class of the reason: a provider response can echo the address.
+    Logger.warning(
+      "Email delivery failed: flow=#{flow} recipient=#{inspect(EmailRateLimiter.mask(recipient))} " <>
+        "reason=#{delivery_failure_class(reason)}"
+    )
+
+    :ok
+  end
+
+  defp delivery_failure_class(reason) when is_atom(reason), do: inspect(reason)
+  defp delivery_failure_class({status, _body}) when is_integer(status), do: "http_#{status}"
+  defp delivery_failure_class(%{__exception__: true, __struct__: module}), do: inspect(module)
+  defp delivery_failure_class(_reason), do: "other"
 
   @doc """
   Delivers the magic link login instructions to the given user.
