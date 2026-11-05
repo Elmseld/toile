@@ -45,7 +45,7 @@ Both groups use the same engine but get different amounts of it exposed.
    bodice, fitted to the bodice's armhole (the cap is the armhole plus a set cap ease) and
    recomputed whenever the bodice is, for example on a profile switch or an edit. Notches mark how
    the parts are sewn together: a double notch on the back armhole and the sleeve cap, a single one
-   at the front, and one at the sleeve crown (matches the shoulder seam). Adding the sleeve makes
+   at the front, and one at the sleeve crown (matches the shoulder seam). The skirt has a notch at the hip on each side seam, double at the back. Adding the sleeve makes
    the page ask for the arm measurements (upper arm, arm length, wrist) if the profile lacks them.
    A sleeve cannot be removed yet.
 3. **Modify**: on the project page every point of every part (the bodice and an added sleeve
@@ -64,7 +64,17 @@ Both groups use the same engine but get different amounts of it exposed.
    reload shows the same pattern. Only point offsets, point formulas and parameter overrides can be
    edited; point names, operations, curves and pieces cannot (ADR 0008). Switching measurement
    profile recalculates the whole pattern and keeps the edits.
-4. **Finish**: seam allowance is added per edge. Markings (grainline, fold line) are shown; notches are already drawn since the sleeve (0007), and 0009 adds them to the cutting line.
+4. **Finish** (ticket 0015): every piece shows its seam line (dashed) inside its cutting line
+   (solid, the seam line plus seam allowance). A piece shows its name and its cutting instruction
+   ("klipp 2", or "klipp 1 i fold" with a fold), the grainline arrow, a dash-dot fold line on each
+   fold edge, and its notches on both the seam line and the cutting line. The panel "Sömsmån" sets
+   the project's seam allowance (default 1 cm; an empty field means 1 cm; 0 to 10 cm). A single
+   edge is selected by tapping or clicking it in the drawing, or with the select "Välj en kant",
+   and its allowance set in cm (0 is allowed; an empty field removes the override). A fold edge
+   has 0 unless set ("Fold: 0 cm"). Changes redraw at once, save automatically and take part in
+   undo and redo. If no cutting line can be drawn, or it is approximated, the page says so in
+   words. Projects created before 0015 have no cutting instruction, fold or skirt notches (they
+   keep their block copy) but get everything else. Storage and rules: ADR 0011.
 5. **Print**: PDF at 1:1 scale, tiled on A4 with overlap, numbering and a test square.
 
 ## Domain glossary
@@ -78,12 +88,15 @@ The UI is Swedish, so the Swedish UI term is given in parentheses.
 | Pattern definition (mönsterdefinition) | Data (JSON) describing parameters, points, curves and pattern pieces. This is what gets stored. |
 | Parameter | Named value that is not a body measurement, e.g. `ease_hip`. Can be exposed as a slider. |
 | Point (punkt) | Defined by an operation (e.g. "along line A–B, distance `waist/4`"), not by free coordinates. |
-| Pattern piece (mönsterdel) | Closed outline of lines/curves, e.g. "front piece". Has a grainline and seam allowance per edge. |
+| Pattern piece (mönsterdel) | Closed outline of lines/curves, e.g. "front piece". Has a grainline, a cutting instruction and a seam allowance per edge. |
 | Pattern project (mönsterprojekt) | A user's pattern: a copy of a block plus its modifications and parameter overrides, linked to a measurement profile. |
 | Part | A block copy inside a project: the block the project was created from, plus blocks added later, such as a sleeve. A part can import values from another part (ADR 0007). Not a UI term. |
 | Notch (hack) | Balance mark on the outline; matching notches on two pieces show which points are sewn together. Not yet a UI term. |
 | Dart (inprovning) | Wedge-shaped fold that shapes the garment. |
-| Seam allowance (sömsmån) | Extra margin outside the seam line. |
+| Seam allowance (sömsmån) | Extra margin outside the seam line. Default 1 cm per project, changeable per edge; 0 at a fold. |
+| Seam line (sömlinje) | The outline of a piece, where it is sewn. Drawn dashed. |
+| Cutting line (klipplinje) | The seam line moved outwards by the seam allowance. Drawn solid. |
+| Fold (fold) | An edge of a piece that lies on a fold of the fabric; it has no seam allowance and is cut "på fold". |
 | Tiling (kakling) | Splitting a 1:1 pattern across several A4 pages. |
 
 ## Technology

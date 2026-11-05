@@ -1,7 +1,7 @@
 ---
 id: 0015
 title: Pattern markings and seam allowance display
-status: todo
+status: in-progress
 type: feature
 ---
 

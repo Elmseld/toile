@@ -92,6 +92,8 @@ sleeve block, ticket 0007).
 ## Consequences
 - A new op goes into `point_ops.json`; the app and the editor pick it up, and tests ask for UI texts
   for it.
+- Amended by ADR 0011 (ticket 0015): the history state is `{parts, seamAllowances}` and the save
+  queue has one unit that is not a part, the project's seam allowances. Pieces stay uneditable.
 - Named formulas (the `formulas` section), curves and pieces cannot be edited yet.
 - Undo history does not survive a reload, nor a switch to a profile with missing measurements;
   the saved state does.

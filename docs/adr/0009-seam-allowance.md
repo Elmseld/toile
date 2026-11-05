@@ -94,6 +94,8 @@ Block definitions have no allowances (ADR 0004) and are frozen for this ticket.
 - Mirrored hem corners as in some CAD tools: possible later as a corner-style option.
 
 ## Consequences
+- Stored and shown by ADR 0011 (ticket 0015), which also amends the guidance below to compute the
+  line per update with a cache.
 - 0015 stores the allowances (a project default; per-edge storage is its choice) and must fit its
   `viewBox` to the cutting-line points, since `patternBounds` covers outlines only. The line lies
   at most `hypot(MITER_LIMIT * a, a)`, about 4.12 times the largest allowance `a`, from the
