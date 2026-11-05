@@ -33,10 +33,10 @@
 // translated by its offset, each piece in it in a <g data-piece> translated by its own. Every
 // mapping between the drawing and a part's coordinates uses the same offsets: pieceOffset(part,
 // piece) for an edge (tap and highlight), pointOffset(part, point) for a point (handles, hover,
-// drag), where a point goes with the piece the engine's pointPieces gives it. The layout, and which piece each point goes with,
-// stay while the pattern is edited, so a dragged point does not slip away from the pointer; they
-// are redone on the next build and by relayout(), which the editor calls when the seam allowances
-// it commits change.
+// drag), where a point goes with the piece the engine's pointPieces gives it. The layout, and
+// which piece each point goes with, stay while the pattern is edited, so a dragged point does not
+// slip away from the pointer; they are redone on the next build and by relayout(), which the
+// editor calls when the seam allowances it commits change.
 //
 // Each piece group holds, in drawing order (docs/adr/0011-markings-and-seam-allowance-storage.md):
 // the cutting line (solid), the seam line (the outline, dashed), the fold edges (dash-dot, primary

@@ -97,12 +97,12 @@ defmodule ToileWeb.PatternLive.Show do
   seam allowances, unsaved edits included) and offers it as a download
   (`docs/adr/0012-pdf-printing.md`). The PDF lays that state out afresh, with the same engine
   layout as the drawing, while the drawing keeps its last layout during point edits, so after a
-  drag the pieces may be spaced differently in the PDF than on the page. The canvas names the select (`data-pdf-paper`) and the
-  status line (`data-pdf-status`) by id and carries the project name for the title
-  (`data-pdf-title`) and the download file name (`data-pdf-filename`: the name with every run of
-  other characters than letters and digits replaced by "-", cut to at most 100 characters, then
-  trimmed of "-", "pattern" when empty, then ".pdf"). The page texts and the error texts are the `"pdf"` group of
-  `data-texts`. The server computes nothing for the PDF.
+  drag the pieces may be spaced differently in the PDF than on the page. The canvas names the
+  select (`data-pdf-paper`) and the status line (`data-pdf-status`) by id and carries the project
+  name for the title (`data-pdf-title`) and the download file name (`data-pdf-filename`: the name
+  with every run of other characters than letters and digits replaced by "-", cut to at most 100
+  characters, then trimmed of "-", "pattern" when empty, then ".pdf"). The page texts and the
+  error texts are the `"pdf"` group of `data-texts`. The server computes nothing for the PDF.
 
   Another user's project id raises `Ecto.NoResultsError` (404) through the scoped context.
   """
