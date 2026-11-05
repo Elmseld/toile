@@ -12,6 +12,15 @@ defmodule Toile.AccountsFixtures do
   def unique_user_email, do: "user#{System.unique_integer()}@example.com"
   def valid_user_password, do: "hello world!"
 
+  @doc """
+  Returns an IPv4 address in 10.0.0.0/8 that no other call in this VM returns,
+  so tests do not share an email rate limit IP bucket (ADR 0010).
+  """
+  def unique_remote_ip do
+    n = System.unique_integer([:positive])
+    {10, rem(div(n, 65_536), 256), rem(div(n, 256), 256), rem(n, 256)}
+  end
+
   def valid_user_attributes(attrs \\ %{}) do
     Enum.into(attrs, %{
       email: unique_user_email()

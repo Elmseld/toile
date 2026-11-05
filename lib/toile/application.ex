@@ -12,6 +12,7 @@ defmodule Toile.Application do
       Toile.Repo,
       {DNSCluster, query: Application.get_env(:toile, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Toile.PubSub},
+      Toile.Accounts.EmailRateLimiter,
       # Start a worker by calling: Toile.Worker.start_link(arg)
       # {Toile.Worker, arg},
       # Start to serve requests, typically the last entry

@@ -35,6 +35,11 @@ config :toile, ToileWeb.Endpoint,
   pubsub_server: Toile.PubSub,
   live_view: [signing_salt: "+t1qMWc1"]
 
+# Outgoing account email limits (ADR 0010). Windows in milliseconds.
+config :toile, Toile.Accounts.EmailRateLimiter,
+  per_recipient: [limit: 3, window: :timer.minutes(15)],
+  per_ip: [limit: 20, window: :timer.hours(1)]
+
 # Configure the mailer
 #
 # By default it uses the "Local" adapter which stores the emails

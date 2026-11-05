@@ -20,9 +20,15 @@ defmodule ToileWeb.Endpoint do
   # cannot cap them cleanly. This is accepted because event parsing is bounded (form
   # params are cast and validated, centimetre input has a length cap). Production must
   # set a request body size limit in the reverse proxy, which also covers chunked bodies.
+  #
+  # `:peer_data` and `:x_headers` give `ToileWeb.ClientIP` the client IP for the email rate
+  # limit (ADR 0010).
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options], max_frame_size: 256_000],
-    longpoll: [connect_info: [session: @session_options]]
+    websocket: [
+      connect_info: [:peer_data, :x_headers, session: @session_options],
+      max_frame_size: 256_000
+    ],
+    longpoll: [connect_info: [:peer_data, :x_headers, session: @session_options]]
 
   # Serve at "/" the static files from "priv/static" directory.
   #

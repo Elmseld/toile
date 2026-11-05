@@ -4,6 +4,10 @@ defmodule ToileWeb.UserLive.Settings do
   on_mount {ToileWeb.UserAuth, :require_sudo_mode}
 
   alias Toile.Accounts
+  alias ToileWeb.ClientIP
+
+  @email_fields ["email"]
+  @password_fields ["password", "password_confirmation"]
 
   @impl true
   def render(assigns) do
@@ -100,13 +104,14 @@ defmodule ToileWeb.UserLive.Settings do
       |> assign(:email_form, to_form(email_changeset))
       |> assign(:password_form, to_form(password_changeset))
       |> assign(:trigger_submit, false)
+      |> assign(:remote_ip, ClientIP.get(socket))
 
     {:ok, socket}
   end
 
   @impl true
   def handle_event("validate_email", params, socket) do
-    %{"user" => user_params} = params
+    user_params = user_params(params, @email_fields)
 
     email_form =
       socket.assigns.current_scope.user
@@ -118,7 +123,7 @@ defmodule ToileWeb.UserLive.Settings do
   end
 
   def handle_event("update_email", params, socket) do
-    %{"user" => user_params} = params
+    user_params = user_params(params, @email_fields)
     user = socket.assigns.current_scope.user
 
     if Accounts.sudo_mode?(user) do
@@ -129,7 +134,7 @@ defmodule ToileWeb.UserLive.Settings do
   end
 
   def handle_event("validate_password", params, socket) do
-    %{"user" => user_params} = params
+    user_params = user_params(params, @password_fields)
 
     password_form =
       socket.assigns.current_scope.user
@@ -141,7 +146,7 @@ defmodule ToileWeb.UserLive.Settings do
   end
 
   def handle_event("update_password", params, socket) do
-    %{"user" => user_params} = params
+    user_params = user_params(params, @password_fields)
     user = socket.assigns.current_scope.user
 
     if Accounts.sudo_mode?(user) do
@@ -151,13 +156,29 @@ defmodule ToileWeb.UserLive.Settings do
     end
   end
 
+  # A malformed event (no "user" map, or values that are not strings) is
+  # treated as an empty form so it gets validation errors instead of crashing
+  # the LiveView: a non-string value would otherwise be put back into the
+  # rendered input. LiveView's `_unused_<field>` markers are kept so that
+  # `used_input?/1` still hides errors on fields the user has not touched.
+  defp user_params(%{"user" => %{} = user_params}, fields) do
+    keys = fields ++ Enum.map(fields, &("_unused_" <> &1))
+
+    for {key, value} when is_binary(value) <- Map.take(user_params, keys),
+        into: %{},
+        do: {key, value}
+  end
+
+  defp user_params(_params, _fields), do: %{}
+
   defp request_email_change(socket, user, user_params) do
     # A taken address gets the same response as a free one so the form does
     # not reveal which addresses have accounts.
     case Accounts.request_user_email_change(
            user,
            user_params,
-           &url(~p"/users/settings/confirm-email/#{&1}")
+           &url(~p"/users/settings/confirm-email/#{&1}"),
+           remote_ip: socket.assigns.remote_ip
          ) do
       {:ok, _email} ->
         info =

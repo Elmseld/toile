@@ -103,6 +103,68 @@ defmodule ToileWeb.UserLive.SettingsTest do
       assert_no_email_sent()
     end
 
+    test "sends at most 3 change links per address and responds the same",
+         %{conn: conn, user: user} do
+      assert_email_sent()
+      email = unique_user_email()
+
+      under =
+        for _ <- 1..3 do
+          response = submit_email_change(conn, email)
+          assert_email_sent(to: email, subject: "Change your email address for Toile")
+          response
+        end
+
+      over = submit_email_change(conn, email)
+
+      assert_no_email_sent()
+      assert Enum.uniq([over | under]) == [over]
+      assert over =~ "We have sent a link to the new address"
+      assert change_token_count(user) == 3
+    end
+
+    test "sends at most 3 notices for a taken address and responds the same", %{conn: conn} do
+      assert_email_sent()
+      %{email: taken} = user_fixture()
+      assert_email_sent()
+
+      under =
+        for _ <- 1..3 do
+          response = submit_email_change(conn, taken)
+
+          assert_email_sent(
+            to: taken,
+            subject: "Someone tried to use your email address on Toile"
+          )
+
+          response
+        end
+
+      over = submit_email_change(conn, taken)
+
+      assert_no_email_sent()
+      assert Enum.uniq([over | under]) == [over]
+      assert over =~ "We have sent a link to the new address"
+    end
+
+    test "counts against the IP of the connection",
+         %{conn: conn, user: user, remote_ip: remote_ip} do
+      assert_email_sent()
+
+      for _ <- 1..20 do
+        :ok =
+          Accounts.request_login_instructions(unique_user_email(), &"http://x/#{&1}",
+            remote_ip: remote_ip
+          )
+      end
+
+      assert submit_email_change(conn, unique_user_email()) =~
+               "We have sent a link to the new address"
+
+      assert_no_email_sent()
+      assert change_token_count(user) == 0
+    end
+
     test "renders errors with invalid data (phx-change)", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/users/settings")
 
@@ -205,6 +267,23 @@ defmodule ToileWeb.UserLive.SettingsTest do
       assert result =~ "does not match password"
     end
 
+    test "hides the confirmation error while the confirmation field is untouched", %{
+      conn: conn
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      result =
+        render_hook(lv, "validate_password", %{
+          "user" => %{
+            "password" => "a new valid password",
+            "password_confirmation" => "",
+            "_unused_password_confirmation" => ""
+          }
+        })
+
+      refute result =~ "does not match password"
+    end
+
     test "renders errors with invalid data (phx-submit)", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/users/settings")
 
@@ -245,6 +324,32 @@ defmodule ToileWeb.UserLive.SettingsTest do
 
       assert login_conn.resp_body =~ "You must log in again to access this page."
       refute Accounts.get_user_by_email_and_password(user.email, new_password)
+    end
+  end
+
+  describe "malformed events" do
+    setup %{conn: conn} do
+      user = user_fixture()
+      %{conn: log_in_user(conn, user), user: user}
+    end
+
+    for event <- ["validate_email", "update_email", "validate_password", "update_password"],
+        {name, params} <- [
+          {"no user params", %{}},
+          {"non-map user", %{"user" => "a@example.com"}},
+          {"non-string email", %{"user" => %{"email" => %{"a" => "b"}}}},
+          {"non-string password",
+           %{"user" => %{"password" => ["x"], "password_confirmation" => %{"a" => "b"}}}}
+        ] do
+      test "#{event} renders the form instead of crashing for #{name}", %{conn: conn, user: user} do
+        # Drop the email sent while creating the fixture.
+        assert_email_sent()
+        {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+        assert render_hook(lv, unquote(event), unquote(Macro.escape(params))) =~ "Save password"
+        assert Accounts.get_user_by_email(user.email)
+        refute_email_sent()
+      end
     end
   end
 
@@ -340,5 +445,23 @@ defmodule ToileWeb.UserLive.SettingsTest do
     :sys.replace_state(lv.pid, fn state ->
       update_in(state.socket.assigns.current_scope.user, &%{&1 | authenticated_at: expired_at})
     end)
+  end
+
+  # Submits the email form on a fresh page and returns the flash text.
+  defp submit_email_change(conn, email) do
+    {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+    lv
+    |> form("#email_form", %{"user" => %{"email" => email}})
+    |> render_submit()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("#flash-info")
+    |> LazyHTML.text()
+  end
+
+  defp change_token_count(user) do
+    length(
+      Toile.Repo.all_by(Accounts.UserToken, user_id: user.id, context: "change:#{user.email}")
+    )
   end
 end

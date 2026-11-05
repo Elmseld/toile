@@ -4,7 +4,7 @@ defmodule Toile.AccountsTest do
   alias Toile.Accounts
 
   import Toile.AccountsFixtures
-  alias Toile.Accounts.{User, UserToken}
+  alias Toile.Accounts.{EmailRateLimiter, User, UserToken}
 
   describe "get_user_by_email/1" do
     test "does not return the user if the email does not exist" do
@@ -494,7 +494,7 @@ defmodule Toile.AccountsTest do
     end
   end
 
-  describe "register_user_and_deliver_instructions/3" do
+  describe "register_user_and_deliver_instructions/4" do
     import Swoosh.TestAssertions
 
     @login_url "http://localhost/users/log-in"
@@ -539,6 +539,65 @@ defmodule Toile.AccountsTest do
       end)
     end
 
+    test "over the recipient limit creates the user, sends nothing and returns the same" do
+      email = unique_user_email()
+      ip = unique_remote_ip()
+      # Three earlier confirmations to this address, as from other registrations.
+      for _ <- 1..3, do: :ok = EmailRateLimiter.hit(:registration_confirmation, email, nil)
+
+      assert {:ok, ^email} =
+               Accounts.register_user_and_deliver_instructions(
+                 %{email: email},
+                 &"http://localhost/users/log-in/#{&1}",
+                 @login_url,
+                 remote_ip: ip
+               )
+
+      assert %User{id: id} = Accounts.get_user_by_email(email)
+      refute Repo.get_by(UserToken, user_id: id)
+      assert_no_email_sent()
+    end
+
+    test "over the IP limit sends no confirmation" do
+      ip = unique_remote_ip()
+      exhaust_ip_budget(ip)
+      email = unique_user_email()
+
+      assert {:ok, ^email} =
+               Accounts.register_user_and_deliver_instructions(
+                 %{email: email},
+                 &"http://localhost/users/log-in/#{&1}",
+                 @login_url,
+                 remote_ip: ip
+               )
+
+      assert Accounts.get_user_by_email(email)
+      assert_no_email_sent()
+    end
+
+    test "sends at most 3 notices per taken address and returns the same" do
+      %{email: email} = user_fixture()
+      assert_email_sent()
+
+      results =
+        for _ <- 1..4 do
+          Accounts.register_user_and_deliver_instructions(
+            %{email: email},
+            &"http://localhost/users/log-in/#{&1}",
+            @login_url,
+            remote_ip: unique_remote_ip()
+          )
+        end
+
+      assert results == List.duplicate({:ok, email}, 4)
+
+      for _ <- 1..3 do
+        assert_email_sent(subject: "Someone tried to create an account on Toile")
+      end
+
+      assert_no_email_sent()
+    end
+
     test "returns the changeset for other validation errors" do
       assert {:error, changeset} =
                Accounts.register_user_and_deliver_instructions(
@@ -552,7 +611,7 @@ defmodule Toile.AccountsTest do
     end
   end
 
-  describe "request_user_email_change/3" do
+  describe "request_user_email_change/4" do
     import Swoosh.TestAssertions
 
     setup do
@@ -605,6 +664,74 @@ defmodule Toile.AccountsTest do
       assert_no_email_sent()
     end
 
+    test "over the limit creates no token, sends nothing and returns the same",
+         %{user: user} do
+      email = unique_user_email()
+      ip = unique_remote_ip()
+
+      results =
+        for _ <- 1..4 do
+          Accounts.request_user_email_change(
+            user,
+            %{email: email},
+            &"http://localhost/users/settings/confirm-email/#{&1}",
+            remote_ip: ip
+          )
+        end
+
+      assert results == List.duplicate({:ok, email}, 4)
+
+      for _ <- 1..3, do: assert_email_sent(to: email)
+      assert_no_email_sent()
+
+      assert Repo.aggregate(
+               from(t in UserToken,
+                 where: t.user_id == ^user.id and t.context == ^"change:#{user.email}"
+               ),
+               :count
+             ) == 3
+    end
+
+    test "over the IP limit creates no token and sends nothing", %{user: user} do
+      ip = unique_remote_ip()
+      exhaust_ip_budget(ip)
+      email = unique_user_email()
+
+      assert {:ok, ^email} =
+               Accounts.request_user_email_change(
+                 user,
+                 %{email: email},
+                 &"http://localhost/users/settings/confirm-email/#{&1}",
+                 remote_ip: ip
+               )
+
+      refute Repo.get_by(UserToken, user_id: user.id, context: "change:#{user.email}")
+      assert_no_email_sent()
+    end
+
+    test "sends at most 3 notices per taken address and returns the same", %{user: user} do
+      %{email: taken} = user_fixture()
+      assert_email_sent()
+
+      results =
+        for _ <- 1..4 do
+          Accounts.request_user_email_change(
+            user,
+            %{email: taken},
+            &"http://localhost/users/settings/confirm-email/#{&1}",
+            remote_ip: unique_remote_ip()
+          )
+        end
+
+      assert results == List.duplicate({:ok, taken}, 4)
+
+      for _ <- 1..3 do
+        assert_email_sent(subject: "Someone tried to use your email address on Toile")
+      end
+
+      assert_no_email_sent()
+    end
+
     test "returns the changeset for other validation errors", %{user: user} do
       assert {:error, changeset} =
                Accounts.request_user_email_change(
@@ -624,6 +751,176 @@ defmodule Toile.AccountsTest do
 
       assert %{email: ["did not change"]} = errors_on(changeset)
       assert_no_email_sent()
+    end
+  end
+
+  describe "request_login_instructions/3" do
+    import Swoosh.TestAssertions
+
+    test "sends a magic link to a confirmed user" do
+      user = user_fixture()
+      assert_email_sent()
+
+      assert Accounts.request_login_instructions(
+               user.email,
+               &"http://localhost/users/log-in/#{&1}",
+               remote_ip: unique_remote_ip()
+             ) == :ok
+
+      assert_email_sent(to: user.email, subject: "Log in to Toile")
+      assert Repo.get_by(UserToken, user_id: user.id, context: "login")
+    end
+
+    test "sends a confirmation email to an unconfirmed user" do
+      user = unconfirmed_user_fixture()
+
+      assert Accounts.request_login_instructions(
+               user.email,
+               &"http://localhost/users/log-in/#{&1}"
+             ) == :ok
+
+      assert_email_sent(to: user.email, subject: "Confirm your account on Toile")
+    end
+
+    test "returns :ok and sends nothing for an unknown address" do
+      assert Accounts.request_login_instructions(
+               unique_user_email(),
+               &"http://localhost/users/log-in/#{&1}",
+               remote_ip: unique_remote_ip()
+             ) == :ok
+
+      assert_no_email_sent()
+    end
+
+    test "sends at most 3 per address, matched case-insensitively, and returns the same" do
+      user = user_fixture()
+      assert_email_sent()
+
+      results =
+        for email <- [user.email, String.upcase(user.email), user.email, user.email] do
+          Accounts.request_login_instructions(email, &"http://localhost/users/log-in/#{&1}",
+            remote_ip: unique_remote_ip()
+          )
+        end
+
+      assert results == [:ok, :ok, :ok, :ok]
+      for _ <- 1..3, do: assert_email_sent(to: user.email)
+      assert_no_email_sent()
+
+      assert Repo.aggregate(
+               from(t in UserToken, where: t.user_id == ^user.id and t.context == "login"),
+               :count
+             ) == 3
+    end
+
+    test "counts Unicode case variants matched by the lookup against the stored address" do
+      user = user_fixture(%{email: "kiki#{System.unique_integer([:positive])}@example.com"})
+      assert_email_sent()
+
+      # citext lowercases "İ" to "i", String.downcase/1 does not.
+      variants = [
+        String.replace(user.email, "kiki", "kİki"),
+        String.replace(user.email, "kiki", "kikİ"),
+        String.replace(user.email, "kiki", "kİkİ"),
+        String.replace(user.email, "kiki", "KİKİ")
+      ]
+
+      for email <- variants do
+        assert Accounts.request_login_instructions(email, &"http://localhost/users/log-in/#{&1}",
+                 remote_ip: unique_remote_ip()
+               ) == :ok
+      end
+
+      for _ <- 1..3, do: assert_email_sent(to: user.email)
+      assert_no_email_sent()
+    end
+
+    test "unknown addresses use up the IP budget like known ones" do
+      user = user_fixture()
+      assert_email_sent()
+      ip = unique_remote_ip()
+
+      for _ <- 1..20 do
+        assert Accounts.request_login_instructions(
+                 unique_user_email(),
+                 &"http://localhost/users/log-in/#{&1}",
+                 remote_ip: ip
+               ) == :ok
+      end
+
+      assert Accounts.request_login_instructions(
+               user.email,
+               &"http://localhost/users/log-in/#{&1}",
+               remote_ip: ip
+             ) == :ok
+
+      assert_no_email_sent()
+      refute Repo.get_by(UserToken, user_id: user.id, context: "login")
+    end
+  end
+
+  # Copilot finding C4480635386: an attacker who owns an account can probe
+  # whether a target address has one through the shared IP budget. The budget
+  # must be used up the same way whether or not the target exists.
+  describe "IP budget and account existence" do
+    test "registrations of a taken and of a free address use the same IP budget" do
+      existing = user_fixture().email
+      unused = unique_user_email()
+
+      results =
+        for target <- [existing, unused] do
+          ip = unique_remote_ip()
+          for _ <- 1..16, do: request_login(unique_user_email(), ip)
+
+          # Taken: 3 notices, the 4th denied by recipient. Free: 1 confirmation
+          # and 3 notices.
+          for _ <- 1..4 do
+            {:ok, _} =
+              Accounts.register_user_and_deliver_instructions(
+                %{email: target},
+                &"http://localhost/users/log-in/#{&1}",
+                "http://localhost/users/log-in",
+                remote_ip: ip
+              )
+          end
+
+          probe_sends?(ip)
+        end
+
+      assert results == [false, false]
+    end
+
+    test "login requests for case variants of a known address and for unknown addresses use the same IP budget" do
+      known = user_fixture(%{email: "kiki#{System.unique_integer([:positive])}@example.com"})
+
+      # citext matches "İ" to "i", so these share the recipient bucket of the
+      # stored address and the 4th is denied by recipient.
+      variants =
+        for v <- ["kİki", "kikİ", "kİkİ", "KİKİ"], do: String.replace(known.email, "kiki", v)
+
+      unknown = for _ <- 1..4, do: unique_user_email()
+
+      results =
+        for targets <- [variants, unknown] do
+          ip = unique_remote_ip()
+          for _ <- 1..16, do: request_login(unique_user_email(), ip)
+          for email <- targets, do: request_login(email, ip)
+          probe_sends?(ip)
+        end
+
+      assert results == [false, false]
+    end
+
+    test "a login request denied by recipient still uses an IP slot" do
+      user = user_fixture()
+      ip = unique_remote_ip()
+      for _ <- 1..3, do: :ok = EmailRateLimiter.hit(:login_link, user.email, nil)
+
+      request_login(user.email, ip)
+      for _ <- 1..19, do: request_login(unique_user_email(), ip)
+
+      refute Repo.get_by(UserToken, user_id: user.id, context: "login")
+      refute probe_sends?(ip)
     end
   end
 
@@ -649,6 +946,26 @@ defmodule Toile.AccountsTest do
   describe "inspect/2 for the User module" do
     test "does not include password" do
       refute inspect(%User{password: "123456"}) =~ "password: \"123456\""
+    end
+  end
+
+  defp request_login(email, ip) do
+    :ok = Accounts.request_login_instructions(email, &"http://x/#{&1}", remote_ip: ip)
+  end
+
+  # Whether a login request from `ip` for a fresh account of the attacker's own
+  # is still sent, that is whether the IP budget has room left.
+  defp probe_sends?(ip) do
+    attacker = user_fixture()
+    request_login(attacker.email, ip)
+    Repo.exists?(from(t in UserToken, where: t.user_id == ^attacker.id and t.context == "login"))
+  end
+
+  # Uses up the IP budget with login requests for unknown addresses.
+  defp exhaust_ip_budget(ip) do
+    for _ <- 1..20 do
+      :ok =
+        Accounts.request_login_instructions(unique_user_email(), &"http://x/#{&1}", remote_ip: ip)
     end
   end
 end

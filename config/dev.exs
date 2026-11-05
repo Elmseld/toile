@@ -72,6 +72,11 @@ config :toile, ToileWeb.Endpoint,
     ]
   ]
 
+# In Docker every request comes from the gateway IP, so the whole dev
+# environment shares one per-IP bucket. Raise only that limit; the
+# per-recipient limit keeps the config.exs default (ADR 0010).
+config :toile, Toile.Accounts.EmailRateLimiter, per_ip: [limit: 1000, window: :timer.hours(1)]
+
 # Enable dev routes for dashboard and mailbox
 config :toile, dev_routes: true
 

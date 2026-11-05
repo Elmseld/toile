@@ -37,6 +37,14 @@ if config_env() != :test do
 end
 
 if config_env() == :prod do
+  # Behind exactly one reverse proxy that appends X-Forwarded-For, set
+  # TRUST_X_FORWARDED_FOR=true so the email rate limit (ADR 0010) sees the client
+  # IP instead of the proxy's. Without a proxy, leave it unset: the header would
+  # then be chosen by the client.
+  if System.get_env("TRUST_X_FORWARDED_FOR") in ~w(true 1) do
+    config :toile, ToileWeb.ClientIP, source: :x_forwarded_for
+  end
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """

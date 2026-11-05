@@ -8,8 +8,8 @@ in the default code: accounts could be enumerated, concurrent requests could reu
 and sessions could survive a password change.
 
 ## Decision
-1. **No enumeration.** `Accounts.register_user_and_deliver_instructions/3` and
-   `Accounts.request_user_email_change/3` give the same result (`{:ok, email}`, same flash and
+1. **No enumeration.** `Accounts.register_user_and_deliver_instructions/4` and
+   `Accounts.request_user_email_change/4` give the same result (`{:ok, email}`, same flash and
    redirect) for free and taken addresses. If the address is taken, the account owner gets a
    notice email (`UserNotifier`) and no change link is sent. Other validation errors are shown as usual.
 2. **Sudo mode for settings.** `/users/settings*` lives in its own scope and live_session
@@ -30,10 +30,10 @@ and sessions could survive a password change.
 
 ## Consequences
 - New flows that change users or tokens must take `lock_user/1` first.
-- Notice emails mean emails can be sent to addresses without any account action; this is intentional.
+- Notice emails mean emails can be sent to addresses without any account action; this is intentional. Their volume is capped by ADR 0010.
 
 ## Deferred
-- **Email rate limiting** (finding S3): there is no limit on sent emails. Ticket 0011.
+- **Email rate limiting** (finding S3): implemented in ADR 0010 (ticket 0011).
 - **Change-email token during a concurrent password change:** a change link whose insert waited on
   the user lock can be created after the password change and is then not revoked. The fix would be
   a hash check at issuance. Not scheduled; raise it if email change is hardened.

@@ -3,6 +3,7 @@ defmodule ToileWeb.UserLive.Registration do
 
   alias Toile.Accounts
   alias Toile.Accounts.User
+  alias ToileWeb.ClientIP
 
   @impl true
   def render(assigns) do
@@ -51,17 +52,23 @@ defmodule ToileWeb.UserLive.Registration do
   def mount(_params, _session, socket) do
     changeset = Accounts.change_user_email(%User{}, %{}, validate_unique: false)
 
-    {:ok, assign_form(socket, changeset), temporary_assigns: [form: nil]}
+    socket =
+      socket
+      |> assign(:remote_ip, ClientIP.get(socket))
+      |> assign_form(changeset)
+
+    {:ok, socket, temporary_assigns: [form: nil]}
   end
 
   @impl true
-  def handle_event("save", %{"user" => user_params}, socket) do
+  def handle_event("save", params, socket) do
     # A taken email gets the same response as a new one so the form does not
     # reveal which addresses have accounts.
     case Accounts.register_user_and_deliver_instructions(
-           user_params,
+           user_params(params),
            &url(~p"/users/log-in/#{&1}"),
-           url(~p"/users/log-in")
+           url(~p"/users/log-in"),
+           remote_ip: socket.assigns.remote_ip
          ) do
       {:ok, email} ->
         {:noreply,
@@ -80,10 +87,27 @@ defmodule ToileWeb.UserLive.Registration do
     end
   end
 
-  def handle_event("validate", %{"user" => user_params}, socket) do
-    changeset = Accounts.change_user_email(%User{}, user_params, validate_unique: false)
+  def handle_event("validate", params, socket) do
+    changeset = Accounts.change_user_email(%User{}, user_params(params), validate_unique: false)
     {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
   end
+
+  # The form has a single field. A malformed submit (no "user" map, or an email
+  # that is not a string) is treated as an empty form so it gets validation
+  # errors instead of crashing the LiveView: a non-string value would otherwise
+  # be put back into the rendered input. LiveView's `_unused_email` marker is
+  # kept so that `used_input?/1` still hides errors while the field is untouched.
+  defp user_params(%{"user" => %{"email" => email} = user_params}) when is_binary(email) do
+    case user_params do
+      %{"_unused_email" => unused} when is_binary(unused) ->
+        %{"email" => email, "_unused_email" => unused}
+
+      _ ->
+        %{"email" => email}
+    end
+  end
+
+  defp user_params(_params), do: %{}
 
   defp assign_form(socket, %Ecto.Changeset{} = changeset) do
     form = to_form(changeset, as: "user")

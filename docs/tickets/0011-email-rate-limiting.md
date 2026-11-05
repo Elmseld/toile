@@ -1,7 +1,7 @@
 ---
 id: 0011
 title: Rate limiting for outgoing email
-status: todo
+status: in-review
 type: feature
 ---
 
@@ -17,12 +17,12 @@ and per IP address. Over the limit no email is sent, but the response to the use
 limit must not reveal whether an address has an account.
 
 ## Acceptance criteria
-- [ ] At most 3 emails per recipient address and flow within 15 minutes, and at most 20 emails sent per IP address per hour. The values can be changed in the configuration.
-- [ ] Over the limit no email is sent, but the user gets the same flash and redirect as otherwise.
-- [ ] The limits also apply to addresses that have no account.
-- [ ] Events over the limit are logged at info level without logging the full email address.
-- [ ] Tests for each flow: under the limit email is sent, over the limit it is not, and the response is identical.
-- [ ] The technology decision (e.g. Hammer with ETS or a custom table in Postgres) is documented in an ADR.
+- [x] At most 3 emails per recipient address and flow within 15 minutes, and at most 20 emails sent per IP address per hour. The values can be changed in the configuration.
+- [x] Over the limit no email is sent, but the user gets the same flash and redirect as otherwise.
+- [x] The limits also apply to addresses that have no account.
+- [x] Events over the limit are logged at info level without logging the full email address.
+- [x] Tests for each flow: under the limit email is sent, over the limit it is not, and the response is identical.
+- [x] The technology decision (e.g. Hammer with ETS or a custom table in Postgres) is documented in an ADR.
 
 ## Out of scope
 - CAPTCHA.
