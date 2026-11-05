@@ -90,8 +90,9 @@ reputation. The limit must not reveal whether an address has an account (ADR 000
   victim's login budget for 15 minutes. The victim still holds a valid link from the attacker's own
   requests, so they can log in, but cannot request a fresh one. Because the buckets are per flow,
   one address can also receive up to 3 emails per flow: for an existing account about 9 in
-  15 minutes (login link, registration attempt notice, email change attempt notice). Both are accepted: the alternative (an IP-scoped recipient limit)
-  gives no protection against a distributed flood.
+  15 minutes (login link, registration attempt notice, email change attempt notice). Both are
+  accepted: the alternative (an IP-scoped recipient limit) gives no protection against a
+  distributed flood.
 - **Sweep cost.** The sweep rebuilds the whole map inside the limiter process. With a very large
   number of distinct IPs in an hour (a flood from many /64s), a sweep could take long enough that
   concurrent `hit/4` calls time out after 5 seconds and fail open. Move the state to ETS or sweep in
