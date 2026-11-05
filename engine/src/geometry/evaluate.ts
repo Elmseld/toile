@@ -17,11 +17,13 @@ import { Namespace } from "../formula/namespace";
 import { type Expr, type FormulaOptions, parseFormula } from "../formula/parser";
 import { cubicLength } from "./bezier";
 import { type GeometryState, geometryFunctions } from "./functions";
+import { computeNotch } from "./notches";
 import { computePoint, curveFields, pointFields } from "./operations";
 import { classifyReferences } from "./references";
 import type {
   CompiledPattern,
   ComputedCurve,
+  ComputedNotch,
   ComputedPiece,
   CurveDefinition,
   ElementError,
@@ -45,7 +47,7 @@ type Node =
   | { type: "formula"; expr: Expr }
   | { type: "point"; definition: PointDefinition; formulas: [field: string, expr: Expr][] }
   | { type: "curve"; definition: CurveDefinition }
-  | { type: "piece"; definition: PieceDefinition };
+  | { type: "piece"; definition: PieceDefinition; notches: Expr[] };
 
 /** Everything about a valid definition that does not depend on the input. */
 type Compiled = {
@@ -67,6 +69,7 @@ type Compiled = {
 
 const KIND_OF_SOURCE: Readonly<Record<ElementSource, ReferenceKind>> = {
   measurement: "value",
+  import: "value",
   parameter: "value",
   formula: "value",
   point: "point",
@@ -128,13 +131,18 @@ export function compileWithFunctions(
  *
  * - A structurally invalid definition gives its `invalid_definition` / `unsupported_version`
  *   errors and empty records.
- * - Declared measurements, parameters, formulas, points, curves and pieces share one namespace
- *   (`invalid_name`, `duplicate_name`). Only declared measurements are read from the profile
- *   (`missing_measurement`, `invalid_value`); parameter overrides replace the defaults
- *   (`unknown_parameter` for undeclared ones, reported after all others, `invalid_value`).
+ * - Declared measurements, imports, parameters, formulas, points, curves and pieces share one
+ *   namespace (`invalid_name`, `duplicate_name`). Only declared measurements are read from the
+ *   profile (`missing_measurement`, `invalid_value`) and only declared imports from
+ *   `input.imports` (`missing_import` with the import's `reference`, `invalid_value`); parameter
+ *   overrides replace the defaults (`unknown_parameter` for undeclared ones, reported after all
+ *   others, `invalid_value`).
  * - Every reference must name a declared element (`unknown_reference`) of the right kind
  *   (`wrong_reference_kind`); the first such problem of an element is reported. A piece whose
- *   outline does not close by point name is `open_outline`, whatever the geometry.
+ *   outline does not close by point name is `open_outline`, and one with a notch on a curve that
+ *   is not in its outline is `invalid_notch` (field `notches/i/curve`), whatever the geometry. A
+ *   notch distance that is not finite or outside `[0, outline length)` is `invalid_notch` (field
+ *   `notches/i/distance`) at evaluation; either fails the piece.
  * - Formulas, points, curves and pieces are evaluated once each, in dependency order, through the
  *   dependency graph (ADR 0003): one `circular_dependency` per cycle group and `failed_dependency`
  *   for dependants, each with the `field` of the reference. Points add their `user_offset` after
@@ -152,6 +160,7 @@ function compileValid(definition: PatternDefinition, extraFunctions: FunctionTab
   // 1. Names: declaration position (first occurrence) and every source of each name.
   const namespace = new Namespace<ElementSource>();
   for (const name of definition.measurements) namespace.declare(name, "measurement");
+  for (const name of Object.keys(definition.imports)) namespace.declare(name, "import");
   for (const name of Object.keys(definition.parameters)) namespace.declare(name, "parameter");
   for (const name of Object.keys(definition.formulas)) namespace.declare(name, "formula");
   for (const point of definition.points) namespace.declare(point.name, "point");
@@ -273,10 +282,16 @@ function compileValid(definition: PatternDefinition, extraFunctions: FunctionTab
     piece.outline.forEach((entry, i) => collector.name(`outline/${i}/curve`, entry.curve, "curve"));
     collector.name("grainline/from", piece.grainline.from, "point");
     collector.name("grainline/to", piece.grainline.to, "point");
-    // Closure is structural, so it is checked here, before (and whatever the outcome of)
-    // evaluating the curves: an open outline is reported for every measurement profile.
+    const notches: Expr[] = [];
+    piece.notches.forEach((notch, i) => {
+      const expr = collector.formula(`notches/${i}/distance`, notch.distance);
+      if (expr !== null) notches.push(expr);
+    });
+    // Closure and notch curves are structural, so they are checked here, before (and whatever the
+    // outcome of) evaluating the curves: they are reported for every measurement profile.
     collector.error ??= outlineClosureError(piece, curveDefinitions);
-    addNode(piece.name, collector, { type: "piece", definition: piece });
+    collector.error ??= notchCurveError(piece);
+    addNode(piece.name, collector, { type: "piece", definition: piece, notches });
   }
 
   // 3. Order the graph once. Its cycle errors only depend on which nodes failed, and no node can
@@ -298,7 +313,11 @@ function compileValid(definition: PatternDefinition, extraFunctions: FunctionTab
   };
 }
 
-type Profile = { measurements: Map<string, unknown>; parameters: Map<string, unknown> };
+type Profile = {
+  measurements: Map<string, unknown>;
+  parameters: Map<string, unknown>;
+  imports: Map<string, unknown>;
+};
 
 function evaluateCompiled(
   compiled: Compiled,
@@ -330,6 +349,15 @@ function evaluateCompiled(
     }
     const value = input.measurements.get(name);
     if (!isFiniteNumber(value)) failValue(invalidValueError(name, "measurement"));
+    else if (!failed.has(name)) resolved.set(name, value);
+  }
+  for (const [name, reference] of Object.entries(definition.imports)) {
+    if (!input.imports.has(name)) {
+      failValue(missingImportError(name, reference));
+      continue;
+    }
+    const value = input.imports.get(name);
+    if (!isFiniteNumber(value)) failValue(invalidImportValueError(name));
     else if (!failed.has(name)) resolved.set(name, value);
   }
   for (const [name, fallback] of Object.entries(definition.parameters)) {
@@ -398,7 +426,11 @@ function evaluateCompiled(
     return null;
   };
 
-  const evaluatePiece = (name: string, piece: PieceDefinition): ElementError | null => {
+  const evaluatePiece = (
+    name: string,
+    node: Extract<Node, { type: "piece" }>,
+  ): ElementError | null => {
+    const piece = node.definition;
     const outlineCurves: ComputedCurve[] = [];
     for (const [i, { curve }] of piece.outline.entries()) {
       const computed = curves.get(curve);
@@ -409,10 +441,28 @@ function evaluateCompiled(
       }
       outlineCurves.push(computed);
     }
+    const notches: ComputedNotch[] = [];
+    for (const [i, notch] of piece.notches.entries()) {
+      const field = `notches/${i}/distance`;
+      const expr = node.notches[i];
+      // Unreachable: compiling parsed every notch distance of a piece that did not fail.
+      if (expr === undefined) return invalidNotchError(name, field, "The notch did not compile");
+      const result = evaluateExpression(expr, lookup, formulaOptions);
+      if (!result.ok) return { ...result.error, name, field };
+      const start = piece.outline.findIndex((entry) => entry.curve === notch.curve);
+      const computed = computeNotch(outlineCurves, {
+        start,
+        distance: result.value,
+        marks: notch.marks,
+      });
+      if (typeof computed === "string") return invalidNotchError(name, field, computed);
+      notches.push(computed);
+    }
     pieces.set(name, {
       name,
       outline: outlineCurves,
       grainline: { from: pointOf(piece.grainline.from), to: pointOf(piece.grainline.to) },
+      notches,
     });
     return null;
   };
@@ -444,7 +494,7 @@ function evaluateCompiled(
           case "curve":
             return evaluateCurve(name, node.definition);
           case "piece":
-            return evaluatePiece(name, node.definition);
+            return evaluatePiece(name, node);
         }
       },
     });
@@ -529,6 +579,7 @@ function readInput(input: unknown): Profile {
   return {
     measurements: readRecord(input, "measurements"),
     parameters: readRecord(input, "parameters"),
+    imports: readRecord(input, "imports"),
   };
 }
 
@@ -583,6 +634,24 @@ function missingMeasurementError(name: string): ElementError {
     kind: "missing_measurement",
     name,
     message: `The measurement "${name}" is missing from the profile`,
+  };
+}
+
+function missingImportError(name: string, reference: string): ElementError {
+  return {
+    kind: "missing_import",
+    name,
+    reference,
+    message: `The imported value "${name}" ("${reference}") is missing`,
+  };
+}
+
+function invalidImportValueError(name: string): ElementError {
+  return {
+    kind: "invalid_value",
+    name,
+    source: "import",
+    message: `The imported value "${name}" must be a finite number`,
   };
 }
 
@@ -646,6 +715,25 @@ function outlineClosureError(
     }
   }
   return null;
+}
+
+/**
+ * `invalid_notch` on the first notch whose `curve` is not an entry of the piece's outline, or
+ * `null`.
+ */
+function notchCurveError(piece: PieceDefinition): ElementError | null {
+  const curves = new Set(piece.outline.map((entry) => entry.curve));
+  const index = piece.notches.findIndex((notch) => !curves.has(notch.curve));
+  if (index === -1) return null;
+  return invalidNotchError(
+    piece.name,
+    `notches/${index}/curve`,
+    `The notch curve "${piece.notches[index]?.curve}" is not in the outline of "${piece.name}"`,
+  );
+}
+
+function invalidNotchError(name: string, field: string, message: string): ElementError {
+  return { kind: "invalid_notch", name, field, message };
 }
 
 function openOutlineError(

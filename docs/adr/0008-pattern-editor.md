@@ -11,12 +11,19 @@ not trust what the client sends: a stored definition is also read by other code 
 sleeve block, ticket 0007).
 
 ## Decision
-- **The client owns the edit state**: the working definition, parameter overrides, selection and
-  undo/redo history (at most 100 steps, lost on reload). The pure helpers (`setUserOffset`,
+- **The client owns the edit state** of every part of the project (the main block and added
+  blocks such as a sleeve, ADR 0007): the working definitions, parameter overrides, selection and
+  undo/redo history (at most 100 steps over all parts, lost on reload). A history state is
+  `{parts: {name: {definition, parameters}}}`; an edit replaces one part's entry and shares the
+  others. A point is addressed by part and name. The pure helpers (`setUserOffset`,
   `setPointFormula`, `tryPattern`, history, units, `pickPoint`, `controlPoints`) live in
   `engine/src/editor/`, work on the raw stored JSON and are tested with the engine.
-- **The server stores and validates, never computes.** The hook sends `save_pattern` with the whole
-  definition and the parameter overrides. `Toile.Patterns.DefinitionEdit` compares it with the
+- **The server stores and validates, never computes.** The hook sends `save_pattern` per part,
+  `{part, definition, parameters}`, with the part's whole definition and parameter overrides
+  (`Toile.Patterns.update_pattern_edits/4`). The main part is checked against the project as the
+  page loaded it and updates its own columns; an added part is checked against the stored row,
+  read again and locked, so a part added meanwhile in another tab is kept. Both run the same
+  check (`PatternProject.validate_edit/2`). `Toile.Patterns.DefinitionEdit` compares it with the
   stored definition and accepts only: `user_offset` added, changed or removed on a point; changes to
   a point's formula fields (at most 10 000 characters, ADR 0003); parameter overrides for
   parameters the definition declares. Point names, ops, name/line/`which` fields, `formulas`,
@@ -29,13 +36,18 @@ sleeve block, ticket 0007).
 - **Autosave on commit.** Nothing is saved during a drag or while typing. A commit (drag end, a
   field's `change`, offset reset, undo, redo) saves. The client commits only states whose evaluation
   is `ok`, so every saved state draws; an invalid formula shows an error and the last good drawing
-  stays. One save is in flight at a time: commits made meanwhile are sent as one save of the
-  newest state when the reply comes, so a held-down undo key does not send a save per step. After
-  a reconnect an unsaved commit is sent again, at most three times in a row with a growing delay.
+  stays. A commit saves the parts whose present state is not stored yet, one part per save. One
+  save is in flight at a time: when its reply comes, the next unstored part (or a newer state of
+  the same one) is sent, so a held-down undo key does not send a save per step. After a reconnect
+  the unsaved parts are sent again, at most three times in a row with a growing delay.
   A save without a reply within 10 seconds counts as failed, and a reconnect forgets the saves
   sent before it; their late replies are ignored, so a lost reply cannot stall the autosave.
-- **Drag hot path.** One compiled pattern per definition; each pointer move does one
-  `evaluate(input, { offsets })` and updates existing SVG elements in `requestAnimationFrame`.
+- **Drag hot path.** All parts are evaluated together with `compileProject`, compiled again only
+  when a definition changes, so a sleeve follows an edit of the bodice armhole. Each pointer move
+  does one `evaluate(input, { offsets: { part: { point: offset } } })` and updates existing SVG
+  elements in `requestAnimationFrame`, notch marks included. The parts are laid out side by side
+  when the drawing is built and keep their place during edits, so a dragged point stays under the
+  pointer.
   `placeLabel` (7 to 14 ms per piece) is not called during a drag: labels keep their place and are
   recomputed at drag end through a cache keyed by outline, text and grainline. Typing in a formula
   or parameter field is coalesced the same way: one evaluation per animation frame, drawn with the
@@ -47,7 +59,8 @@ sleeve block, ticket 0007).
   offsets equal the engine's `MAX_PARAMETER` and `MAX_COORDINATE`, pinned by
   `test/toile/patterns/engine_limits_test.exs`.
 - **A save fits one websocket frame.** The endpoint closes the socket on a frame over 256 000
-  bytes, so a save (definition plus parameter overrides, encoded) is capped at 240 000 bytes and
+  bytes, so a save (one part's definition plus parameter overrides, encoded) is capped at
+  240 000 bytes and
   a stored definition at 200 000 (`Toile.Patterns.DefinitionSize`; ADR 0006 had 1 000 000). Every
   stored project can be saved again; the hook reads both caps from `data-max-save-bytes` and
   `data-max-definition-bytes` and does not send a save over either. Blocks are far below it (the
@@ -59,11 +72,15 @@ sleeve block, ticket 0007).
   commit, and the project list shows nothing an edit changes. A rejected save is logged at info
   level with the failing fields and the JSON pointer of the first difference, never values.
 - The hook element no longer sits in a profile-keyed wrapper, so switching between profiles that
-  have every measurement the pattern needs keeps it and the undo history. It reads
-  `data-definition` on mount only and redraws when `data-key` or `data-input` change (amends the
-  "Client" paragraph of ADR 0006). A profile with missing measurements replaces the drawing with
-  a list of them, which removes the hook: the history is lost, and a commit not stored yet is sent
-  once more as the editor goes.
+  have every measurement the pattern needs keeps it and the undo history. It reads the parts from
+  `data-parts` on mount and redraws when `data-key`, `data-parts` or `data-input` change (amends
+  the "Client" paragraph of ADR 0006); from a later `data-parts` it only takes parts it does not
+  have yet (a part added on the page), which join every state of the history. The editor aside's
+  id names the parts, so adding a part renders a new aside, which the hook moves the editor to;
+  it is keyed by that id in a one-entry comprehension so LiveView renders it in full instead of
+  sending unchanged function components as placeholders for the old aside's elements. A profile
+  with missing measurements replaces the drawing with a list of them, which removes the hook: the
+  history is lost, and the parts not stored yet are sent once more as the editor goes.
 
 ## Alternatives rejected
 - Server-owned edit state: a round trip per edit, and formula validation needs the engine.
@@ -78,7 +95,7 @@ sleeve block, ticket 0007).
 - Named formulas (the `formulas` section), curves and pieces cannot be edited yet.
 - Undo history does not survive a reload, nor a switch to a profile with missing measurements;
   the saved state does.
-- Last write wins. A save is checked against the project as this page loaded it and replaces the
-  stored definition and parameters whole, with no version check: with the same project open in
-  two tabs, each save silently overwrites the other tab's work. An optimistic lock is left for
-  later.
+- Last write wins. A save replaces the stored definition and parameters of its part whole, with
+  no version check: with the same project open in two tabs, each save silently overwrites the
+  other tab's work on that part. An optimistic lock is left for later.
+- A part cannot be removed (ADR 0007), so the editor only ever gains parts.

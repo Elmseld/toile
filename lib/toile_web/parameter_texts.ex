@@ -29,7 +29,10 @@ defmodule ToileWeb.ParameterTexts do
     "ease_hip" => :length,
     "ease_back_width" => :length,
     "ease_armhole_depth" => :length,
+    "ease_upper_arm" => :length,
+    "ease_wrist" => :length,
     "length_adjustment" => :length,
+    "cap_ease" => :length,
     "side_shift" => :length,
     "side_rise" => :length,
     "back_neck_rise" => :length,
@@ -44,15 +47,18 @@ defmodule ToileWeb.ParameterTexts do
     "front_waist_dart_gap" => :length,
     "bust_dart_rate" => :angle_per_length,
     "bust_dart_offset" => :length,
-    "max_bust_dart_angle" => :angle
+    "max_bust_dart_angle" => :angle,
+    "cap_convex_share" => :number,
+    "cap_inflection_tilt" => :angle
   }
 
-  # Ease first, then lengths, then the dart constants.
-  @order ~w(ease_bust ease_waist ease_hip ease_back_width ease_armhole_depth length_adjustment
-            side_shift side_rise back_neck_rise front_neck_extra back_shoulder_drop
-            front_shoulder_drop back_dart_length front_dart_length back_shoulder_dart
-            back_shoulder_dart_length back_waist_dart_gap front_waist_dart_gap bust_dart_rate
-            bust_dart_offset max_bust_dart_angle)
+  # Ease first, then lengths, then the dart and sleeve cap shape constants.
+  @order ~w(ease_bust ease_waist ease_hip ease_back_width ease_armhole_depth ease_upper_arm
+            ease_wrist length_adjustment cap_ease side_shift side_rise back_neck_rise
+            front_neck_extra back_shoulder_drop front_shoulder_drop back_dart_length
+            front_dart_length back_shoulder_dart back_shoulder_dart_length back_waist_dart_gap
+            front_waist_dart_gap bust_dart_rate bust_dart_offset max_bust_dart_angle
+            cap_convex_share cap_inflection_tilt)
 
   @positions @order |> Enum.with_index() |> Map.new()
 
@@ -71,6 +77,9 @@ defmodule ToileWeb.ParameterTexts do
   def label("ease_hip"), do: gettext("Ease at the hip")
   def label("ease_back_width"), do: gettext("Ease across the back")
   def label("ease_armhole_depth"), do: gettext("Extra armhole depth")
+  def label("ease_upper_arm"), do: gettext("Ease at the upper arm")
+  def label("ease_wrist"), do: gettext("Ease at the wrist")
+  def label("cap_ease"), do: gettext("Extra width in the sleeve cap")
   def label("length_adjustment"), do: gettext("Lengthen or shorten")
   def label("side_shift"), do: gettext("Move the side seam")
   def label("side_rise"), do: gettext("Raise the waist at the side")
@@ -92,6 +101,8 @@ defmodule ToileWeb.ParameterTexts do
   def label("bust_dart_rate"), do: gettext("Bust dart growth")
   def label("bust_dart_offset"), do: gettext("Bust excess without a bust dart")
   def label("max_bust_dart_angle"), do: gettext("Largest bust dart")
+  def label("cap_convex_share"), do: gettext("Sleeve cap shape, share of the outward curve")
+  def label("cap_inflection_tilt"), do: gettext("Sleeve cap shape, slope at the turn")
   def label(name) when is_binary(name), do: name
 
   @doc """
@@ -122,7 +133,7 @@ defmodule ToileWeb.ParameterTexts do
   def unit_label(:number), do: ""
 
   @doc """
-  Sorts parameter names in display order: ease first, then lengths, then the dart constants, and
+  Sorts parameter names in display order: ease first, then lengths, then the shape constants, and
   names without a place last, alphabetically. Needed because the stored jsonb object has lost
   the order of the block file.
 

@@ -1,6 +1,6 @@
 // Where a view writes a piece's name: inside the piece, as far as possible from every drawn line
-// (the outline, which includes the darts, and the grainline with its arrowheads). Pure geometry on
-// a computed piece in mm user units; drawing the text is the view's job.
+// (the outline, which includes the darts, the grainline with its arrowheads and the notch marks). Pure
+// geometry on a computed piece in mm user units; drawing the text is the view's job.
 //
 // The text is treated as a box centred on the returned point (the view draws it with
 // text-anchor="middle" and dominant-baseline="middle"), of `size` mm height and an estimated
@@ -55,6 +55,10 @@ export type LabelPiece = {
       }
   )[];
   readonly grainline: { readonly from: LabelPoint; readonly to: LabelPoint };
+  /** Notch marks, kept clear of like the other lines; optional for hand-built pieces. */
+  readonly notches?: readonly {
+    readonly marks: readonly { readonly from: LabelPoint; readonly to: LabelPoint }[];
+  }[];
 };
 
 /**
@@ -92,14 +96,19 @@ export function textBox(text: string, size: number): Box {
 
 /**
  * Where to draw the label `text` of `piece` and at which font size (see LabelPlacement). The box
- * lies inside the piece, clear of the outline, the grainline and its arrowheads. `null` when no
+ * lies inside the piece, clear of the outline, the grainline and its arrowheads and the notch
+ * marks. `null` when no
  * box, even at the smallest size, fits inside the piece without touching a line (a sliver, or a
  * degenerate or non-finite outline); the caller then places the label itself.
  */
 export function placeLabel(piece: LabelPiece, text: string, size: number): LabelPlacement | null {
   const polygon = outlinePolygon(piece);
   if (polygon.length < 3) return null;
-  const segments = [...closedSegments(polygon), ...grainlineSegments(piece.grainline)];
+  const segments = [
+    ...closedSegments(polygon),
+    ...grainlineSegments(piece.grainline),
+    ...notchSegments(piece.notches),
+  ];
 
   const bounds = boundsOf(polygon);
   const target = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
@@ -151,6 +160,16 @@ export function grainlineSegments(grainline: LabelPiece["grainline"]): Segment[]
   const along = { x: (to.x - from.x) / length, y: (to.y - from.y) / length };
   segments.push(...arrowhead(to, along), ...arrowhead(from, { x: -along.x, y: -along.y }));
   return segments;
+}
+
+/** The marks of every notch, without non-finite ones. */
+function notchSegments(notches: LabelPiece["notches"]): Segment[] {
+  if (notches === undefined) return [];
+  return notches.flatMap((notch) =>
+    notch.marks
+      .filter((mark) => finitePoint(mark.from) && finitePoint(mark.to))
+      .map((mark) => [mark.from, mark.to] as const),
+  );
 }
 
 // The three sides of an arrowhead with its tip at `tip`, pointing in the unit direction `along`.

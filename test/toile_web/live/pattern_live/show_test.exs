@@ -25,6 +25,14 @@ defmodule ToileWeb.PatternLive.ShowTest do
     |> JSON.decode!()
   end
 
+  # The stored definition of part `part` as the page hands it to the hook.
+  defp part_definition(view, part) do
+    Enum.find_value(canvas_data(view, "parts"), fn
+      %{"name" => ^part, "definition" => definition} -> definition
+      _other -> nil
+    end)
+  end
+
   describe "logged out" do
     test "redirects to log in", %{conn: conn} do
       assert {:error, {:redirect, %{to: "/users/log-in"}}} =
@@ -35,7 +43,7 @@ defmodule ToileWeb.PatternLive.ShowTest do
   describe "Show" do
     setup :register_and_log_in_user
 
-    test "hands the definition and engine input to the PatternView hook", %{
+    test "hands the parts and engine input to the PatternView hook", %{
       conn: conn,
       scope: scope
     } do
@@ -63,17 +71,24 @@ defmodule ToileWeb.PatternLive.ShowTest do
              )
 
       stored = Patterns.get_pattern_project!(scope, project.id)
-      assert canvas_data(view, "definition") == stored.definition
+
+      assert canvas_data(view, "parts") == [
+               %{"name" => "straight_skirt", "definition" => stored.definition}
+             ]
 
       assert canvas_data(view, "input") == %{
                "measurements" => Map.new(@skirt, fn {k, v} -> {Atom.to_string(k), v} end),
-               "parameters" => %{}
+               "parameters" => %{"straight_skirt" => %{}}
              }
 
-      assert canvas_data(view, "piece-labels") == %{"back" => "Back", "front" => "Front"}
+      assert canvas_data(view, "piece-labels") == %{
+               "straight_skirt" => %{"back" => "Back", "front" => "Front"}
+             }
 
       refute has_element?(view, "#missing-measurements")
       refute has_element?(view, "#no-profile")
+      # Nothing can be added to a skirt.
+      refute has_element?(view, "#add-parts")
     end
 
     test "uses the wide layout", %{conn: conn, scope: scope} do
@@ -165,7 +180,9 @@ defmodule ToileWeb.PatternLive.ShowTest do
                ~s(#pattern-canvas[data-key="#{project.measurement_profile_id}"])
              )
 
-      assert canvas_data(view, "definition") == Blocks.definition("bodice")
+      assert canvas_data(view, "parts") == [
+               %{"name" => "bodice", "definition" => Blocks.definition("bodice")}
+             ]
 
       measurements = canvas_data(view, "input")["measurements"]
 
@@ -271,8 +288,8 @@ defmodule ToileWeb.PatternLive.ShowTest do
       project = pattern_project_fixture(scope)
       {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
 
-      assert has_element?(view, ~s(#pattern-editor[phx-update="ignore"]))
-      assert has_element?(view, ~s(#pattern-canvas[data-editor="pattern-editor"]))
+      assert has_element?(view, ~s(#pattern-editor-straight_skirt[phx-update="ignore"]))
+      assert has_element?(view, ~s(#pattern-canvas[data-editor="pattern-editor-straight_skirt"]))
 
       assert has_element?(
                view,
@@ -292,20 +309,31 @@ defmodule ToileWeb.PatternLive.ShowTest do
       assert has_element?(view, ~s(#point-select option[value=""]), "Choose a point")
 
       for %{"name" => name} <- project.definition["points"] do
-        assert has_element?(view, ~s(#point-select option[value="#{name}"]), name)
+        assert has_element?(view, ~s(#point-select option[value="straight_skirt.#{name}"]), name)
       end
+
+      # One part: no groups.
+      refute has_element?(view, "#point-select optgroup")
+      refute has_element?(view, "#parameter-panel h3")
 
       assert has_element?(
                view,
-               ~s(#parameter-ease_hip[data-parameter="ease_hip"][data-unit="length"][data-default="40"]),
+               ~s(#parameter-straight_skirt-ease_hip[data-part="straight_skirt"][data-parameter="ease_hip"][data-unit="length"][data-default="40"]),
                "Ease at the hip (cm)"
              )
 
       # Values stay raw; the hook formats them with the engine's units.ts.
-      assert has_element?(view, ~s(#parameter-ease_hip-input[value=""][inputmode="decimal"]))
-      assert has_element?(view, ~s(#parameter-side_rise[data-default="12.5"]))
-      assert view |> element("#parameter-ease_hip-hint") |> render() =~ ~r/>\s*<\/p>/
-      assert has_element?(view, "#parameter-ease_hip-error")
+      assert has_element?(
+               view,
+               ~s(#parameter-straight_skirt-ease_hip-input[value=""][inputmode="decimal"])
+             )
+
+      assert has_element?(view, ~s(#parameter-straight_skirt-side_rise[data-default="12.5"]))
+
+      assert view |> element("#parameter-straight_skirt-ease_hip-hint") |> render() =~
+               ~r/>\s*<\/p>/
+
+      assert has_element?(view, "#parameter-straight_skirt-ease_hip-error")
 
       texts = canvas_data(view, "texts")
       assert texts["errors"]["unknown_reference"] == "There is nothing called %{name}."
@@ -331,11 +359,11 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       assert has_element?(
                view,
-               ~s(#parameter-bust_dart_rate[data-unit="angle_per_length"][data-default="0.12"]),
+               ~s(#parameter-bodice-bust_dart_rate[data-unit="angle_per_length"][data-default="0.12"]),
                "Bust dart growth (degrees per cm)"
              )
 
-      refute has_element?(view, "#parameter-bust_dart_rate-hint", "Default")
+      refute has_element?(view, "#parameter-bodice-bust_dart_rate-hint", "Default")
     end
 
     test "renders the editor for a definition without points or known parameters", %{
@@ -355,7 +383,7 @@ defmodule ToileWeb.PatternLive.ShowTest do
       assert has_element?(view, "#pattern-canvas")
       refute has_element?(view, "#point-select option:not([value=''])")
       refute has_element?(view, "#parameter-panel")
-      assert canvas_data(view, "piece-labels") == %{}
+      assert canvas_data(view, "piece-labels") == %{"straight_skirt" => %{}}
 
       {1, _} =
         Repo.update_all(
@@ -368,11 +396,19 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
 
-      assert has_element?(view, ~s(#parameter-pocket[data-unit="number"]), "pocket")
-      refute has_element?(view, "#parameter-pocket", "pocket (")
-      assert has_element?(view, ~s(#parameter-pocket[data-default="3"]))
-      refute has_element?(view, "#parameter-pocket[data-value]")
-      assert canvas_data(view, "input")["parameters"] == %{"pocket" => 2.5}
+      assert has_element?(
+               view,
+               ~s(#parameter-straight_skirt-pocket[data-unit="number"]),
+               "pocket"
+             )
+
+      refute has_element?(view, "#parameter-straight_skirt-pocket", "pocket (")
+      assert has_element?(view, ~s(#parameter-straight_skirt-pocket[data-default="3"]))
+      refute has_element?(view, "#parameter-straight_skirt-pocket[data-value]")
+
+      assert canvas_data(view, "input")["parameters"] == %{
+               "straight_skirt" => %{"pocket" => 2.5}
+             }
 
       {1, _} =
         Repo.update_all(
@@ -382,8 +418,8 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
 
-      assert has_element?(view, ~s(#parameter-pocket[data-default="3"]))
-      refute has_element?(view, "#parameter-pocket[data-value]")
+      assert has_element?(view, ~s(#parameter-straight_skirt-pocket[data-default="3"]))
+      refute has_element?(view, "#parameter-straight_skirt-pocket[data-value]")
     end
 
     test "saves edits through save_pattern and shows them after a reload", %{
@@ -401,6 +437,7 @@ defmodule ToileWeb.PatternLive.ShowTest do
       %{"name" => moved} = Enum.at(definition["points"], 2)
 
       render_hook(view, "save_pattern", %{
+        "part" => project.block,
         "definition" => definition,
         "parameters" => %{"ease_hip" => 50}
       })
@@ -409,10 +446,16 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       {:ok, view2, _html} = live(conn, ~p"/patterns/#{project}")
 
-      saved = Enum.find(canvas_data(view2, "definition")["points"], &(&1["name"] == moved))
+      saved =
+        Enum.find(part_definition(view2, "straight_skirt")["points"], &(&1["name"] == moved))
+
       assert saved["user_offset"] == %{"dx" => 12.5, "dy" => -3}
-      assert canvas_data(view2, "input")["parameters"] == %{"ease_hip" => 50}
-      assert has_element?(view2, ~s(#parameter-ease_hip[data-default="40"]))
+
+      assert canvas_data(view2, "input")["parameters"] == %{
+               "straight_skirt" => %{"ease_hip" => 50}
+             }
+
+      assert has_element?(view2, ~s(#parameter-straight_skirt-ease_hip[data-default="40"]))
     end
 
     test "a save does not send the definition back to the hook", %{conn: conn, scope: scope} do
@@ -421,10 +464,15 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       definition = put_in(project.definition, ["points", Access.at(0), "x"], "10")
 
-      render_hook(view, "save_pattern", %{"definition" => definition, "parameters" => %{}})
+      render_hook(view, "save_pattern", %{
+        "part" => project.block,
+        "definition" => definition,
+        "parameters" => %{}
+      })
+
       assert_reply(view, %{ok: true})
 
-      assert canvas_data(view, "definition") == project.definition
+      assert part_definition(view, "straight_skirt") == project.definition
       assert Patterns.get_pattern_project!(scope, project.id).definition == definition
     end
 
@@ -434,7 +482,12 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       definition = put_in(project.definition, ["points", Access.at(0), "name"], "renamed")
 
-      render_hook(view, "save_pattern", %{"definition" => definition, "parameters" => %{}})
+      render_hook(view, "save_pattern", %{
+        "part" => project.block,
+        "definition" => definition,
+        "parameters" => %{}
+      })
+
       assert_reply(view, %{ok: false})
 
       assert Patterns.get_pattern_project!(scope, project.id).definition == project.definition
@@ -462,6 +515,7 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       for {payload_definition, parameters} <- tampered do
         render_hook(view, "save_pattern", %{
+          "part" => "bodice",
           "definition" => payload_definition,
           "parameters" => parameters
         })
@@ -486,13 +540,18 @@ defmodule ToileWeb.PatternLive.ShowTest do
         })
 
       render_hook(view, "save_pattern", %{
+        "part" => project.block,
         "definition" => moved,
         "parameters" => %{"ease_hip" => 50}
       })
 
       assert_reply(view, %{ok: true})
 
-      render_hook(view, "save_pattern", %{"definition" => project.definition, "parameters" => %{}})
+      render_hook(view, "save_pattern", %{
+        "part" => project.block,
+        "definition" => project.definition,
+        "parameters" => %{}
+      })
 
       assert_reply(view, %{ok: true})
 
@@ -501,8 +560,8 @@ defmodule ToileWeb.PatternLive.ShowTest do
       assert stored.parameters == %{}
 
       {:ok, view2, _html} = live(conn, ~p"/patterns/#{project}")
-      assert canvas_data(view2, "definition") == project.definition
-      assert canvas_data(view2, "input")["parameters"] == %{}
+      assert part_definition(view2, "straight_skirt") == project.definition
+      assert canvas_data(view2, "input")["parameters"] == %{"straight_skirt" => %{}}
     end
 
     test "rejects a malformed save", %{conn: conn, scope: scope} do
@@ -511,8 +570,20 @@ defmodule ToileWeb.PatternLive.ShowTest do
 
       for payload <- [
             %{"definition" => "x"},
-            %{"definition" => "x", "parameters" => %{}},
-            %{"definition" => project.definition, "parameters" => ["ease_hip"]},
+            %{"part" => project.block, "definition" => "x", "parameters" => %{}},
+            %{
+              "part" => project.block,
+              "definition" => project.definition,
+              "parameters" => ["ease_hip"]
+            },
+            # The part name is required.
+            %{"definition" => project.definition, "parameters" => %{}},
+            %{
+              "part" => ["straight_skirt"],
+              "definition" => project.definition,
+              "parameters" => %{}
+            },
+            %{"part" => "unknown", "definition" => project.definition, "parameters" => %{}},
             %{}
           ] do
         render_hook(view, "save_pattern", payload)
@@ -532,20 +603,332 @@ defmodule ToileWeb.PatternLive.ShowTest do
       {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
 
       render_hook(view, "save_pattern", %{
+        "part" => project.block,
         "definition" => project.definition,
         "parameters" => %{"ease_hip" => 60}
       })
 
       assert_reply(view, %{ok: true})
       # The input is not re-sent on save: the hook already has the parameters.
-      assert canvas_data(view, "input")["parameters"] == %{}
+      assert canvas_data(view, "input")["parameters"] == %{"straight_skirt" => %{}}
 
       view
       |> form("#profile-form", %{measurement_profile_id: second.id})
       |> render_change()
 
       assert has_element?(view, ~s(#pattern-canvas[data-key="#{second.id}"]))
-      assert canvas_data(view, "input")["parameters"] == %{"ease_hip" => 60}
+
+      assert canvas_data(view, "input")["parameters"] == %{
+               "straight_skirt" => %{"ease_hip" => 60}
+             }
+    end
+
+    test "adds the sleeve to a bodice project and draws it with the bodice", %{
+      conn: conn,
+      scope: scope
+    } do
+      project = pattern_project_fixture(scope, block: "bodice")
+      Patterns.subscribe_pattern_projects(scope)
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      assert has_element?(view, "#add-parts h2", "Add to the pattern")
+      assert has_element?(view, ~s(#add-part-straight_sleeve[phx-value-block="straight_sleeve"]))
+      assert has_element?(view, "#add-part-straight_sleeve", "Straight sleeve")
+
+      html = view |> element("#add-part-straight_sleeve") |> render_click()
+
+      assert html =~ "Straight sleeve added"
+      assert_receive {:updated, %{id: id}} when id == project.id
+
+      assert [
+               %{"name" => "bodice", "definition" => bodice},
+               %{"name" => "straight_sleeve", "definition" => sleeve}
+             ] = canvas_data(view, "parts")
+
+      assert bodice == Blocks.definition("bodice")
+      assert sleeve == Blocks.definition("straight_sleeve")
+
+      assert canvas_data(view, "input")["parameters"] == %{
+               "bodice" => %{},
+               "straight_sleeve" => %{}
+             }
+
+      # Keyed by part, then piece, so equal piece names in two parts cannot clash.
+      assert canvas_data(view, "piece-labels") == %{
+               "bodice" => %{"back" => "Back", "front" => "Front"},
+               "straight_sleeve" => %{"sleeve" => "Sleeve"}
+             }
+
+      # The sleeve cannot be added twice.
+      refute has_element?(view, "#add-parts")
+      assert [%{name: "straight_sleeve"}] = Patterns.get_pattern_project!(scope, project.id).parts
+    end
+
+    test "lists the sleeve's measurements as missing once it is added", %{
+      conn: conn,
+      scope: scope
+    } do
+      profile =
+        measurement_profile_fixture(scope, %{
+          name: "No upper arm",
+          measurements: Map.delete(complete_measurements(), :upper_arm)
+        })
+
+      project =
+        pattern_project_fixture(scope, block: "bodice", measurement_profile_id: profile.id)
+
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      # The bodice does not need the upper arm.
+      assert has_element?(view, "#pattern-canvas")
+
+      view |> element("#add-part-straight_sleeve") |> render_click()
+
+      assert has_element?(view, "#missing-measurement-upper_arm", "Upper arm circumference")
+      refute has_element?(view, "#pattern-canvas")
+    end
+
+    test "a profile switch draws a sleeve that was added in another tab", %{
+      conn: conn,
+      scope: scope
+    } do
+      first =
+        measurement_profile_fixture(scope, %{name: "First", measurements: complete_measurements()})
+
+      second =
+        measurement_profile_fixture(scope, %{
+          name: "Second",
+          measurements: complete_measurements()
+        })
+
+      project =
+        pattern_project_fixture(scope, block: "bodice", measurement_profile_id: first.id)
+
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+      assert [%{"name" => "bodice"}] = canvas_data(view, "parts")
+
+      # Added in another tab: this page still holds the project without the sleeve.
+      pattern_part_fixture(scope, project)
+
+      view
+      |> form("#profile-form", %{"measurement_profile_id" => second.id})
+      |> render_change()
+
+      assert has_element?(view, ~s(#pattern-canvas[data-key="#{second.id}"]))
+      assert [%{"name" => "bodice"}, %{"name" => "straight_sleeve"}] = canvas_data(view, "parts")
+      assert Map.keys(canvas_data(view, "input")["parameters"]) == ["bodice", "straight_sleeve"]
+      assert Map.keys(canvas_data(view, "piece-labels")) == ["bodice", "straight_sleeve"]
+      refute has_element?(view, "#add-parts")
+    end
+
+    test "a profile switch lists the measurements of a sleeve added in another tab", %{
+      conn: conn,
+      scope: scope
+    } do
+      first =
+        measurement_profile_fixture(scope, %{name: "First", measurements: complete_measurements()})
+
+      second =
+        measurement_profile_fixture(scope, %{
+          name: "No upper arm",
+          measurements: Map.delete(complete_measurements(), :upper_arm)
+        })
+
+      project =
+        pattern_project_fixture(scope, block: "bodice", measurement_profile_id: first.id)
+
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      pattern_part_fixture(scope, project)
+
+      view
+      |> form("#profile-form", %{"measurement_profile_id" => second.id})
+      |> render_change()
+
+      # The bodice alone does not need the upper arm; the sleeve does.
+      assert has_element?(view, "#missing-measurement-upper_arm", "Upper arm circumference")
+      refute has_element?(view, "#pattern-canvas")
+    end
+
+    test "flashes an error when the sleeve was added meanwhile", %{conn: conn, scope: scope} do
+      project = pattern_project_fixture(scope, block: "bodice")
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      # Added in another tab: the button is still on this page.
+      pattern_part_fixture(scope, project)
+
+      {:ok, reloaded, html} =
+        view
+        |> element("#add-part-straight_sleeve")
+        |> render_click()
+        |> follow_redirect(conn, ~p"/patterns/#{project}")
+
+      assert html =~ "Could not add to the pattern"
+      refute has_element?(reloaded, "#add-parts")
+      assert [_sleeve] = Patterns.get_pattern_project!(scope, project.id).parts
+    end
+
+    test "rejects blocks that cannot be added", %{conn: conn, scope: scope} do
+      # A skirt project offers nothing; a client may still send any key.
+      project = pattern_project_fixture(scope)
+
+      for params <- [
+            %{"block" => "straight_sleeve"},
+            %{"block" => "bodice"},
+            %{"block" => "unknown"},
+            %{"block" => ["straight_sleeve"]},
+            %{}
+          ] do
+        {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+        refute has_element?(view, "#add-parts")
+
+        {:ok, _reloaded, html} =
+          view
+          |> render_click("add_part", params)
+          |> follow_redirect(conn, ~p"/patterns/#{project}")
+
+        assert html =~ "Could not add to the pattern"
+      end
+
+      assert Patterns.get_pattern_project!(scope, project.id).parts == []
+    end
+
+    test "cannot add to another user's project", %{conn: conn} do
+      other_scope = user_scope_fixture()
+      other = pattern_project_fixture(other_scope, block: "bodice")
+
+      assert_raise Ecto.NoResultsError, fn ->
+        live(conn, ~p"/patterns/#{other}")
+      end
+
+      assert Patterns.get_pattern_project!(other_scope, other.id).parts == []
+    end
+
+    test "renders the editor for every part, grouped by part", %{conn: conn, scope: scope} do
+      project = pattern_project_fixture(scope, block: "bodice")
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      assert has_element?(view, ~s(#pattern-canvas[data-editor="pattern-editor-bodice"]))
+      refute has_element?(view, "#point-select optgroup")
+
+      view |> element("#add-part-straight_sleeve") |> render_click()
+
+      # Adding a part renders a new aside (the old one is ignored by LiveView) with its rows.
+      refute has_element?(view, "#pattern-editor-bodice")
+      assert has_element?(view, ~s(#pattern-editor-bodice-straight_sleeve[phx-update="ignore"]))
+
+      assert has_element?(
+               view,
+               ~s(#pattern-canvas[data-editor="pattern-editor-bodice-straight_sleeve"])
+             )
+
+      assert has_element?(view, ~s(#point-select optgroup[label="Bodice"]))
+      assert has_element?(view, ~s(#point-select optgroup[label="Straight sleeve"]))
+
+      for %{"name" => name} <- Blocks.definition("straight_sleeve")["points"] do
+        assert has_element?(
+                 view,
+                 ~s(#point-select optgroup[label="Straight sleeve"] option[value="straight_sleeve.#{name}"]),
+                 name
+               )
+      end
+
+      assert has_element?(
+               view,
+               ~s(#point-select option[value="bodice.#{hd(project.definition["points"])["name"]}"])
+             )
+
+      assert has_element?(view, "#parameter-group-bodice-heading", "Bodice")
+      assert has_element?(view, "#parameter-group-straight_sleeve-heading", "Straight sleeve")
+
+      assert has_element?(
+               view,
+               ~s(#parameter-straight_sleeve-cap_ease[data-part="straight_sleeve"][data-unit="length"][data-default="30"]),
+               "Extra width in the sleeve cap (cm)"
+             )
+
+      assert has_element?(
+               view,
+               ~s(#parameter-straight_sleeve-cap_inflection_tilt[data-unit="angle"]),
+               "Sleeve cap shape, slope at the turn (degrees)"
+             )
+
+      assert has_element?(view, ~s(#parameter-bodice-ease_bust[data-part="bodice"]))
+    end
+
+    test "saves an edit of an added part on that part only", %{conn: conn, scope: scope} do
+      project = pattern_project_fixture(scope, block: "bodice")
+      project = pattern_part_fixture(scope, project)
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+
+      sleeve = part_definition(view, "straight_sleeve")
+      moved = put_in(sleeve, ["points", Access.at(1), "user_offset"], %{"dx" => 5, "dy" => 0})
+
+      render_hook(view, "save_pattern", %{
+        "part" => "straight_sleeve",
+        "definition" => moved,
+        "parameters" => %{"cap_ease" => 40}
+      })
+
+      assert_reply(view, %{ok: true})
+
+      stored = Patterns.get_pattern_project!(scope, project.id)
+      assert stored.definition == project.definition
+      assert stored.parameters == %{}
+      assert [%{name: "straight_sleeve", definition: ^moved, parameters: params}] = stored.parts
+      assert params == %{"cap_ease" => 40}
+
+      # The hook keeps its own working state: nothing is sent back.
+      assert part_definition(view, "straight_sleeve") == sleeve
+
+      {:ok, view2, _html} = live(conn, ~p"/patterns/#{project}")
+      assert part_definition(view2, "straight_sleeve") == moved
+
+      assert canvas_data(view2, "input")["parameters"] == %{
+               "bodice" => %{},
+               "straight_sleeve" => %{"cap_ease" => 40}
+             }
+
+      # The main part can still be saved after a part save.
+      render_hook(view, "save_pattern", %{
+        "part" => "bodice",
+        "definition" => project.definition,
+        "parameters" => %{"ease_bust" => 90}
+      })
+
+      assert_reply(view, %{ok: true})
+      stored = Patterns.get_pattern_project!(scope, project.id)
+      assert stored.parameters == %{"ease_bust" => 90}
+      assert [%{definition: ^moved}] = stored.parts
+    end
+
+    test "rejects part saves that touch protected fields or another part's parameters", %{
+      conn: conn,
+      scope: scope
+    } do
+      project = pattern_project_fixture(scope, block: "bodice")
+      project = pattern_part_fixture(scope, project)
+      {:ok, view, _html} = live(conn, ~p"/patterns/#{project}")
+      sleeve = part_definition(view, "straight_sleeve")
+
+      for {definition, parameters} <- [
+            {put_in(sleeve, ["points", Access.at(0), "name"], "renamed"), %{}},
+            {put_in(sleeve, ["imports", "back_armhole_length"], "bodice.front_armhole_length"),
+             %{}},
+            {sleeve, %{"ease_bust" => 50}},
+            # The bodice's definition is not the sleeve's.
+            {project.definition, %{}}
+          ] do
+        render_hook(view, "save_pattern", %{
+          "part" => "straight_sleeve",
+          "definition" => definition,
+          "parameters" => parameters
+        })
+
+        assert_reply(view, %{ok: false})
+      end
+
+      assert Patterns.get_pattern_project!(scope, project.id) == project
     end
 
     test "raises for another user's project", %{conn: conn} do

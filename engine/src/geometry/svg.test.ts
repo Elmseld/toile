@@ -71,7 +71,7 @@ describe("piecePathData", () => {
     const piece: ComputedPiece = {
       name: "t",
       outline: [line("ab", a, b), line("bc", b, c), line("ca", c, a)],
-      grainline: { from: c, to: a },
+      grainline: { from: c, to: a }, notches: [],
     };
     expect(piecePathData(piece)).toBe("M 0 0 L 100 0 L 50 80 L 0 0 Z");
   });
@@ -84,7 +84,7 @@ describe("piecePathData", () => {
         line("ab", a, b),
         { name: "ba", type: "cubic", from: b, c1: p(100, 50), c2: p(0, 50), to: a, length: 0 },
       ],
-      grainline: { from: a, to: b },
+      grainline: { from: a, to: b }, notches: [],
     };
     expect(piecePathData(piece)).toBe("M 0 0 L 100 0 C 100 50 0 50 0 0 Z");
   });
@@ -92,12 +92,12 @@ describe("piecePathData", () => {
   test("curves of another type (only hand-built) are skipped", () => {
     const [a, b] = [p(0, 0), p(100, 0)];
     const odd = { name: "o", type: "arc", from: b, to: a, length: 1 } as unknown as ComputedCurve;
-    const piece: ComputedPiece = { name: "x", outline: [line("ab", a, b), odd], grainline: { from: a, to: b } };
+    const piece: ComputedPiece = { name: "x", outline: [line("ab", a, b), odd], grainline: { from: a, to: b }, notches: [] };
     expect(piecePathData(piece)).toBe("M 0 0 L 100 0 Z");
   });
 
   test("an empty outline (only hand-built) gives an empty string", () => {
-    expect(piecePathData({ name: "e", outline: [], grainline: { from: p(0, 0), to: p(0, 1) } })).toBe("");
+    expect(piecePathData({ name: "e", outline: [], grainline: { from: p(0, 0), to: p(0, 1) }, notches: [] })).toBe("");
   });
 });
 
@@ -109,7 +109,7 @@ describe("patternBounds", () => {
       line("bc", p(100, 0), p(50, 80)),
       line("ca", p(50, 80), p(0, 0)),
     ],
-    grainline: { from: p(50, 10), to: p(50, 70) },
+    grainline: { from: p(50, 10), to: p(50, 70) }, notches: [],
   };
 
   test("null without pieces", () => {
@@ -128,13 +128,13 @@ describe("patternBounds", () => {
         line("ab", a, b),
         { name: "ba", type: "cubic", from: b, c1: p(120, 50), c2: p(-10, 60), to: a, length: 0 },
       ],
-      grainline: { from: p(50, 0), to: p(50, 10) },
+      grainline: { from: p(50, 0), to: p(50, 10) }, notches: [],
     };
     expect(patternBounds({ pieces: { d: piece } })).toEqual({ minX: -10, minY: 0, maxX: 120, maxY: 60 });
   });
 
   test("grainline points are included", () => {
-    const piece: ComputedPiece = { ...triangle, grainline: { from: p(-5, -20), to: p(50, 90) } };
+    const piece: ComputedPiece = { ...triangle, grainline: { from: p(-5, -20), to: p(50, 90) }, notches: [] };
     expect(patternBounds({ pieces: { t: piece } })).toEqual({ minX: -5, minY: -20, maxX: 100, maxY: 90 });
   });
 
@@ -142,7 +142,7 @@ describe("patternBounds", () => {
     const moved: ComputedPiece = {
       name: "m",
       outline: [line("de", p(200, 10), p(300, 10)), line("ed", p(300, 10), p(200, 10))],
-      grainline: { from: p(250, 10), to: p(250, 20) },
+      grainline: { from: p(250, 10), to: p(250, 20) }, notches: [],
     };
     expect(patternBounds({ pieces: { t: triangle, m: moved } })).toEqual({
       minX: 0,
@@ -155,7 +155,7 @@ describe("patternBounds", () => {
   test("non-finite numbers (only hand-built) are skipped per axis", () => {
     const piece: ComputedPiece = {
       ...triangle,
-      grainline: { from: p(Number.NaN, 500), to: p(Infinity, -Infinity) },
+      grainline: { from: p(Number.NaN, 500), to: p(Infinity, -Infinity) }, notches: [],
     };
     expect(patternBounds({ pieces: { t: piece } })).toEqual({ minX: 0, minY: 0, maxX: 100, maxY: 500 });
   });
@@ -165,7 +165,7 @@ describe("patternBounds", () => {
     const piece: ComputedPiece = {
       name: "n",
       outline: [line("nn", nan, nan)],
-      grainline: { from: nan, to: nan },
+      grainline: { from: nan, to: nan }, notches: [],
     };
     expect(patternBounds({ pieces: { n: piece } })).toBeNull();
   });

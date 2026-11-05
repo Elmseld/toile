@@ -1,14 +1,15 @@
 // Panels: the DOM of the editor aside (#pattern-editor, docs/adr/0008-pattern-editor.md).
 //
 // HEEx renders the aside once (phx-update="ignore"): the undo/redo buttons, the save status, the
-// alert, the point select with an empty #point-details, and one row per parameter. This module
-// fills and updates it; PatternEditor decides what to show. All text comes from the hook's
-// `data-texts` (ToileWeb.EditorTexts), never from here.
+// alert, the point select (option values `<part>.<point>`) with an empty #point-details, and one
+// row per parameter of each part. This module fills and updates it; PatternEditor decides what to
+// show. All text comes from the hook's `data-texts` (ToileWeb.EditorTexts), never from here.
 //
-// A parameter row carries its stored default and unit only (`data-default`, `data-unit`); its
-// input and "Default" hint render empty and are filled here in the display unit with the engine's
-// units, so the conversion has one source. The editor passes the stored overrides (from the hook's
-// `data-input`) to the constructor, which writes them with renderParameters.
+// A parameter row carries its part, name, stored default and unit only (`data-part`,
+// `data-parameter`, `data-default`, `data-unit`); its input and "Default" hint render empty and
+// are filled here in the display unit with the engine's units, so the conversion has one source.
+// The editor passes the working parts, `{partName: {parameters}}`, to the constructor, which
+// writes their overrides with renderParameters.
 
 import {formatDisplay, pointFields, toDisplay} from "../../../engine/src/index"
 
@@ -54,8 +55,8 @@ function referenceText(value, kind, texts) {
 }
 
 export class Panels {
-  /** The panels of `aside`, with the inputs showing `parameters` (the stored overrides). */
-  constructor(aside, texts, parameters = {}) {
+  /** The panels of `aside`, with the inputs showing the overrides of `parts`. */
+  constructor(aside, texts, parts = {}) {
     this.aside = aside
     this.texts = texts
     this.undoButton = aside.querySelector("#undo-button")
@@ -66,14 +67,15 @@ export class Panels {
     this.details = aside.querySelector("#point-details")
     // HEEx renders the rows once and never patches them (phx-update="ignore").
     this.rows = [...aside.querySelectorAll("[data-parameter]")].map(row => ({
+      part: row.dataset.part,
       name: row.dataset.parameter,
       unit: row.dataset.unit,
       default: Number(row.dataset.default),
       input: row.querySelector("input"),
-      hint: row.querySelector(`#parameter-${CSS.escape(row.dataset.parameter ?? "")}-hint`),
+      hint: row.querySelector(`#${CSS.escape(row.id)}-hint`),
     }))
     this.fillHints()
-    this.renderParameters(parameters)
+    this.renderParameters(parts)
   }
 
   // Writes each row's default with the unit text into its "Default" hint.
@@ -106,12 +108,12 @@ export class Panels {
   }
 
   /**
-   * Fills #point-details for the raw point `point` (or empties it for none): its name, what its
-   * operation does, its reference fields read-only, an input per formula field, and its offset
-   * with the button that removes it. The formula inputs carry `data-field`.
+   * Fills #point-details for the raw point `point` of part `part` (or empties it for none): its
+   * name, what its operation does, its reference fields read-only, an input per formula field,
+   * and its offset with the button that removes it. The formula inputs carry `data-field`.
    */
-  renderPoint(point) {
-    if (this.pointSelect) this.pointSelect.value = point?.name ?? ""
+  renderPoint(point, part = null) {
+    if (this.pointSelect) this.pointSelect.value = point && part ? `${part}.${point.name}` : ""
     if (!this.details) return
     this.details.replaceChildren()
     if (!point) return
@@ -193,26 +195,29 @@ export class Panels {
     this.setError(this.details?.querySelector(`#point-field-${CSS.escape(field)}`), text)
   }
 
-  /** The parameter rows: [{name, unit, default, input, hint}], read once on creation. */
+  /** The parameter rows: [{part, name, unit, default, input, hint}], read once on creation. */
   parameterRows() {
     return this.rows
   }
 
-  /** Writes the values of `parameters` (defaults where there is none) and clears the errors. */
-  renderParameters(parameters) {
-    for (const row of this.parameterRows()) this.renderParameter(row, parameters)
+  /**
+   * Writes the overrides of `parts`, `{partName: {parameters}}` (defaults where there is none),
+   * and clears the errors.
+   */
+  renderParameters(parts) {
+    for (const row of this.parameterRows()) this.renderParameter(row, parts)
   }
 
-  renderParameter(row, parameters) {
+  renderParameter(row, parts) {
     if (!row.input) return
+    const parameters = (Object.hasOwn(parts, row.part) && parts[row.part]?.parameters) || {}
     const value = Object.hasOwn(parameters, row.name) ? parameters[row.name] : row.default
     row.input.value = Number.isFinite(value) ? displayText(value, row.unit, this.texts) : ""
     this.setError(row.input, null)
   }
 
-  /** Shows `text` under the parameter `name`'s input (null clears it). */
-  setParameterError(name, text) {
-    const row = this.parameterRows().find(candidate => candidate.name === name)
+  /** Shows `text` under the input of the parameter row `row` (null clears it). */
+  setParameterError(row, text) {
     this.setError(row?.input, text)
   }
 
@@ -229,7 +234,7 @@ export class Panels {
   }
 
   // The error paragraph of an input is `<id>-error`, without the input's `-input` suffix
-  // (`point-field-dx-error`, `parameter-ease_hip-error`).
+  // (`point-field-dx-error`, `parameter-straight_skirt-ease_hip-error`).
   errorElement(input) {
     return input ? document.getElementById(`${input.id.replace(/-input$/, "")}-error`) : null
   }

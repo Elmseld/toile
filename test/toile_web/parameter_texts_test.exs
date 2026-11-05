@@ -13,10 +13,19 @@ defmodule ToileWeb.ParameterTextsTest do
         do: name
   end
 
+  # Parameters that really are plain numbers (a share); any other one needs a unit.
+  @plain_numbers ~w(cap_convex_share)
+
   test "every parameter of every block has a label of its own and a unit" do
     for name <- block_parameters() do
       assert ParameterTexts.label(name) != name, "parameter #{name} has no label"
-      assert ParameterTexts.unit(name) in [:length, :angle, :angle_per_length]
+
+      if name in @plain_numbers do
+        assert ParameterTexts.unit(name) == :number
+      else
+        assert ParameterTexts.unit(name) in [:length, :angle, :angle_per_length],
+               "parameter #{name} has no unit"
+      end
     end
   end
 

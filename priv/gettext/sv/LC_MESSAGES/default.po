@@ -375,6 +375,7 @@ msgstr "Spara lösenord"
 #: lib/toile_web/editor_texts.ex
 #: lib/toile_web/live/measurement_profile_live/form.ex
 #: lib/toile_web/live/pattern_live/form.ex
+#: lib/toile_web/live/pattern_live/show.ex
 #: lib/toile_web/live/user_live/settings.ex
 #, elixir-autogen, elixir-format
 msgid "Saving..."
@@ -1343,3 +1344,54 @@ msgstr "grader per cm"
 #, elixir-autogen, elixir-format
 msgid "Not saved: the pattern keeps the last value that worked."
 msgstr "Inte sparat: mönstret behåller det senaste värdet som fungerade."
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "%{block} added"
+msgstr "%{block} har lagts till"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Add to the pattern"
+msgstr "Lägg till i mönstret"
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Could not add to the pattern"
+msgstr "Det gick inte att lägga till i mönstret"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Ease at the upper arm"
+msgstr "Rörelsevidd, överarm"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Ease at the wrist"
+msgstr "Rörelsevidd, handled"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Extra width in the sleeve cap"
+msgstr "Extra vidd i ärmkullen"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Sleeve cap shape, share of the outward curve"
+msgstr "Ärmkullens form, andel utåtbuktande kurva"
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Sleeve cap shape, slope at the turn"
+msgstr "Ärmkullens form, lutning vid vändpunkten"
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Straight sleeve"
+msgstr "Rak ärm"
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgctxt "pattern piece"
+msgid "Sleeve"
+msgstr "Ärm"

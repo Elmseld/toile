@@ -2,8 +2,9 @@ defmodule ToileWeb.PatternLive.Form do
   @moduledoc """
   Creates (`:new`) or renames (`:edit`) a pattern project of the current user.
 
-  `:new` asks for a name, a block (`Toile.Patterns.Blocks`, listed in a select with a prompt,
-  nothing preselected) and one of the user's measurement profiles. Blocks are sorted by their
+  `:new` asks for a name, a base block (`Toile.Patterns.Blocks.base_keys/0`, listed in a select
+  with a prompt, nothing preselected; blocks with imports such as the sleeve are added on the
+  project page instead) and one of the user's measurement profiles. Blocks are sorted by their
   translated label, case-insensitively in code point order (not Swedish collation: Ä before Å).
   A user without profiles sees `#no-profiles` with a link to create one instead of the form, since
   a project needs a profile.
@@ -116,7 +117,7 @@ defmodule ToileWeb.PatternLive.Form do
       |> Enum.map(&{&1.name, &1.id})
 
     block_options =
-      Blocks.keys()
+      Blocks.base_keys()
       |> Enum.map(&{BlockTexts.label(&1), &1})
       |> Enum.sort_by(fn {label, _key} -> String.downcase(label) end)
 

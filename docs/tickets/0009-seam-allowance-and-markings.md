@@ -22,3 +22,7 @@ show grainline, notches, fold line and name.
 
 ## Out of scope
 - Buttonholes, pocket placement.
+
+## Notes
+Notches already exist as an optional piece field and are drawn as short marks into the piece
+(ADR 0004 decision 17, ticket 0007). This ticket adds them to the cutting line.

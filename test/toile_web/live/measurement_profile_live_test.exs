@@ -26,6 +26,12 @@ defmodule ToileWeb.MeasurementProfileLiveTest do
   describe "Index" do
     setup :register_and_log_in_user
 
+    test "uses the list layout, wide enough for the action buttons", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/measurements")
+
+      assert has_element?(view, "#main-content.max-w-5xl")
+    end
+
     test "shows the empty state without profiles", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/measurements")
 

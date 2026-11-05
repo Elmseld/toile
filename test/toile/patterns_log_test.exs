@@ -15,7 +15,7 @@ defmodule Toile.PatternsLogTest do
     on_exit(fn -> Logger.delete_module_level(Patterns) end)
   end
 
-  test "update_pattern_edits/3 logs a rejected save with the failing fields and path, not values" do
+  test "update_pattern_edits/4 logs a rejected save with the failing fields and path, not values" do
     scope = user_scope_fixture()
     pattern_project = pattern_project_fixture(scope)
     definition = put_in(pattern_project.definition, ["points", Access.at(0), "name"], "secret")
@@ -23,7 +23,7 @@ defmodule Toile.PatternsLogTest do
     log =
       capture_log([level: :info], fn ->
         assert {:error, _changeset} =
-                 Patterns.update_pattern_edits(scope, pattern_project, %{
+                 Patterns.update_pattern_edits(scope, pattern_project, pattern_project.block, %{
                    "definition" => definition,
                    "parameters" => %{"not_declared" => 1}
                  })
@@ -36,7 +36,7 @@ defmodule Toile.PatternsLogTest do
     refute log =~ "not_declared"
   end
 
-  test "update_pattern_edits/3 escapes control characters of a client-chosen key in the path" do
+  test "update_pattern_edits/4 escapes control characters of a client-chosen key in the path" do
     scope = user_scope_fixture()
     pattern_project = pattern_project_fixture(scope)
     forged = "x\n[info] Rejected pattern edit for project forged"
@@ -45,7 +45,7 @@ defmodule Toile.PatternsLogTest do
     log =
       capture_log([level: :info], fn ->
         assert {:error, _changeset} =
-                 Patterns.update_pattern_edits(scope, pattern_project, %{
+                 Patterns.update_pattern_edits(scope, pattern_project, pattern_project.block, %{
                    "definition" => definition,
                    "parameters" => %{}
                  })
@@ -53,5 +53,23 @@ defmodule Toile.PatternsLogTest do
 
     assert log =~ ~S(definition at "/x\n[info] Rejected pattern edit for project forged")
     refute log =~ "\n[info] Rejected pattern edit for project forged"
+  end
+
+  test "update_pattern_edits/4 logs an unknown part with control characters escaped" do
+    scope = user_scope_fixture()
+    pattern_project = pattern_project_fixture(scope)
+    forged = "collar\n[info] forged"
+
+    log =
+      capture_log([level: :info], fn ->
+        assert {:error, :unknown_part} =
+                 Patterns.update_pattern_edits(scope, pattern_project, forged, %{
+                   "definition" => pattern_project.definition,
+                   "parameters" => %{}
+                 })
+      end)
+
+    assert log =~ ~S(part "collar\n[info] forged": unknown part)
+    refute log =~ "\n[info] forged"
   end
 end

@@ -196,6 +196,21 @@ describe("placeLabel", () => {
     expect(place.clearance).toBeCloseTo((42.5 - SIZE) / 2, 0);
   });
 
+  test("keeps clear of notch marks", () => {
+    // The label would sit in the middle of the left half; a long mark through it pushes it away.
+    const mark = { from: { x: 50, y: 0 }, to: { x: 50, y: 60 } };
+    const notched: LabelPiece = { ...rectangle, notches: [{ marks: [mark] }] };
+    const place = placeLabel(notched, "Abc", SIZE)!;
+    const box = boxAround(place, "Abc");
+    expect(rectSegmentDistance(box, mark.from, mark.to)).toBeGreaterThanOrEqual(place.clearance - 1e-9);
+    expect(place.x).not.toBeCloseTo(50, 0);
+    // Non-finite marks are ignored.
+    const odd = { from: { x: Number.NaN, y: 0 }, to: { x: 50, y: 60 } };
+    expect(placeLabel({ ...rectangle, notches: [{ marks: [odd] }] }, "Abc", SIZE)).toEqual(
+      placeLabel(rectangle, "Abc", SIZE),
+    );
+  });
+
   test("keeps clear of a dart cut into the outline", () => {
     // A square with a dart from the bottom edge up to (100, 120); grainline along the left.
     const piece = polygonPiece(

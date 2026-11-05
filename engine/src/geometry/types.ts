@@ -51,11 +51,23 @@ export type CurveDefinition =
  */
 export type OutlineEntry = { curve: string };
 
-/** A pattern piece: an outline of curves that closes by point name, and a grainline. */
+/**
+ * A balance mark on a piece outline (ADR 0004 decision 17): it lies `distance` mm (a formula)
+ * along the outline, walking forward in outline order from the start of `curve`, which must be a
+ * curve of the outline. `marks` is 1 (a single notch, the default) or 2 (a double notch, by
+ * convention at the back).
+ */
+export type NotchDefinition = { curve: string; distance: string; marks: 1 | 2 };
+
+/**
+ * A pattern piece: an outline of curves that closes by point name, a grainline and its notches
+ * (`[]` when the definition has none).
+ */
 export type PieceDefinition = {
   name: string;
   outline: OutlineEntry[];
   grainline: { from: string; to: string };
+  notches: NotchDefinition[];
 };
 
 /** A validated, normalised pattern definition (defaults filled in). */
@@ -64,6 +76,11 @@ export type PatternDefinition = {
   name?: string;
   source?: string;
   measurements: string[];
+  /**
+   * Values taken from another part of the same project, `{ local name: "<part>.<value>" }` (ADR
+   * 0007). The local name is a value in the definition's namespace, like a measurement.
+   */
+  imports: Record<string, string>;
   parameters: Record<string, number>;
   formulas: Record<string, string>;
   points: PointDefinition[];
@@ -95,6 +112,11 @@ export type PatternInput = {
   measurements: Readonly<Record<string, number>>;
   /** Overrides of declared parameter defaults. */
   parameters?: Readonly<Record<string, number>>;
+  /**
+   * Values of the declared imports, by local name; names the definition does not import are
+   * ignored. `evaluateProject` fills them from the other parts.
+   */
+  imports?: Readonly<Record<string, number>>;
 };
 
 /** A computed position in a result; results share these objects, so they are read-only. */
@@ -118,10 +140,21 @@ export type ComputedCurve =
       readonly length: number;
     };
 
+/** One straight mark of a notch, from the outline into the piece. */
+export type NotchMark = { readonly from: ResultPoint; readonly to: ResultPoint };
+
+/**
+ * A computed notch: its position on the outline and its marks, each `NOTCH_LENGTH` mm into the
+ * piece; a double notch has two marks `NOTCH_PAIR_SPACING` mm apart, centred on the point.
+ */
+export type ComputedNotch = { readonly point: ResultPoint; readonly marks: readonly NotchMark[] };
+
 export type ComputedPiece = {
   readonly name: string;
   readonly outline: readonly ComputedCurve[];
   readonly grainline: { readonly from: ResultPoint; readonly to: ResultPoint };
+  /** In definition order; empty when the piece has none. */
+  readonly notches: readonly ComputedNotch[];
 };
 
 /**
@@ -149,7 +182,14 @@ export type PatternResult =
   | (ComputedPattern & { ok: false; errors: PatternError[] });
 
 /** Which section of the definition an element is declared in. */
-export type ElementSource = "measurement" | "parameter" | "formula" | "point" | "curve" | "piece";
+export type ElementSource =
+  | "measurement"
+  | "import"
+  | "parameter"
+  | "formula"
+  | "point"
+  | "curve"
+  | "piece";
 
 /** What a reference must name: a number, a point, a curve or a piece. */
 export type ReferenceKind = "value" | "point" | "curve" | "piece";
@@ -168,6 +208,8 @@ export type ElementError =
   | InvalidNameError<ElementSource>
   | DuplicateNameError<ElementSource>
   | { kind: "missing_measurement"; name: string; message: string }
+  | { kind: "missing_import"; name: string; reference: string; message: string }
+  | { kind: "invalid_value"; name: string; source: "import"; message: string }
   | { kind: "unknown_parameter"; name: string; message: string }
   | {
       kind: "wrong_reference_kind";
@@ -181,7 +223,8 @@ export type ElementError =
     }
   | { kind: "degenerate_geometry"; name: string; field?: string; message: string }
   | { kind: "no_intersection"; name: string; message: string }
-  | { kind: "open_outline"; name: string; field: string; message: string };
+  | { kind: "open_outline"; name: string; field: string; message: string }
+  | { kind: "invalid_notch"; name: string; field: string; message: string };
 
 /**
  * Every error `evaluatePattern` returns. Structural errors have a JSON-pointer `path`; the others

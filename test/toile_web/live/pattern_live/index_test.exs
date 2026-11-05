@@ -35,6 +35,12 @@ defmodule ToileWeb.PatternLive.IndexTest do
   describe "logged in" do
     setup :register_and_log_in_user
 
+    test "uses the list layout, wide enough for the action buttons", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/patterns")
+
+      assert has_element?(view, "#main-content.max-w-5xl")
+    end
+
     test "shows the heading and the empty state", %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/patterns")
 

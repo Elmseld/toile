@@ -375,6 +375,7 @@ msgstr ""
 #: lib/toile_web/editor_texts.ex
 #: lib/toile_web/live/measurement_profile_live/form.ex
 #: lib/toile_web/live/pattern_live/form.ex
+#: lib/toile_web/live/pattern_live/show.ex
 #: lib/toile_web/live/user_live/settings.ex
 #, elixir-autogen, elixir-format
 msgid "Saving..."
@@ -1342,4 +1343,55 @@ msgstr ""
 #: lib/toile_web/editor_texts.ex
 #, elixir-autogen, elixir-format
 msgid "Not saved: the pattern keeps the last value that worked."
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "%{block} added"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Add to the pattern"
+msgstr ""
+
+#: lib/toile_web/live/pattern_live/show.ex
+#, elixir-autogen, elixir-format
+msgid "Could not add to the pattern"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Ease at the upper arm"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Ease at the wrist"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Extra width in the sleeve cap"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Sleeve cap shape, share of the outward curve"
+msgstr ""
+
+#: lib/toile_web/parameter_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Sleeve cap shape, slope at the turn"
+msgstr ""
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Straight sleeve"
+msgstr ""
+
+#: lib/toile_web/block_texts.ex
+#, elixir-autogen, elixir-format
+msgctxt "pattern piece"
+msgid "Sleeve"
 msgstr ""

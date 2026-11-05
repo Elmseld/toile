@@ -223,6 +223,66 @@ describe("robustness", () => {
     }
   });
 
+  test("random imports and notches never make validation or evaluation throw", () => {
+    const next = random(2024);
+    const notchValue = (): unknown => {
+      const roll = next();
+      if (roll < 0.6) {
+        const notch: Record<string, unknown> = {
+          curve: pick(next, ["c", "d", "e", ...NAMES]),
+          distance: pick(next, [...FORMULAS, "-1", "1000000", "length(c) / 2", "w"]),
+        };
+        if (next() < 0.4) notch.marks = pick(next, [1, 2, 0, 3, 1.5, "2", null]);
+        if (next() < 0.1) notch.extra = value(next);
+        return notch;
+      }
+      return value(next);
+    };
+    for (let i = 0; i < 2_000; i++) {
+      const base = wellFormedDefinition(next) as Record<string, unknown>;
+      const pieces = base.pieces as Record<string, unknown>[];
+      const definition = {
+        ...base,
+        curves: [
+          ...(base.curves as unknown[]),
+          { name: "d", type: "line", from: "B", to: "C" },
+          { name: "e", type: "cubic", from: "C", c1: "D", c2: "E", to: "A" },
+        ],
+        imports:
+          next() < 0.8
+            ? { [pick(next, NAMES)]: pick(next, ["bodice.armhole", "p.v", "x", "a.b.c", 5]) }
+            : value(next),
+        pieces: [
+          {
+            ...pieces[0],
+            outline: [{ curve: "c" }, { curve: "d" }, { curve: "e" }],
+            notches: next() < 0.9 ? Array.from({ length: Math.floor(next() * 4) }, notchValue) : value(next),
+          },
+        ],
+      };
+      const inputs: unknown[] = [
+        INPUT,
+        { measurements: { m: 700 }, imports: { armhole: 400, A: Number.NaN, __proto__: 1 } },
+        { measurements: { m: 700 }, imports: value(next) },
+      ];
+      expect(() => validateDefinition(definition)).not.toThrow();
+      for (const input of inputs) {
+        let result: ReturnType<typeof evaluatePattern> | undefined;
+        expect(() => {
+          result = evaluatePattern(definition, input as PatternInput);
+        }).not.toThrow();
+        if (result !== undefined && !result.ok) expectWellFormedErrors(result.errors);
+        for (const computed of Object.values(result?.pieces ?? {})) {
+          for (const notch of computed.notches) {
+            for (const mark of notch.marks) {
+              expect(Number.isFinite(mark.to.x) && Number.isFinite(mark.to.y)).toBe(true);
+            }
+          }
+        }
+      }
+    }
+  });
+
   test("hostile inputs return errors instead of throwing", () => {
     const hostileInput = {
       get measurements(): never {
