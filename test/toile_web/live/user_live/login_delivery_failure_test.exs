@@ -16,6 +16,7 @@ defmodule ToileWeb.UserLive.LoginDeliveryFailureTest do
 
     assert [{"/users/log-in", flash}, {"/users/log-in", flash}] = results
     assert flash["info"] =~ "If your email address is registered with us"
+    assert log =~ "reason=http_503"
     refute log =~ known
   end
 
@@ -32,11 +33,20 @@ defmodule ToileWeb.UserLive.LoginDeliveryFailureTest do
   end
 
   # Submits the magic link form for `known` and for an unknown address, and
-  # waits for the background deliveries so their log lines are captured.
+  # waits for the background deliveries so their log lines are captured. Each
+  # submit comes from its own client IP, so a shared IP budget that is used up
+  # cannot keep the delivery from running.
   defp submit_known_and_unknown(known) do
     results =
       for email <- [known, unique_user_email()] do
-        {:ok, lv, _html} = live(build_conn(), ~p"/users/log-in")
+        conn =
+          Plug.Test.put_peer_data(build_conn(), %{
+            address: unique_remote_ip(),
+            port: 1,
+            ssl_cert: nil
+          })
+
+        {:ok, lv, _html} = live(conn, ~p"/users/log-in")
 
         lv
         |> form("#login_form_magic", user: %{email: email})
