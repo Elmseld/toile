@@ -159,9 +159,12 @@ defmodule ToileWeb.UserLive.Settings do
   # A malformed event (no "user" map, or values that are not strings) is
   # treated as an empty form so it gets validation errors instead of crashing
   # the LiveView: a non-string value would otherwise be put back into the
-  # rendered input.
+  # rendered input. LiveView's `_unused_<field>` markers are kept so that
+  # `used_input?/1` still hides errors on fields the user has not touched.
   defp user_params(%{"user" => %{} = user_params}, fields) do
-    for {key, value} when is_binary(value) <- Map.take(user_params, fields),
+    keys = fields ++ Enum.map(fields, &("_unused_" <> &1))
+
+    for {key, value} when is_binary(value) <- Map.take(user_params, keys),
         into: %{},
         do: {key, value}
   end

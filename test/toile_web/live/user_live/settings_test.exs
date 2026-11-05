@@ -267,6 +267,23 @@ defmodule ToileWeb.UserLive.SettingsTest do
       assert result =~ "does not match password"
     end
 
+    test "hides the confirmation error while the confirmation field is untouched", %{
+      conn: conn
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      result =
+        render_hook(lv, "validate_password", %{
+          "user" => %{
+            "password" => "a new valid password",
+            "password_confirmation" => "",
+            "_unused_password_confirmation" => ""
+          }
+        })
+
+      refute result =~ "does not match password"
+    end
+
     test "renders errors with invalid data (phx-submit)", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/users/settings")
 

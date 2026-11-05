@@ -95,9 +95,17 @@ defmodule ToileWeb.UserLive.Registration do
   # The form has a single field. A malformed submit (no "user" map, or an email
   # that is not a string) is treated as an empty form so it gets validation
   # errors instead of crashing the LiveView: a non-string value would otherwise
-  # be put back into the rendered input.
-  defp user_params(%{"user" => %{"email" => email}}) when is_binary(email),
-    do: %{"email" => email}
+  # be put back into the rendered input. LiveView's `_unused_email` marker is
+  # kept so that `used_input?/1` still hides errors while the field is untouched.
+  defp user_params(%{"user" => %{"email" => email} = user_params}) when is_binary(email) do
+    case user_params do
+      %{"_unused_email" => unused} when is_binary(unused) ->
+        %{"email" => email, "_unused_email" => unused}
+
+      _ ->
+        %{"email" => email}
+    end
+  end
 
   defp user_params(_params), do: %{}
 

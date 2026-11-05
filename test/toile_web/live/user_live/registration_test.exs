@@ -36,6 +36,17 @@ defmodule ToileWeb.UserLive.RegistrationTest do
       assert result =~ "Create an account"
       assert result =~ "must have the @ sign and no spaces"
     end
+
+    test "hides errors while the email field is untouched", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      result =
+        render_hook(lv, "validate", %{
+          "user" => %{"email" => "with spaces", "_unused_email" => ""}
+        })
+
+      refute result =~ "must have the @ sign and no spaces"
+    end
   end
 
   describe "register user" do
