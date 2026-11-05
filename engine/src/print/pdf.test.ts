@@ -252,3 +252,83 @@ describe("the engine's entry point", () => {
     expect(engine.tileLabel(1, 2)).toBe(tileLabel(1, 2));
   });
 });
+
+describe("patternPdf: page content", () => {
+  const FOLD = "[28.346 5.669 5.669 5.669] 0 d";
+
+  test("clips the pattern of a tile page to the printable area, inside the margin", () => {
+    const [, page] = pagesOf(input(PANEL));
+    const margin = PRINT_MARGIN * K;
+    const clip = /q\n([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) re W n/.exec(page!.content);
+    expect(clip).not.toBeNull();
+    const [x, y, w, h] = clip!.slice(1).map(Number) as [number, number, number, number];
+    expect(x).toBeCloseTo(margin, 2);
+    expect(y).toBeCloseTo(margin, 2);
+    expect(x + w).toBeCloseTo(595.276 - margin, 2);
+    expect(y + h).toBeCloseTo(841.89 - margin, 2);
+    // Every piece drawing comes after the clip, none before it.
+    expect(page!.content.indexOf(" re W n")).toBeLessThan(page!.content.indexOf(SEAM_DASH));
+  });
+
+  test("clips to Letter's printable area on a Letter page", () => {
+    const [, page] = pagesOf(input(PANEL, { paper: "letter" }));
+    const margin = PRINT_MARGIN * K;
+    const clip = /([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) re W n/.exec(page!.content)!;
+    expect(Number(clip[1]) + Number(clip[3])).toBeCloseTo(612 - margin, 2);
+    expect(Number(clip[2]) + Number(clip[4])).toBeCloseTo(792 - margin, 2);
+  });
+
+  test("draws a solid cutting line, a dashed seam line, a dash-dot fold and notches on the skirt", () => {
+    const result = project("straight_skirt");
+    const pages = pagesOf(input(result.parts));
+    const tile = pages.slice(1).find((page) => page.content.includes(FOLD));
+    expect(tile).toBeDefined();
+    const content = tile!.content;
+    expect(content).toContain("0.8 w 1 j");
+    expect(content).toContain(SEAM_DASH);
+    expect(content).toContain("1 J");
+    expect(content.indexOf("0.8 w 1 j")).toBeLessThan(content.indexOf(SEAM_DASH));
+  });
+
+  test("prints a piece without a cutting line, with no solid cutting path", () => {
+    const parts = { only: rectangles(["box", 0, 0, 100, 50]) };
+    const allowances = { default: DEFAULT_SEAM_ALLOWANCE, edges: { only: { box_top: 1000 } } };
+    const pages = pagesOf(input(parts, { allowances }));
+    expect(pages).toHaveLength(2);
+    expect(pages[1]!.content).toContain(SEAM_DASH);
+    expect(pages[1]!.content).not.toContain("0.8 w 1 j");
+  });
+
+  test("gives every tile page of the bodice with sleeve pattern content, so none is empty", () => {
+    const pages = pagesOf(input(project("bodice", "straight_sleeve").parts));
+    expect(pages.length).toBeGreaterThan(1);
+    for (const page of pages.slice(1)) expect(page.content).toContain(SEAM_DASH);
+  });
+
+  test("keeps page 1's test square and map inside the printable area, in A4 and Letter", () => {
+    for (const [paper, width, height] of [
+      ["a4", 595.276, 841.89],
+      ["letter", 612, 792],
+    ] as const) {
+      const [first] = pagesOf(input(PANEL, { paper }));
+      const match = /([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) re/.exec(first!.content)!;
+      const [x, y, w, h] = match.slice(1).map(Number) as [number, number, number, number];
+      const margin = PRINT_MARGIN * K;
+      expect(x).toBeGreaterThanOrEqual(margin - 0.01);
+      expect(y).toBeGreaterThanOrEqual(margin - 0.01);
+      expect(x + w).toBeLessThanOrEqual(width - margin + 0.01);
+      expect(y + h).toBeLessThanOrEqual(height - margin + 0.01);
+      expect(first!.content).toContain(pdfText("A1"));
+      expect(first!.content).toContain(pdfText("A2"));
+    }
+  });
+
+  test("lets only the first page carry the title and the test square", () => {
+    const pages = pagesOf(input(PANEL, { title: "Unique title" }));
+    expect(pages[0]!.content).toContain(pdfText("10 × 10 cm"));
+    for (const page of pages.slice(1)) {
+      expect(page.content).not.toContain(pdfText("Unique title"));
+      expect(page.content).not.toContain(pdfText("10 × 10 cm"));
+    }
+  });
+});
