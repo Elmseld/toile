@@ -546,6 +546,10 @@ defmodule Toile.Accounts do
   # or rate-limited address, revealing whether the account exists (ADR 0010).
   defp handle_delivery({:ok, _email}, _flow, _recipient), do: :ok
 
+  # The account went away or changed address between the request and the
+  # delivery; nothing to send, and not a delivery failure.
+  defp handle_delivery({:error, :stale_user}, _flow, _recipient), do: :ok
+
   defp handle_delivery({:error, reason}, flow, recipient) do
     # Only the class of the reason: a provider response can echo the address.
     Logger.warning(
@@ -564,14 +568,44 @@ defmodule Toile.Accounts do
   @doc """
   Delivers the magic link login instructions to the given user.
 
+  The login token is created under the user lock (ADR 0002 §3), after the user
+  is re-read. A confirmed user gets a magic link, an unconfirmed one a
+  confirmation email, decided on the re-read user.
+
+  Returns `{:ok, email}`, `{:error, :stale_user}` if the user no longer exists
+  or their email has changed (no token is created and nothing is sent), or the
+  mailer's `{:error, reason}`.
+
   Not rate limited; UI flows must go through `request_login_instructions/3`,
   `register_user_and_deliver_instructions/4` or `request_user_email_change/4`.
   """
   def deliver_login_instructions(%User{} = user, magic_link_url_fun)
       when is_function(magic_link_url_fun, 1) do
-    {encoded_token, user_token} = UserToken.build_email_token(user, "login")
-    Repo.insert!(user_token)
-    UserNotifier.deliver_login_instructions(user, magic_link_url_fun.(encoded_token))
+    # The send stays outside the transaction: the row lock must never be held
+    # across a mailer call.
+    case Repo.transact(fn -> insert_login_token(user) end) do
+      {:ok, {locked_user, encoded_token}} ->
+        UserNotifier.deliver_login_instructions(locked_user, magic_link_url_fun.(encoded_token))
+
+      {:error, :stale_user} = error ->
+        error
+    end
+  end
+
+  # Like every write path that touches tokens, locks the user row first
+  # (ADR 0002 §3). The user is re-read under the lock: with background delivery
+  # the request may be some time old by now, and a link must not go out for an
+  # account that was deleted or whose email has changed since.
+  defp insert_login_token(%User{id: id, email: email}) do
+    case lock_user(id) do
+      %User{email: ^email} = locked_user ->
+        {encoded_token, user_token} = UserToken.build_email_token(locked_user, "login")
+        Repo.insert!(user_token)
+        {:ok, {locked_user, encoded_token}}
+
+      _deleted_or_changed ->
+        {:error, :stale_user}
+    end
   end
 
   @doc """

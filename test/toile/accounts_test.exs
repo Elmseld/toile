@@ -925,6 +925,8 @@ defmodule Toile.AccountsTest do
   end
 
   describe "deliver_login_instructions/2" do
+    import Swoosh.TestAssertions
+
     setup do
       %{user: unconfirmed_user_fixture()}
     end
@@ -940,6 +942,30 @@ defmodule Toile.AccountsTest do
       assert user_token.user_id == user.id
       assert user_token.sent_to == user.email
       assert user_token.context == "login"
+    end
+
+    test "returns {:error, :stale_user} and creates no token if the email changed", %{
+      user: user
+    } do
+      Repo.update_all(from(u in User, where: u.id == ^user.id),
+        set: [email: unique_user_email()]
+      )
+
+      assert Accounts.deliver_login_instructions(user, &"http://x/#{&1}") ==
+               {:error, :stale_user}
+
+      refute Repo.get_by(UserToken, user_id: user.id, context: "login")
+      assert_no_email_sent()
+    end
+
+    test "returns {:error, :stale_user} for a deleted user", %{user: user} do
+      Repo.delete!(user)
+
+      assert Accounts.deliver_login_instructions(user, &"http://x/#{&1}") ==
+               {:error, :stale_user}
+
+      refute Repo.get_by(UserToken, user_id: user.id, context: "login")
+      assert_no_email_sent()
     end
   end
 
