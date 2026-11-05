@@ -1,8 +1,12 @@
 defmodule ToileWeb.UserLive.LoginTest do
   use ToileWeb.ConnCase, async: true
 
+  import Ecto.Query, only: [from: 2]
   import Phoenix.LiveViewTest
+  import Swoosh.TestAssertions
   import Toile.AccountsFixtures
+
+  alias Toile.Accounts
 
   describe "login page" do
     test "renders login page", %{conn: conn} do
@@ -67,6 +71,91 @@ defmodule ToileWeb.UserLive.LoginTest do
                "If your email address is registered with us, you will shortly receive an email with instructions for logging in."
 
       refute_received {:email, %Swoosh.Email{to: [{_, "nobody@example.com"}]}}
+    end
+  end
+
+  describe "user login - magic link rate limit" do
+    defp submit_magic(conn, email) do
+      {:ok, lv, _html} = live(conn, ~p"/users/log-in")
+
+      lv
+      |> form("#login_form_magic", user: %{email: email})
+      |> render_submit()
+
+      assert_redirect(lv)
+    end
+
+    defp login_token_count(user) do
+      Toile.Repo.aggregate(
+        from(t in Accounts.UserToken, where: t.user_id == ^user.id and t.context == "login"),
+        :count
+      )
+    end
+
+    test "sends at most 3 magic links per address and responds the same", %{conn: conn} do
+      user = user_fixture()
+      assert_email_sent()
+
+      under =
+        for _ <- 1..3 do
+          response = submit_magic(conn, user.email)
+          assert_email_sent(to: user.email, subject: "Log in to Toile")
+          response
+        end
+
+      assert login_token_count(user) == 3
+
+      over = submit_magic(conn, user.email)
+
+      assert_no_email_sent()
+      assert login_token_count(user) == 3
+      assert Enum.uniq([over | under]) == [over]
+      assert {"/users/log-in", %{"info" => "If your email address is registered" <> _}} = over
+    end
+
+    test "limits confirmation emails to unconfirmed users the same way", %{conn: conn} do
+      user = unconfirmed_user_fixture()
+
+      under =
+        for _ <- 1..3 do
+          response = submit_magic(conn, user.email)
+          assert_email_sent(to: user.email, subject: "Confirm your account on Toile")
+          response
+        end
+
+      over = submit_magic(conn, user.email)
+
+      assert_no_email_sent()
+      assert Enum.uniq([over | under]) == [over]
+    end
+
+    test "counts against the IP of the connection", %{conn: conn, remote_ip: remote_ip} do
+      user = user_fixture()
+      assert_email_sent()
+
+      for _ <- 1..20 do
+        :ok =
+          Accounts.request_login_instructions(unique_user_email(), &"http://x/#{&1}",
+            remote_ip: remote_ip
+          )
+      end
+
+      over = submit_magic(conn, user.email)
+
+      assert_no_email_sent()
+      assert login_token_count(user) == 0
+      assert {"/users/log-in", %{"info" => "If your email address is registered" <> _}} = over
+
+      # Another IP still gets the link.
+      other_conn =
+        Plug.Test.put_peer_data(build_conn(), %{
+          address: unique_remote_ip(),
+          port: 1,
+          ssl_cert: nil
+        })
+
+      assert submit_magic(other_conn, user.email) == over
+      assert_email_sent(to: user.email)
     end
   end
 

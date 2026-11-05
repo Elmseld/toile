@@ -3,6 +3,7 @@ defmodule ToileWeb.UserLive.Registration do
 
   alias Toile.Accounts
   alias Toile.Accounts.User
+  alias ToileWeb.ClientIP
 
   @impl true
   def render(assigns) do
@@ -51,7 +52,12 @@ defmodule ToileWeb.UserLive.Registration do
   def mount(_params, _session, socket) do
     changeset = Accounts.change_user_email(%User{}, %{}, validate_unique: false)
 
-    {:ok, assign_form(socket, changeset), temporary_assigns: [form: nil]}
+    socket =
+      socket
+      |> assign(:remote_ip, ClientIP.get(socket))
+      |> assign_form(changeset)
+
+    {:ok, socket, temporary_assigns: [form: nil]}
   end
 
   @impl true
@@ -61,7 +67,8 @@ defmodule ToileWeb.UserLive.Registration do
     case Accounts.register_user_and_deliver_instructions(
            user_params(params),
            &url(~p"/users/log-in/#{&1}"),
-           url(~p"/users/log-in")
+           url(~p"/users/log-in"),
+           remote_ip: socket.assigns.remote_ip
          ) do
       {:ok, email} ->
         {:noreply,

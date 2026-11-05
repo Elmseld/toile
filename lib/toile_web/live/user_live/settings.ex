@@ -4,6 +4,7 @@ defmodule ToileWeb.UserLive.Settings do
   on_mount {ToileWeb.UserAuth, :require_sudo_mode}
 
   alias Toile.Accounts
+  alias ToileWeb.ClientIP
 
   @impl true
   def render(assigns) do
@@ -100,6 +101,7 @@ defmodule ToileWeb.UserLive.Settings do
       |> assign(:email_form, to_form(email_changeset))
       |> assign(:password_form, to_form(password_changeset))
       |> assign(:trigger_submit, false)
+      |> assign(:remote_ip, ClientIP.get(socket))
 
     {:ok, socket}
   end
@@ -157,7 +159,8 @@ defmodule ToileWeb.UserLive.Settings do
     case Accounts.request_user_email_change(
            user,
            user_params,
-           &url(~p"/users/settings/confirm-email/#{&1}")
+           &url(~p"/users/settings/confirm-email/#{&1}"),
+           remote_ip: socket.assigns.remote_ip
          ) do
       {:ok, _email} ->
         info =

@@ -33,7 +33,16 @@ defmodule ToileWeb.ConnCase do
 
   setup tags do
     Toile.DataCase.setup_sandbox(tags)
-    {:ok, conn: Phoenix.ConnTest.build_conn()}
+
+    # Every test gets its own client IP: the email rate limiter is global and
+    # counts per IP (ADR 0010), so a shared 127.0.0.1 would soon be over the limit.
+    remote_ip = Toile.AccountsFixtures.unique_remote_ip()
+
+    conn =
+      Phoenix.ConnTest.build_conn()
+      |> Plug.Test.put_peer_data(%{address: remote_ip, port: 111_317, ssl_cert: nil})
+
+    {:ok, conn: conn, remote_ip: remote_ip}
   end
 
   @doc """

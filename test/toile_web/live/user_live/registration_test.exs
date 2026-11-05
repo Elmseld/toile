@@ -2,6 +2,7 @@ defmodule ToileWeb.UserLive.RegistrationTest do
   use ToileWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import Swoosh.TestAssertions
   import Toile.AccountsFixtures
 
   alias Toile.Accounts
@@ -97,6 +98,64 @@ defmodule ToileWeb.UserLive.RegistrationTest do
         |> render_submit()
 
       assert result =~ "must have the @ sign and no spaces"
+    end
+  end
+
+  describe "register user - rate limit" do
+    defp register(conn, email) do
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      lv
+      |> form("#registration_form", user: %{"email" => email})
+      |> render_submit()
+
+      assert_redirect(lv)
+    end
+
+    defp expected_flash(email) do
+      "We have sent an email to #{email}. Open the link in the email to confirm your account."
+    end
+
+    test "over the IP limit creates the account, sends nothing and responds the same",
+         %{conn: conn, remote_ip: remote_ip} do
+      under_email = unique_user_email()
+      under = register(conn, under_email)
+      assert_email_sent(to: under_email, subject: "Confirm your account on Toile")
+
+      # The registration used one email of the IP budget; unknown login
+      # addresses use up the rest.
+      for _ <- 1..19 do
+        :ok =
+          Accounts.request_login_instructions(unique_user_email(), &"http://x/#{&1}",
+            remote_ip: remote_ip
+          )
+      end
+
+      over_email = unique_user_email()
+      over = register(conn, over_email)
+
+      assert_no_email_sent()
+      assert %Toile.Accounts.User{} = Accounts.get_user_by_email(over_email)
+      assert under == {~p"/users/log-in", %{"info" => expected_flash(under_email)}}
+      assert over == {~p"/users/log-in", %{"info" => expected_flash(over_email)}}
+    end
+
+    test "sends at most 3 notices for a taken address and responds the same", %{conn: conn} do
+      %{email: email} = user_fixture()
+      assert_email_sent()
+
+      under =
+        for _ <- 1..3 do
+          response = register(conn, email)
+          assert_email_sent(to: email, subject: "Someone tried to create an account on Toile")
+          response
+        end
+
+      over = register(conn, email)
+
+      assert_no_email_sent()
+      assert Enum.uniq([over | under]) == [over]
+      assert over == {~p"/users/log-in", %{"info" => expected_flash(email)}}
     end
   end
 
