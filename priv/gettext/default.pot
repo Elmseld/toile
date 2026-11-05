@@ -1464,3 +1464,33 @@ msgstr[1] ""
 #, elixir-autogen, elixir-format
 msgid "Enter a seam allowance from 0 to %{max} cm"
 msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "10 × 10 cm"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Cut each page along the line at its left and top edge and tape it over the page before it, so that the lines and diamonds meet. The letter is the row and the number the column."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Pages"
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "Print at 100 % (actual size), without fitting to the page. The square must measure 10 × 10 cm."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The PDF could not be made."
+msgstr ""
+
+#: lib/toile_web/editor_texts.ex
+#, elixir-autogen, elixir-format
+msgid "The pattern is too large to print."
+msgstr ""
