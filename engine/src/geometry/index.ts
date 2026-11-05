@@ -1,5 +1,6 @@
 // Public API of the geometry module: pattern definitions, their evaluation, SVG output (ADR 0004),
-// label placement for views, and projects of several parts with their layout (ADR 0007).
+// label placement for views, projects of several parts with their layout (ADR 0007) and
+// cutting lines with seam allowance (ADR 0009).
 
 export type {
   CompiledPattern,
@@ -43,8 +44,24 @@ export {
   type LabelPlacement,
   placeLabel,
 } from "./label";
+export {
+  type CuttingLineApproximation,
+  type CuttingLineError,
+  type CuttingLineResult,
+  type CuttingPiece,
+  cuttingLine,
+  MAX_SEAM_ALLOWANCE,
+  type SeamAllowances,
+} from "./seam-allowance";
+export {
+  type Bounds,
+  curvePathData,
+  cuttingLinePathData,
+  formatNumber,
+  patternBounds,
+  piecePathData,
+} from "./svg";
 export { NOTCH_LENGTH, NOTCH_PAIR_SPACING } from "./notches";
-export { type Bounds, curvePathData, formatNumber, patternBounds, piecePathData } from "./svg";
 export {
   MAX_OUTLINE_ENTRIES,
   MAX_SECTION_ENTRIES,

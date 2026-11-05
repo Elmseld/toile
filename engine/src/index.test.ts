@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
 import {
   compilePattern,
+  cuttingLine,
+  cuttingLinePathData,
   distance,
   evaluateFormulas,
   evaluatePattern,
@@ -8,12 +10,20 @@ import {
   compileProject,
   layoutParts,
   MAX_COORDINATE,
+  MAX_SEAM_ALLOWANCE,
   PART_GAP,
   NOTCH_LENGTH,
   NOTCH_PAIR_SPACING,
   piecePathData,
 } from "./index";
-import type { DuplicateNameError, ElementSource, InvalidNameError } from "./index";
+import type {
+  CuttingLineResult,
+  CuttingPiece,
+  DuplicateNameError,
+  ElementSource,
+  InvalidNameError,
+  SeamAllowances,
+} from "./index";
 
 test("distance between two points", () => {
   expect(distance({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(5);
@@ -82,6 +92,30 @@ test("the name errors of a pattern result are typed through the package entry po
   );
   expect(duplicate?.name).toBe("a");
   expect(invalid?.name).toBe("1x");
+});
+
+test("cutting lines are computed and drawn through the package entry point", () => {
+  const corners = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+    { x: 100, y: 50 },
+    { x: 0, y: 50 },
+  ];
+  const piece: CuttingPiece = {
+    outline: corners.map((from, i) => ({
+      name: `e${i}`,
+      type: "line" as const,
+      from,
+      to: corners[(i + 1) % corners.length]!,
+    })),
+  };
+  const allowances: SeamAllowances = { default: 10, edges: { e1: 0 } };
+  const result: CuttingLineResult = cuttingLine(piece, allowances);
+  expect(result.ok).toBe(true);
+  if (result.ok) {
+    expect(cuttingLinePathData(result.points)).toBe("M -10 -10 L 100 -10 L 100 60 L -10 60 Z");
+  }
+  expect(MAX_SEAM_ALLOWANCE).toBe(100);
 });
 
 test("editor helpers are exported through the package entry point", async () => {

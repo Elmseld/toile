@@ -90,7 +90,9 @@ function within(curve: ComputedCurve, distance: number): { point: Point; tangent
   }
   const { from, c1, c2, to } = curve;
   const t = cubicParameterAtLength(from, c1, c2, to, distance);
-  return { point: cubicAt(from, c1, c2, to, t), tangent: cubicTangent(from, c1, c2, to, t) };
+  // A unit tangent, or none where every control point coincides (reported by computeNotch).
+  const tangent = cubicTangent(from, c1, c2, to, t) ?? { x: 0, y: 0 };
+  return { point: cubicAt(from, c1, c2, to, t), tangent };
 }
 
 /** The signed area of a closed polygon; positive when it runs clockwise on screen (y down). */

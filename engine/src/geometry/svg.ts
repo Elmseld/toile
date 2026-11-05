@@ -45,6 +45,18 @@ export function piecePathData(piece: ComputedPiece): string {
   return parts.join(" ");
 }
 
+/**
+ * `"M x y L x y ... Z"` through `points` (a closed polygon such as `cuttingLine`'s result, last
+ * point not repeated), numbers as in `formatNumber`. `""` for fewer than two points.
+ */
+export function cuttingLinePathData(points: readonly Point[]): string {
+  if (points.length < 2) return "";
+  const [first, ...rest] = points;
+  return [`M ${coordinates(first!)}`, ...rest.map((point) => `L ${coordinates(point)}`), "Z"].join(
+    " ",
+  );
+}
+
 /** An axis-aligned box in mm user units. */
 export type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
 
