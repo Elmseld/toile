@@ -70,6 +70,7 @@ import {
   setEdgeAllowance,
   setPointFormula,
   setUserOffset,
+  shiftCurve,
   undo,
 } from "../../../engine/src/index"
 import {encodedBytes, isObject, parseJSON} from "../json"
@@ -134,16 +135,6 @@ function byteCap(text) {
 }
 
 /** `curve` (a computed outline curve) moved by (dx, dy). */
-function shiftCurve(curve, dx, dy) {
-  const shift = point => ({x: point.x + dx, y: point.y + dy})
-  const moved = {...curve, from: shift(curve.from), to: shift(curve.to)}
-  if (curve.type === "cubic") {
-    moved.c1 = shift(curve.c1)
-    moved.c2 = shift(curve.c2)
-  }
-  return moved
-}
-
 /** Whether keyboard shortcuts should leave `target` alone (it edits text or a choice). */
 function isFormTarget(target) {
   return target instanceof Element && target.closest("input, textarea, select, [contenteditable]")
@@ -431,12 +422,14 @@ export class PatternEditor {
     this.show(this.result)
   }
 
-  // Called by the hook while it builds, moves and scales the drawing. `layers` holds one empty
-  // SVG group per part, inside that part's translated group.
+  // Called by the hook while it builds, moves and scales the drawing. `layers` holds one empty,
+  // untranslated SVG group per part; each point is drawn where the hook draws it
+  // (`hook.pointOffset`, fixed until the next build).
   drawHandles(layers, result) {
     for (const [name, layer] of layers) {
       const partResult = result.parts[name]
-      if (partResult) this.handles.get(name)?.build(layer, partResult)
+      const offsetOf = point => this.hook.pointOffset(name, point)
+      if (partResult) this.handles.get(name)?.build(layer, partResult, offsetOf)
     }
   }
 
@@ -661,14 +654,18 @@ export class PatternEditor {
     const radius = hitRadius(event.pointerType) / this.hook.pixelScale()
     let best = null
     for (const name of this.order) {
-      const points = this.result.parts[name]?.points
-      if (!points) continue
-      const {dx, dy} = this.hook.partOffset(name)
-      const local = {x: at.x - dx, y: at.y - dy}
+      const own = this.result.parts[name]?.points
+      if (!own) continue
+      // Where each point is drawn (its piece's offset, see the hook's pointOffset).
+      const points = {}
+      for (const [point, {x, y}] of Object.entries(own)) {
+        const {dx, dy} = this.hook.pointOffset(name, point)
+        points[point] = {x: x + dx, y: y + dy}
+      }
       const prefer = this.selected?.part === name ? this.selected.name : undefined
-      const point = pickPoint(points, local, radius, prefer)
+      const point = pickPoint(points, at, radius, prefer)
       if (point === null) continue
-      const distance = Math.hypot(points[point].x - local.x, points[point].y - local.y)
+      const distance = Math.hypot(points[point].x - at.x, points[point].y - at.y)
       if (!best || distance < best.distance || (distance === best.distance && prefer === point)) {
         best = {part: name, name: point, distance}
       }
@@ -729,8 +726,8 @@ export class PatternEditor {
     for (const part of this.order) {
       const pieces = this.result.parts[part]?.pieces
       if (!pieces) continue
-      const {dx, dy} = this.hook.partOffset(part)
       for (const piece of Object.values(pieces)) {
+        const {dx, dy} = this.hook.pieceOffset(part, piece.name)
         const outline = piece.outline.map(curve => ({
           ...shiftCurve(curve, dx, dy),
           name: `${part}.${curve.name}`,
@@ -859,7 +856,8 @@ export class PatternEditor {
 
   // One evaluation with the dragged offset. A position the pattern cannot be drawn with is
   // skipped: the drawing (and the offset that will be committed) stays the last good one. The
-  // part's layout offset does not change during the drag, so screen deltas are part deltas.
+  // layout (the point's offset in the drawing) does not change during the drag, so screen deltas
+  // are part deltas.
   flushDrag(drag) {
     const client = drag.pending
     if (!client || drag !== this.drag) return

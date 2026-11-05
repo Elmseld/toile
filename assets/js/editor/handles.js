@@ -59,10 +59,16 @@ export class Handles {
     this.pixelsPerUnit = 1
     this.circles = new Map()
     this.lines = []
+    this.offsetOf = () => ({dx: 0, dy: 0})
   }
 
-  /** Builds the handles of `result` into `layer` (an empty SVG group), replacing any before. */
-  build(layer, result) {
+  /**
+   * Builds the handles of `result` into `layer` (an empty SVG group), replacing any before. Each
+   * point is drawn moved by `offsetOf(name)` (`{dx, dy}`, where the view draws that point) until
+   * the next build.
+   */
+  build(layer, result, offsetOf = () => ({dx: 0, dy: 0})) {
+    this.offsetOf = offsetOf
     this.circles = new Map()
     this.lines = []
     layer.replaceChildren()
@@ -102,15 +108,15 @@ export class Handles {
   update(result) {
     const points = result.points
     for (const [name, circle] of this.circles) {
-      const point = points[name]
+      const point = this.drawnAt(points, name)
       circle.setAttribute("visibility", point ? "visible" : "hidden")
       if (!point) continue
       circle.setAttribute("cx", point.x)
       circle.setAttribute("cy", point.y)
     }
     for (const {line, control, end} of this.lines) {
-      const a = points[control]
-      const b = points[end]
+      const a = this.drawnAt(points, control)
+      const b = this.drawnAt(points, end)
       line.setAttribute("visibility", a && b ? "visible" : "hidden")
       if (!a || !b) continue
       line.setAttribute("x1", a.x)
@@ -118,6 +124,14 @@ export class Handles {
       line.setAttribute("x2", b.x)
       line.setAttribute("y2", b.y)
     }
+  }
+
+  /** Where point `name` of `points` is drawn (moved by its offset), or undefined. */
+  drawnAt(points, name) {
+    const point = Object.hasOwn(points, name) ? points[name] : undefined
+    if (!point) return undefined
+    const {dx, dy} = this.offsetOf(name)
+    return {x: point.x + dx, y: point.y + dy}
   }
 
   /** Sets the radii for a view of `pixelsPerUnit` pixels per millimetre. */

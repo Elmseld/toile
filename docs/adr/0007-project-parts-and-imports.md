@@ -46,7 +46,8 @@ validates only (`docs/product.md`).
    sleeve.
 6. **Layout is geometry, so it is the engine's.** `layoutParts` places parts side by side in
    project order, `PART_GAP` (50 mm) apart with tops aligned; the view applies the result as a
-   translate. Parts are separate coordinate systems and do not interact.
+   translate. Parts are separate coordinate systems and do not interact. (Within a part,
+   `layoutPieces` moves the pieces apart first: ADR 0011 decision 9.)
 7. **No solver in the engine.** The sleeve cap height is solved so the cap equals the imported
    armhole plus ease. The cap length has a closed form in width and height, so the block unrolls a
    few Newton steps as ordinary formulas (accuracy and sensitivity are pinned by engine tests).

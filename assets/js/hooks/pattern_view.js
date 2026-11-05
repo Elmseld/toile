@@ -22,10 +22,16 @@
 //
 // All parts are evaluated together (the engine's compileProject), so a part that imports values
 // from another, like a sleeve from the bodice armhole, is always computed from the same input. If
-// any part fails, nothing is drawn. The parts are placed side by side by the engine's layoutParts
-// when the drawing is built; each is drawn in a <g data-part> translated by its offset. The layout
-// stays while the pattern is edited, so a dragged point does not slip away from the pointer; it is
-// redone on the next build and by relayout(), which the editor calls when the seam allowances
+// any part fails, nothing is drawn. The layout is the engine's and is done when the drawing is
+// built: layoutPieces moves the pieces of each part apart by their boxes with the cutting lines,
+// so they never overlap whatever the seam allowances, and layoutParts then places the parts side
+// by side by the boxes it returns. Each part is drawn in a <g data-part> translated by its offset,
+// each piece in it in a <g data-piece> translated by its own. Every mapping between the drawing
+// and a part's coordinates uses the same offsets: pieceOffset(part, piece) for an edge (tap and
+// highlight), pointOffset(part, point) for a point (handles, hover, drag), where a point goes with
+// the piece the engine's pointPieces gives it. The layout, and which piece each point goes with,
+// stay while the pattern is edited, so a dragged point does not slip away from the pointer; they
+// are redone on the next build and by relayout(), which the editor calls when the seam allowances
 // it commits change.
 //
 // Each piece group holds, in drawing order (docs/adr/0011-markings-and-seam-allowance-storage.md):
@@ -44,10 +50,11 @@
 // With an editor (assets/js/editor/pattern_editor.js, docs/adr/0008-pattern-editor.md) the
 // editor owns the working definitions and parameters of all parts: compute() asks it for the
 // result, it calls update() while points are dragged and edited, and it draws the point handles
-// into a layer in each part's group. A press on a point is the editor's (drag); a press elsewhere
-// pans as before, and a second pointer during a drag cancels the drag and pinches. A press that
-// pans but ends within TAP_DISTANCE_PX of where it started is a tap: the editor selects the edge
-// under it (editor.tap), and the hook highlights the selected edge in a layer of each part group.
+// into one layer per part over the drawing, each point at its pointOffset. A press on a point is
+// the editor's (drag); a press elsewhere pans as before, and a second pointer during a drag
+// cancels the drag and pinches. A press that pans but ends within TAP_DISTANCE_PX of where it
+// started is a tap: the editor selects the edge under it (editor.tap), and the hook highlights
+// the selected edge in a path of each piece group.
 //
 // Drawing has three parts: compute() evaluates the project for the current input, draw() builds
 // the SVG elements once per input (and fits the view to them), and update() moves the existing
@@ -77,10 +84,12 @@ import {
   cuttingLineNotches,
   cuttingLinePathData,
   layoutParts,
+  layoutPieces,
   patternBounds,
   piecePathData,
   pieceSeamAllowances,
   placeLabel,
+  pointPieces,
   readSeamAllowances,
 } from "../../../engine/src/index"
 import {PatternEditor} from "../editor/pattern_editor"
@@ -265,9 +274,8 @@ const PatternView = {
 
     const results = result?.ok ? Object.entries(result.parts) : []
     this.layoutAllowances = this.allowances()
-    const layout = layoutParts(
-      results.map(([name, part]) => patternBounds(part, this.cuttingPoints(name, part))),
-    )
+    const pieceLayouts = results.map(([name, part]) => this.layoutPiecesOf(name, part))
+    const layout = layoutParts(pieceLayouts.map(({bounds}) => bounds))
     if (!result?.ok || !layout.bounds) {
       if (result && !result.ok) console.warn("Pattern errors", this.errorsOf(result))
       this.renderNotes([])
@@ -275,7 +283,28 @@ const PatternView = {
       return
     }
 
-    this.partOffsets = new Map(results.map(([name], i) => [name, layout.offsets[i]]))
+    // Offsets within a part (for the piece groups) and in the drawing (for every mapping).
+    this.localOffsets = new Map()
+    this.pieceOffsets = new Map()
+    this.pointOwners = new Map()
+    this.partOffsets = new Map()
+    for (const [i, [name, part]] of results.entries()) {
+      const partOffset = layout.offsets[i]
+      const pieces = Object.keys(part.pieces)
+      const local = pieceLayouts[i].offsets
+      this.partOffsets.set(name, partOffset)
+      this.localOffsets.set(name, new Map(pieces.map((piece, j) => [piece, local[j]])))
+      this.pieceOffsets.set(
+        name,
+        new Map(
+          pieces.map((piece, j) => [
+            piece,
+            {dx: partOffset.dx + local[j].dx, dy: partOffset.dy + local[j].dy},
+          ]),
+        ),
+      )
+      this.pointOwners.set(name, pointPieces(part))
+    }
     this.fitted = fit(layout.bounds, FIT_MARGIN)
     this.svg = this.buildSvg(result)
     this.el.appendChild(this.svg)
@@ -327,12 +356,15 @@ const PatternView = {
     return line
   },
 
-  // The points of the cutting lines of part `part` (a part result) that could be drawn.
-  cuttingPoints(part, partResult) {
-    return Object.values(partResult.pieces)
-      .map(piece => this.cuttingLineOf(part, piece))
-      .filter(line => line.ok)
-      .map(line => line.points)
+  // The engine's layoutPieces for the pieces of part `part` (a part result), in piece order, by
+  // each piece's box with its cutting line (if it could be drawn).
+  layoutPiecesOf(part, partResult) {
+    return layoutPieces(
+      Object.values(partResult.pieces).map(piece => {
+        const line = this.cuttingLineOf(part, piece)
+        return patternBounds({pieces: {[piece.name]: piece}}, line.ok ? [line.points] : [])
+      }),
+    )
   },
 
   // Moves the drawn elements to `result` (a result of the same parts) without changing the view
@@ -407,20 +439,17 @@ const PatternView = {
     )
   },
 
-  // Highlights the editor's selected edge (every outline curve of that name in its part) in the
-  // drawn result, or no edge.
+  // Highlights the editor's selected edge (every outline curve of that name in its part, each in
+  // its piece's group) in the drawn result, or no edge.
   highlightEdge() {
     if (!this.edgeLayers || !this.shown) return
     const edge = this.editor?.selectedEdge ?? null
-    for (const [part, path] of this.edgeLayers) {
-      const partResult = edge?.part === part ? this.shown.parts[part] : null
-      const d = partResult
-        ? Object.values(partResult.pieces)
-            .map(piece => curvesPathData(piece, edge.curve))
-            .filter(Boolean)
-            .join(" ")
-        : ""
-      path.setAttribute("d", d)
+    for (const [part, paths] of this.edgeLayers) {
+      const pieces = edge?.part === part ? this.shown.parts[part]?.pieces : null
+      for (const [name, path] of paths) {
+        const piece = pieces && Object.hasOwn(pieces, name) ? pieces[name] : null
+        path.setAttribute("d", piece ? curvesPathData(piece, edge.curve) : "")
+      }
     }
   },
 
@@ -481,8 +510,9 @@ const PatternView = {
   },
 
   // The SVG with one group per part, translated by its layout offset, holding one group per
-  // piece (see pieceGroup) and, with an editor, the part's selected-edge path and handle layer,
-  // without geometry: update() sets that.
+  // piece (see pieceGroup) translated by the piece's offset within the part, with an editor each
+  // with a selected-edge path; then, with an editor, one handle layer per part, untranslated (the
+  // handles add each point's offset). Without geometry: update() sets that.
   buildSvg(result) {
     const id = this.el.id
     const svg = svgElement("svg", {
@@ -524,33 +554,42 @@ const PatternView = {
         transform: `translate(${offset.dx} ${offset.dy})`,
       })
       const pieces = new Map()
+      const edgePaths = new Map()
       for (const piece of Object.values(partResult.pieces)) {
         const name = textOf(this.pieceLabels, part, piece.name) ?? piece.name
         const elements = this.pieceGroup(piece.name, name, textOf(this.pieceCuts, part, piece.name))
+        const local = this.localOffsets.get(part)?.get(piece.name) ?? {dx: 0, dy: 0}
+        elements.group.setAttribute("transform", `translate(${local.dx} ${local.dy})`)
+        if (this.editor) {
+          const selectedEdge = svgElement("path", {
+            "data-selected-edge": part,
+            class: "text-primary",
+            fill: "none",
+            stroke: "currentColor",
+            "stroke-opacity": 0.4,
+            "stroke-width": SELECTED_EDGE_WIDTH_PX,
+            "stroke-linecap": "round",
+            "stroke-linejoin": "round",
+            "vector-effect": "non-scaling-stroke",
+            "pointer-events": "none",
+          })
+          elements.group.appendChild(selectedEdge)
+          edgePaths.set(piece.name, selectedEdge)
+        }
         partGroup.appendChild(elements.group)
         pieces.set(piece.name, elements)
       }
       this.pieceElements.set(part, pieces)
-      if (this.editor) {
-        const selectedEdge = svgElement("path", {
-          "data-selected-edge": part,
-          class: "text-primary",
-          fill: "none",
-          stroke: "currentColor",
-          "stroke-opacity": 0.4,
-          "stroke-width": SELECTED_EDGE_WIDTH_PX,
-          "stroke-linecap": "round",
-          "stroke-linejoin": "round",
-          "vector-effect": "non-scaling-stroke",
-          "pointer-events": "none",
-        })
-        partGroup.appendChild(selectedEdge)
-        this.edgeLayers.set(part, selectedEdge)
+      this.edgeLayers?.set(part, edgePaths)
+      svg.appendChild(partGroup)
+    }
+    // Over every part, so a part's pieces never cover another part's handles.
+    if (this.editor) {
+      for (const part of Object.keys(result.parts)) {
         const layer = svgElement("g", {"data-handles": part, "pointer-events": "none"})
-        partGroup.appendChild(layer)
+        svg.appendChild(layer)
         handleLayers.set(part, layer)
       }
-      svg.appendChild(partGroup)
     }
 
     this.editor?.drawHandles(handleLayers, result)
@@ -632,9 +671,19 @@ const PatternView = {
     }
   },
 
-  // Where part `part` is drawn: the offset its coordinates are moved by.
-  partOffset(part) {
-    return this.partOffsets?.get(part) ?? {dx: 0, dy: 0}
+  // Where piece `piece` of part `part` is drawn: the offset its coordinates are moved by in the
+  // drawing (its part's and its own).
+  pieceOffset(part, piece) {
+    return this.pieceOffsets?.get(part)?.get(piece) ?? this.partOffsets?.get(part) ?? {dx: 0, dy: 0}
+  },
+
+  // Where point `name` of part `part` is drawn: the offset of the piece it goes with (the engine's
+  // pointPieces at the layout), or its part's for a point that goes with none.
+  pointOffset(part, name) {
+    const owner = this.pointOwners?.get(part)?.get(name)
+    return owner === undefined
+      ? (this.partOffsets?.get(part) ?? {dx: 0, dy: 0})
+      : this.pieceOffset(part, owner)
   },
 
   setView(viewBox) {

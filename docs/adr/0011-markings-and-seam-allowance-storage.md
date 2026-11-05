@@ -47,6 +47,16 @@ the cutting line), and the user must set the allowance per edge, including 0 at 
    costs about 0.25 ms, evaluations are already coalesced per frame, and unchanged pieces hit the
    cache. The fit and the layout cover the cutting lines (`patternBounds` takes the lines). A
    failed line or its `approximations` is shown as plain text (`#pattern-notes`), never as HTML.
+9. **Pieces are laid out apart within a part.** A block draws its pieces at fixed places (the
+   skirt's front and back 50 mm apart), so wide allowances would make their cutting lines
+   overlap. The engine's `layoutPieces` moves the pieces of a part right, by their boxes with the
+   cutting lines, until every two are `PIECE_GAP` (20 mm) apart horizontally or vertically;
+   pieces with room enough stay where the definition puts them. `layoutParts` then places the
+   parts by the boxes it returns. The view draws each piece translated by its own offset, and
+   every mapping between screen and part coordinates (handles, point picking and dragging, edge
+   tap and highlight) uses the same offsets; a point goes with the piece `pointPieces` gives it
+   (the first piece that uses it, else the nearest). The layout is redone when the drawing is
+   built and when committed allowances change, not during a drag.
 
 ## Alternatives rejected
 - A `seam_allowance` field on outline entries: needs piece edits in `DefinitionEdit` and

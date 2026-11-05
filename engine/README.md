@@ -324,6 +324,16 @@ block it was created from (say `bodice`) and blocks added to it (say `straight_s
   `patternBounds` (or `null`), it returns `{ offsets: [{ dx, dy }], bounds }`, each part `gap`
   (`PART_GAP`, 50 mm) right of the previous ones with its top level with the first part's, and the
   union box after moving (for the `viewBox`). A part without bounds gets `{ dx: 0, dy: 0 }`.
+- `layoutPieces(bounds, gap = PIECE_GAP)` moves the pieces of one part apart (ADR 0011): given
+  each piece's `patternBounds` with its cutting line (or `null`), it returns the same
+  `{ offsets, bounds }`. Taken by left edge, each piece moves right just far enough to lie `gap`
+  (`PIECE_GAP`, 20 mm) right of every earlier piece whose box, widened by `gap`, shares rows with
+  its own, so every two pieces end up at least `gap` apart in one direction; pieces with room
+  enough keep `{ dx: 0, dy: 0 }`. Its `bounds` is the part's box for `layoutParts`.
+- `pointPieces(pattern)` gives, by point name, the piece a view draws each point with: the first
+  piece whose outline or grainline uses it (by object identity within the result), else the piece
+  with the nearest outline box. `shiftCurve(curve, dx, dy)` moves a computed curve, e.g. to hit-test
+  a piece where it is drawn.
 
 The project page evaluates all parts in one call, so a redraw (a profile switch, later the
 editor's drag) recomputes the sleeve with the bodice.

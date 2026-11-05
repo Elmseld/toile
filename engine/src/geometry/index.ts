@@ -27,7 +27,16 @@ export type {
   UserOffset,
 } from "./types";
 export { compilePattern, evaluatePattern } from "./evaluate";
-export { layoutParts, PART_GAP, type PartsLayout } from "./layout";
+export {
+  layoutParts,
+  layoutPieces,
+  type Offset,
+  PART_GAP,
+  type PartsLayout,
+  PIECE_GAP,
+  pointPieces,
+  shiftCurve,
+} from "./layout";
 export {
   type CompiledProject,
   compileProject,
