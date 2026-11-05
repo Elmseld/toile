@@ -752,7 +752,12 @@ export class PatternEditor {
     this.renderEdge()
   }
 
-  renderEdge() {
+  /**
+   * Shows the selected edge's panel for the working allowances. With `keepInvalid` (a change of
+   * the project default, which the edge may show) an edge field holding a rejected value keeps it
+   * and its error, as the user left it.
+   */
+  renderEdge({keepInvalid = false} = {}) {
     const edge = this.selectedEdge
     const [piece] = edge ? this.edgePieces(edge.part, edge.curve) : []
     if (!piece) {
@@ -761,10 +766,12 @@ export class PatternEditor {
     }
     const allowances = this.state.seamAllowances
     const fold = piece.folds.includes(edge.curve)
-    this.panels.renderEdge(edge, edgeAllowance(allowances, edge.part, piece, edge.curve), {
-      fold,
-      value: fold ? 0 : allowances.default,
-    })
+    this.panels.renderEdge(
+      edge,
+      edgeAllowance(allowances, edge.part, piece, edge.curve),
+      {fold, value: fold ? 0 : allowances.default},
+      {keepInvalid},
+    )
   }
 
   /**
@@ -800,7 +807,7 @@ export class PatternEditor {
     this.panels.setError(input, null)
     if (next === allowances) return
     this.state = {...this.state, seamAllowances: next}
-    if (input.id === DEFAULT_INPUT) this.renderEdge()
+    if (input.id === DEFAULT_INPUT) this.renderEdge({keepInvalid: true})
     if (this.result) this.hook.update(this.result, {labels: "keep"})
   }
 
@@ -986,8 +993,15 @@ export class PatternEditor {
       this.commit()
       if (this.result) this.relayout(this.result)
       // A value that was taken is shown the way the panel writes it (an empty field as the
-      // value it stands for).
-      if (!this.markIfNotSaved(target)) this.renderAllowances()
+      // value it stands for). Only the committed field: the other may hold a rejected value
+      // with its error, which stays until the user changes it.
+      if (this.markIfNotSaved(target)) return
+      if (target.id === DEFAULT_INPUT) {
+        this.panels.renderSeamAllowanceDefault(this.state.seamAllowances)
+        this.renderEdge({keepInvalid: true})
+      } else {
+        this.renderEdge()
+      }
     } else if (target instanceof HTMLInputElement && target.dataset.field) {
       this.commit()
       this.placeLabels()

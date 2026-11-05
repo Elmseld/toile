@@ -224,8 +224,10 @@ export class Panels {
    * the curve name, an input with the edge's allowance `allowance` (`{value}` in mm) in cm, and
    * the hint for an empty field, `fallback` (`{fold, value}`: the fold rule's 0 or the project
    * default). The same edge again keeps its elements and only updates them, so the focus stays.
+   * With `keepInvalid` an input holding a rejected value (aria-invalid) keeps its text and error;
+   * only the hint is updated.
    */
-  renderEdge(edge, allowance = null, fallback = null) {
+  renderEdge(edge, allowance = null, fallback = null, {keepInvalid = false} = {}) {
     const key = edge ? `${edge.part}.${edge.curve}` : ""
     if (this.edgeSelect) this.edgeSelect.value = key
     if (!this.edgeDetails) return
@@ -244,7 +246,8 @@ export class Panels {
       const template = fallback?.fold ? texts.fold_hint : texts.default_hint
       hint.textContent = fill(template, {value: this.lengthText(fallback?.value ?? 0)})
     }
-    if (input) {
+    const rejected = keepInvalid && input?.getAttribute("aria-invalid") === "true"
+    if (input && !rejected) {
       input.value = centimetres(allowance?.value ?? 0, this.texts)
       this.setError(input, null)
     }
