@@ -463,6 +463,7 @@ function evaluateCompiled(
       outline: outlineCurves,
       grainline: { from: pointOf(piece.grainline.from), to: pointOf(piece.grainline.to) },
       notches,
+      folds: piece.outline.filter((entry) => entry.fold).map((entry) => entry.curve),
     });
     return null;
   };

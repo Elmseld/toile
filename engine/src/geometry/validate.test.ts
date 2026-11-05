@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DefinitionError } from "./types";
 import {
+  MAX_CUT,
   MAX_OUTLINE_ENTRIES,
   MAX_SECTION_ENTRIES,
   PATTERN_FORMAT_VERSION,
@@ -36,6 +37,7 @@ describe("validateDefinition", () => {
     if (!result.ok) return;
     const pieces = (raw.pieces as Record<string, unknown>[]).map((piece) => ({
       ...piece,
+      outline: (piece.outline as Record<string, unknown>[]).map((entry) => ({ ...entry, fold: false })),
       notches: [],
     }));
     expect(result.definition).toEqual({ ...raw, imports: {}, pieces } as never);
@@ -476,5 +478,82 @@ describe("validateDefinition: notches", () => {
       ...(i === full - 1 ? { notches: notches(1) } : {}),
     }));
     expect(pathsOf(minimal({ pieces }))).toEqual(["/pieces"]);
+  });
+});
+
+describe("validateDefinition: markings", () => {
+  const withPiece = (fields: Record<string, unknown>): Record<string, unknown> =>
+    minimal({
+      pieces: [
+        {
+          name: "p",
+          outline: [{ curve: "a" }, { curve: "b", fold: true }],
+          grainline: { from: "A", to: "B" },
+          ...fields,
+        },
+      ],
+    });
+
+  test("fold is normalised to a boolean, false when absent", () => {
+    const result = validateDefinition(
+      withPiece({ outline: [{ curve: "a" }, { curve: "b", fold: true }, { curve: "c", fold: false }] }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.definition.pieces[0]?.outline).toEqual([
+      { curve: "a", fold: false },
+      { curve: "b", fold: true },
+      { curve: "c", fold: false },
+    ]);
+  });
+
+  test("cut is kept when given and absent otherwise", () => {
+    const cut = validateDefinition(withPiece({ cut: 2 }));
+    expect(cut.ok && cut.definition.pieces[0]?.cut).toBe(2);
+    const plain = validateDefinition(withPiece({}));
+    expect(plain.ok).toBe(true);
+    if (!plain.ok) return;
+    expect(Object.hasOwn(plain.definition.pieces[0]!, "cut")).toBe(false);
+    expect(validateDefinition(withPiece({ cut: 1 })).ok).toBe(true);
+    expect(validateDefinition(withPiece({ cut: MAX_CUT })).ok).toBe(true);
+    expect(MAX_CUT).toBe(100);
+  });
+
+  test("the normalised copy validates again to an equal copy", () => {
+    const first = validateDefinition(withPiece({ cut: 3 }));
+    if (!first.ok) throw new Error("expected a valid definition");
+    const second = validateDefinition(first.definition);
+    expect(second.ok && second.definition).toEqual(first.definition);
+  });
+
+  test("a non-boolean fold is invalid_definition at its path", () => {
+    for (const fold of ["yes", 1, null, {}]) {
+      const errors = errorsOf(withPiece({ outline: [{ curve: "a" }, { curve: "b", fold }] }));
+      expect(errors).toEqual([
+        { kind: "invalid_definition", path: "/pieces/0/outline/1/fold", message: "must be true or false" },
+      ]);
+    }
+  });
+
+  test("a cut that is not a whole number from 1 to 100 is invalid_definition at /cut", () => {
+    for (const cut of [0, 101, 1.5, "2", null, -1, Number.NaN]) {
+      expect(errorsOf(withPiece({ cut }))).toEqual([
+        {
+          kind: "invalid_definition",
+          path: "/pieces/0/cut",
+          message: "must be a whole number from 1 to 100",
+        },
+      ]);
+    }
+  });
+
+  test("unknown fields on an outline entry are still rejected", () => {
+    expect(pathsOf(withPiece({ outline: [{ curve: "a", folded: true }] }))).toEqual([
+      "/pieces/0/outline/0/folded",
+    ]);
+    expect(pathsOf(withPiece({ outline: [1] }))).toEqual(["/pieces/0/outline/0"]);
+    expect(errorsOf(withPiece({ outline: [1] }))[0]?.message).toBe(
+      "An outline entry must be an object { curve, fold? }",
+    );
   });
 });
