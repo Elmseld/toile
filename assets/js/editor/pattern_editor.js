@@ -3,10 +3,15 @@
 // The editor owns the edit state of the page for every part of the project (the main part and
 // added parts such as a sleeve, ADR 0007): the working definitions and parameter overrides, the
 // selected point, a drag in progress and the undo/redo history (the engine's editor helpers).
-// A state is `{parts: {partName: {definition, parameters}}}`; an edit replaces one part's entry
-// and keeps the others by reference. The PatternView hook draws; the editor tells it what to draw
-// (`hook.update(result, {labels})`, with a project result) and gets the presses on points
-// (`pointerDown`, `moveDrag`, `endDrag`, `cancelDrag`). A point is named by its part and name.
+// It also owns the project's seam allowances (docs/adr/0011-markings-and-seam-allowance-storage.md)
+// and the selected edge. A state is `{parts: {partName: {definition, parameters}},
+// seamAllowances: {default, edges: {partName: {curveName: mm}}}}`; an edit replaces one part's
+// entry, or the allowances, and keeps the rest by reference. The PatternView hook draws; the
+// editor tells it what to draw (`hook.update(result, {labels})`, with a project result, and
+// `hook.relayout(result)` when the committed allowances change) and gets the presses on points
+// (`pointerDown`, `moveDrag`, `endDrag`, `cancelDrag`) and the taps beside them (`tap`, which
+// selects the edge under the pointer). A point is named by its part and name, an edge by its part
+// and curve name.
 //
 // Rules:
 //   * All parts are evaluated together (the engine's compileProject), so a part that imports
@@ -36,20 +41,33 @@
 //     stored is sent once more.
 //   * A part added on the page (`addParts`) joins every state of the history, so undo and redo
 //     keep it. The aside is rendered anew for the new part (`setAside`).
+//   * The seam allowances are one more save unit, ALLOWANCES, after the parts in the save queue,
+//     sent as `save_seam_allowances` (`{default, edges}`) and capped at `data-max-save-bytes`. The
+//     pattern result does not depend on them, so typing an allowance redraws the cutting lines
+//     without evaluating; its `change` commits and has the hook lay the parts out again. An empty
+//     field is the default (DEFAULT_SEAM_ALLOWANCE for the project default; the fold rule or the
+//     project default for an edge), and an edge value equal to that is not stored as an override.
 
 import {
+  DEFAULT_SEAM_ALLOWANCE,
+  MAX_SEAM_ALLOWANCE,
   canRedo,
   canUndo,
   compileProject,
   controlPoints,
   createHistory,
+  edgeAllowance,
   errorsFor,
   fromDisplay,
   getPoint,
+  pickEdge,
   pickPoint,
   push,
+  readSeamAllowances,
   redo,
   roundOffset,
+  setDefaultAllowance,
+  setEdgeAllowance,
   setPointFormula,
   setUserOffset,
   undo,
@@ -68,6 +86,11 @@ const MAX_RESENDS = 3
 const RESEND_DELAY_MS = 500
 /** How long a save may wait for its reply before it counts as failed. */
 const SAVE_TIMEOUT_MS = 10_000
+/** The save unit of the seam allowances; no part name contains `#` (`^[a-z][a-z0-9_]*$`). */
+const ALLOWANCES = "#seam_allowances"
+/** The ids of the seam allowance inputs: the project default, and the selected edge's. */
+const DEFAULT_INPUT = "seam-allowance-default-input"
+const EDGE_INPUT = "edge-allowance-input"
 
 function isObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -83,7 +106,7 @@ function offsetOf(point) {
 
 /** `state` with part `name` set to `part`, or `state` itself when it is the same object. */
 function withPart(state, name, part) {
-  return part === state.parts[name] ? state : {parts: {...state.parts, [name]: part}}
+  return part === state.parts[name] ? state : {...state, parts: {...state.parts, [name]: part}}
 }
 
 /** Part `name` of `state` with `definition`; the same object when the definition is. */
@@ -112,6 +135,17 @@ function setParameter(parameters, name, value) {
 function byteCap(text) {
   const cap = Number(text)
   return Number.isFinite(cap) && cap > 0 ? cap : Infinity
+}
+
+/** `curve` (a computed outline curve) moved by (dx, dy). */
+function shiftCurve(curve, dx, dy) {
+  const shift = point => ({x: point.x + dx, y: point.y + dy})
+  const moved = {...curve, from: shift(curve.from), to: shift(curve.to)}
+  if (curve.type === "cubic") {
+    moved.c1 = shift(curve.c1)
+    moved.c2 = shift(curve.c2)
+  }
+  return moved
 }
 
 /** Whether keyboard shortcuts should leave `target` alone (it edits text or a choice). */
@@ -156,7 +190,8 @@ export class PatternEditor {
     if (!aside || list.length === 0) return null
     const parsed = parseJSON(hook.el.dataset.texts, {})
     const texts = isObject(parsed) ? parsed : {}
-    const state = {parts: {}}
+    const seamAllowances = readSeamAllowances(parseJSON(hook.el.dataset.seamAllowances, null))
+    const state = {parts: {}, seamAllowances}
     for (const {name, definition} of list) {
       state.parts[name] = {definition, parameters: inputParameters(input, name)}
     }
@@ -195,6 +230,7 @@ export class PatternEditor {
       this.handles.set(name, new Handles(definition, controlPoints(definition)))
       this.stored.set(name, state.parts[name])
     }
+    this.stored.set(ALLOWANCES, state.seamAllowances)
     this.measurements = {}
     this.compiled = null
     this.compiledFor = null
@@ -202,6 +238,8 @@ export class PatternEditor {
     this.result = null
     // The selected point, {part, name}, or null.
     this.selected = null
+    // The selected edge, {part, curve}, or null; independent of the selected point.
+    this.selectedEdge = null
     this.drag = null
     // The last save status shown, so a new aside shows it too.
     this.status = null
@@ -246,6 +284,7 @@ export class PatternEditor {
     this.historyChanged()
     this.panels.setStatus(this.status)
     this.panels.renderPoint(this.selectedPoint(), this.selected?.part)
+    this.renderAllowances()
   }
 
   unlisten(aside) {
@@ -271,7 +310,7 @@ export class PatternEditor {
     const extended = new Map()
     const extend = state => {
       if (!extended.has(state)) {
-        extended.set(state, {parts: {...state.parts, ...Object.fromEntries(entries)}})
+        extended.set(state, {...state, parts: {...state.parts, ...Object.fromEntries(entries)}})
       }
       return extended.get(state)
     }
@@ -303,9 +342,9 @@ export class PatternEditor {
     this.resendTimer = null
     this.cancelLabels()
     // Saves go over one connection in order, so these never overtake one still in flight.
-    for (const name of this.unsavedParts()) {
-      const part = this.history.present.parts[name]
-      if (!this.tooLarge(part)) this.pushSave(name, part)
+    for (const name of this.unsavedUnits()) {
+      const unit = this.unitState(name)
+      if (!this.tooLarge(name, unit)) this.pushSave(name, unit)
     }
     this.unlisten(this.aside)
     window.removeEventListener("keydown", this.onKeyDown)
@@ -444,27 +483,41 @@ export class PatternEditor {
     this.commit()
     const history = step(this.history)
     if (history === this.history) return
+    const allowances = this.state.seamAllowances
     this.history = history
     this.state = history.present
     // Every state in the history drew when it was committed, but the profile may have changed
     // since. Then the drawing stays as it was and the alert says why.
     const result = this.evaluate(this.state)
     if (result.ok) {
-      this.show(result)
+      if (this.state.seamAllowances === allowances) this.show(result)
+      else this.relayout(result)
       this.panels.setAlert(null)
     } else {
       this.panels.setAlert(errorText(this.texts, null))
     }
     this.panels.renderPoint(this.selectedPoint(), this.selected?.part)
     this.panels.renderParameters(this.state.parts)
+    this.renderAllowances()
     this.historyChanged()
     this.save()
   }
 
-  /** The parts whose present state is not known to be stored, in project order. */
-  unsavedParts() {
-    const present = this.history.present.parts
-    return this.order.filter(name => present[name] !== this.stored.get(name))
+  /**
+   * The save units whose present state is not known to be stored: the parts in project order,
+   * then ALLOWANCES.
+   */
+  unsavedUnits() {
+    const present = this.history.present
+    const units = this.order.filter(name => present.parts[name] !== this.stored.get(name))
+    if (present.seamAllowances !== this.stored.get(ALLOWANCES)) units.push(ALLOWANCES)
+    return units
+  }
+
+  /** The present state of the save unit `name`: a part, or the seam allowances. */
+  unitState(name) {
+    const present = this.history.present
+    return name === ALLOWANCES ? present.seamAllowances : present.parts[name]
   }
 
   /** Saves the parts the history's present state changed: now, or as the saves in flight end. */
@@ -476,14 +529,14 @@ export class PatternEditor {
     else this.showStatus()
   }
 
-  // Sends the first unsaved part that did not just fail with the same state. A part over a size
+  // Sends the first unsaved unit that did not just fail with the same state. A unit over a size
   // cap is not sent: it counts as failed and stays unsaved. Each save is answered once: by its
   // reply, or as failed after SAVE_TIMEOUT_MS, whichever comes first; the answer sends the next.
   send() {
-    for (const name of this.unsavedParts()) {
-      const part = this.history.present.parts[name]
+    for (const name of this.unsavedUnits()) {
+      const part = this.unitState(name)
       if (this.failed.get(name) === part) continue
-      if (this.tooLarge(part)) {
+      if (this.tooLarge(name, part)) {
         this.failed.set(name, part)
         continue
       }
@@ -501,15 +554,22 @@ export class PatternEditor {
     this.showStatus()
   }
 
-  tooLarge({definition, parameters}) {
-    const definitionBytes = encodedBytes(definition)
+  // Whether the save unit `name` in state `unit` is over a size cap (the allowances: only the
+  // whole save's).
+  tooLarge(name, unit) {
+    if (name === ALLOWANCES) return encodedBytes(unit) > this.maxSaveBytes
+    const definitionBytes = encodedBytes(unit.definition)
     return (
       definitionBytes > this.maxDefinitionBytes ||
-      definitionBytes + encodedBytes(parameters) > this.maxSaveBytes
+      definitionBytes + encodedBytes(unit.parameters) > this.maxSaveBytes
     )
   }
 
-  pushSave(name, {definition, parameters}) {
+  pushSave(name, unit) {
+    if (name === ALLOWANCES) {
+      return this.hook.pushEvent("save_seam_allowances", {default: unit.default, edges: unit.edges})
+    }
+    const {definition, parameters} = unit
     return this.hook.pushEvent("save_pattern", {part: name, definition, parameters})
   }
 
@@ -534,7 +594,7 @@ export class PatternEditor {
     if (this.destroyed) return
     let status = "failed"
     if (this.pending.size > 0) status = "saving"
-    else if (this.unsavedParts().length === 0) status = "saved"
+    else if (this.unsavedUnits().length === 0) status = "saved"
     this.status = status
     this.panels.setStatus(status)
   }
@@ -554,7 +614,7 @@ export class PatternEditor {
     if (this.destroyed) return
     this.forgetPending()
     if (this.resendTimer !== null) return
-    if (this.unsavedParts().length === 0) {
+    if (this.unsavedUnits().length === 0) {
       // A forgotten save may have left "saving" showing.
       if (this.status !== null) this.showStatus()
       return
@@ -618,6 +678,122 @@ export class PatternEditor {
       }
     }
     return best && {part: best.part, name: best.name}
+  }
+
+  // ---- Seam allowances and edges ----
+
+  /** The working seam allowances, which the hook draws the cutting lines with. */
+  seamAllowances() {
+    return this.state.seamAllowances
+  }
+
+  /**
+   * Draws `result` (of the working state) with the parts laid out again for the working
+   * allowances, labels placed.
+   */
+  relayout(result) {
+    this.result = result
+    this.cancelLabels()
+    this.labelsStale = false
+    this.hook.relayout(result)
+  }
+
+  /**
+   * The fold rule for the edge `curve` of part `part` in the drawn result, as the
+   * `{folds}` edgeAllowance reads (the curve on a fold when any piece of the part has it as a
+   * fold edge), or null when no piece's outline has that curve.
+   */
+  edgePiece(part, curve) {
+    const parts = this.result?.parts
+    if (!part || !curve || !parts || !Object.hasOwn(parts, part)) return null
+    const pieces = Object.values(parts[part].pieces).filter(piece =>
+      piece.outline.some(c => c.name === curve),
+    )
+    if (pieces.length === 0) return null
+    return {folds: pieces.some(piece => piece.folds.includes(curve)) ? [curve] : []}
+  }
+
+  /** Selects the edge `curve` of part `part` (null for none), highlights it and shows its panel. */
+  selectEdge(part, curve) {
+    this.commit()
+    this.selectedEdge = this.edgePiece(part, curve) ? {part, curve} : null
+    this.hook.highlightEdge()
+    this.renderEdge()
+  }
+
+  /** A tap beside the points: selects the outline edge under it, if any. */
+  tap(event) {
+    if (!this.result || this.drag) return
+    const at = this.hook.toUser(event.clientX, event.clientY)
+    const radius = hitRadius(event.pointerType) / this.hook.pixelScale()
+    // The pieces of every part where they are drawn, keyed apart, so the nearest edge wins.
+    const owners = new Map()
+    const entries = []
+    for (const part of this.order) {
+      const pieces = this.result.parts[part]?.pieces
+      if (!pieces) continue
+      const {dx, dy} = this.hook.partOffset(part)
+      for (const piece of Object.values(pieces)) {
+        const key = `${owners.size}`
+        owners.set(key, part)
+        entries.push([key, {outline: piece.outline.map(curve => shiftCurve(curve, dx, dy))}])
+      }
+    }
+    const picked = pickEdge(Object.fromEntries(entries), at, radius, this.selectedEdge?.curve)
+    if (picked) this.selectEdge(owners.get(picked.piece), picked.curve)
+  }
+
+  /** Shows the working allowances in the panel: the project default and the selected edge. */
+  renderAllowances() {
+    this.panels.renderSeamAllowanceDefault(this.state.seamAllowances)
+    this.renderEdge()
+  }
+
+  renderEdge() {
+    const edge = this.selectedEdge
+    const piece = edge && this.edgePiece(edge.part, edge.curve)
+    if (!piece) {
+      this.panels.renderEdge(null)
+      return
+    }
+    const allowances = this.state.seamAllowances
+    this.panels.renderEdge(edge, edgeAllowance(allowances, edge.part, piece, edge.curve), {
+      fold: piece.folds.length > 0,
+      value: piece.folds.length > 0 ? 0 : allowances.default,
+    })
+  }
+
+  /**
+   * A keystroke in a seam allowance field (`input`: the project default's or the selected
+   * edge's): parse it in cm, and if it is a valid allowance make it the working state and redraw
+   * the cutting lines. Anything else shows the range error and changes nothing.
+   */
+  allowanceInput(input) {
+    if (this.drag) return
+    const text = input.value
+    let value = null
+    if (text.trim() !== "") {
+      value = fromDisplay(text, "length")
+      if (value === null || !(value >= 0 && value <= MAX_SEAM_ALLOWANCE)) {
+        this.panels.setError(input, this.texts.seam_allowance?.range_error ?? "")
+        return
+      }
+    }
+    const allowances = this.state.seamAllowances
+    let next = allowances
+    if (input.id === DEFAULT_INPUT) {
+      next = setDefaultAllowance(allowances, value ?? DEFAULT_SEAM_ALLOWANCE)
+    } else {
+      const edge = this.selectedEdge
+      const piece = edge && this.edgePiece(edge.part, edge.curve)
+      if (!piece) return
+      const fallback = piece.folds.length > 0 ? 0 : allowances.default
+      next = setEdgeAllowance(allowances, edge.part, edge.curve, value === fallback ? null : value)
+    }
+    this.panels.setError(input, null)
+    if (next === allowances) return
+    this.state = {...this.state, seamAllowances: next}
+    if (this.result) this.hook.update(this.result, {labels: "keep"})
   }
 
   // ---- Dragging ----
@@ -773,7 +949,8 @@ export class PatternEditor {
     const target = this.pendingInput
     this.pendingInput = null
     if (!target?.isConnected || this.destroyed) return
-    if (target.dataset.field) this.formulaInput(target.dataset.field, target.value)
+    if (target.id === DEFAULT_INPUT || target.id === EDGE_INPUT) this.allowanceInput(target)
+    else if (target.dataset.field) this.formulaInput(target.dataset.field, target.value)
     else {
       const row = this.parameterRow(target)
       if (row) this.parameterInput(row, target.value)
@@ -788,6 +965,21 @@ export class PatternEditor {
       const dot = value.indexOf(".")
       if (dot < 0) this.select(null, null)
       else this.select(value.slice(0, dot), value.slice(dot + 1))
+    } else if (target instanceof HTMLSelectElement && target.id === "edge-select") {
+      // Option values are `<part>.<curve>`.
+      const value = target.value
+      const dot = value.indexOf(".")
+      if (dot < 0) this.selectEdge(null, null)
+      else this.selectEdge(value.slice(0, dot), value.slice(dot + 1))
+    } else if (
+      target instanceof HTMLInputElement &&
+      (target.id === DEFAULT_INPUT || target.id === EDGE_INPUT)
+    ) {
+      this.commit()
+      if (this.result) this.relayout(this.result)
+      // A value that was taken is shown the way the panel writes it (an empty field as the
+      // value it stands for).
+      if (!this.markIfNotSaved(target)) this.renderAllowances()
     } else if (target instanceof HTMLInputElement && target.dataset.field) {
       this.commit()
       this.placeLabels()
