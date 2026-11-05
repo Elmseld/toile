@@ -49,6 +49,7 @@ export {
 } from "./project";
 export {
   GRAINLINE_ARROW_SIZE,
+  grainlineArrowheads,
   LABEL_LINE_HEIGHT,
   type LabelPiece,
   type LabelPlacement,
