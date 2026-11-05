@@ -16,6 +16,9 @@ reputation. The limit must not reveal whether an address has an account (ADR 000
     prefix; IPv4-mapped IPv6 counts as the IPv4 address.
   - Both are read at call time from `config :toile, Toile.Accounts.EmailRateLimiter`
     (`per_recipient:` and `per_ip:`, each `[limit: n, window: ms]`).
+  - In dev, `config/dev.exs` raises the per-IP limit to 1000 an hour: under Docker every request
+    has the gateway as peer IP, so the whole dev environment would share one bucket of 20. The
+    per-recipient limit keeps its default there so it stays observable. Tests use the defaults.
 - **Technology: a custom in-memory GenServer** (`Toile.Accounts.EmailRateLimiter`), no new
   dependency. State is a map from key to a list of send timestamps. A send counts while it is
   younger than the window configured at check time, so a changed window also applies to sends
