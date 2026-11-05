@@ -12,8 +12,23 @@ defmodule Toile.Accounts do
 
   @delivery_supervisor Toile.Accounts.EmailDeliverySupervisor
 
-  # The name of the `Task.Supervisor` that runs background login-link
-  # deliveries, for the application tree and the test helpers.
+  # At most this many login-link deliveries run at once; each holds a database
+  # connection while it issues the token. More are dropped and logged
+  # (ADR 0010).
+  @max_deliveries 100
+
+  # How long a stopping app waits for a delivery in flight. It covers the
+  # mailer's HTTP timeouts (`Toile.Accounts.UserNotifier`), so a delivery that
+  # has started can finish.
+  @delivery_shutdown_ms 20_000
+
+  # The `Task.Supervisor` that runs background login-link deliveries, and its
+  # name, for the application tree and the test helpers.
+  @doc false
+  def delivery_supervisor_spec do
+    {Task.Supervisor, name: @delivery_supervisor, max_children: @max_deliveries}
+  end
+
   @doc false
   def delivery_supervisor, do: @delivery_supervisor
 
@@ -524,8 +539,10 @@ defmodule Toile.Accounts do
   `Toile.Accounts.EmailDeliverySupervisor`, after this function has returned,
   so the response time does not reveal whether the address has an account
   (ADR 0010). The task is started for unknown addresses too and does nothing
-  for them. A failed delivery, including a raise in the mailer, is logged with
-  the masked address only.
+  for them. A failed delivery, including a raise or exit in the mailer, is
+  logged with the masked address only. So is a delivery that cannot be
+  started (too many in flight, or the supervisor is down); the reply is the
+  same.
 
   Always returns `:ok`.
 
@@ -547,7 +564,7 @@ defmodule Toile.Accounts do
 
     # Exactly one hit either way, so the IP budget reveals nothing (ADR 0010).
     with :ok <- EmailRateLimiter.hit(:login_link, recipient, opts[:remote_ip]) do
-      start_login_delivery(user, magic_link_url_fun)
+      start_login_delivery(user, recipient, magic_link_url_fun)
     end
 
     :ok
@@ -556,14 +573,21 @@ defmodule Toile.Accounts do
   # The token insert and the send run in a background task so the reply does
   # not depend on whether the address has an account (ADR 0010). The task is
   # started for unknown addresses too (it does nothing) so both take the same
-  # path, including if the supervisor is unavailable.
-  defp start_login_delivery(user, magic_link_url_fun) do
-    {:ok, _pid} =
-      Task.Supervisor.start_child(@delivery_supervisor, fn ->
-        deliver_login_link(user, magic_link_url_fun)
-      end)
-
-    :ok
+  # path, including when no task can be started: that is logged like a failed
+  # delivery and never raised, since a crash would give a different reply and a
+  # crash report with the address.
+  defp start_login_delivery(user, recipient, magic_link_url_fun) do
+    case Task.Supervisor.start_child(
+           @delivery_supervisor,
+           fn -> deliver_login_link(user, magic_link_url_fun) end,
+           shutdown: @delivery_shutdown_ms
+         ) do
+      {:ok, _pid} -> :ok
+      {:error, reason} -> handle_delivery({:error, reason}, :login_link, recipient)
+    end
+  catch
+    :exit, _reason ->
+      handle_delivery({:error, :supervisor_unavailable}, :login_link, recipient)
   end
 
   defp deliver_login_link(nil, _magic_link_url_fun), do: :ok

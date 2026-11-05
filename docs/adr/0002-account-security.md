@@ -13,7 +13,8 @@ and sessions could survive a password change.
    redirect) for free and taken addresses. If the address is taken, the account owner gets a
    notice email (`UserNotifier`) and no change link is sent. Other validation errors are shown as usual.
    Response time must not reveal account existence either: login links are issued and sent in a
-   background task (ADR 0010, ticket 0016). Registration and email change still send in the
+   background task (ADR 0010, ticket 0016), and a delivery that cannot start (too many in flight,
+   supervisor down) gives the same reply. Registration and email change still send in the
    request (ticket 0025).
 2. **Sudo mode for settings.** `/users/settings*` lives in its own scope and live_session
    `:require_sudo_mode` (the plug checks on the HTTP request so the path is saved and the user

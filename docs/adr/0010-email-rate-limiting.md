@@ -85,10 +85,18 @@ reputation. The limit must not reveal whether an address has an account (ADR 000
   `Toile.Accounts.EmailDeliverySupervisor` (a `Task.Supervisor` in the application tree), for
   unknown addresses too; that task does nothing. The token insert (under the user lock, ADR 0002
   §3) and the send run in the task, so the reply does not depend on account state. Spawning is
-  bounded by the limiter, since a task starts only after an allowed hit. A raise or exit in the
-  task is logged like a failed delivery (masked address, class only), never as a crash report.
-  Deliveries in flight when the app stops may be lost (5 s shutdown grace); the user can request
-  another link. Accepted residual difference: one indexed lookup that hits versus one that
+  bounded by the limiter, since a task starts only after an allowed hit, and by `max_children:
+  100` on the supervisor, since each running task holds a database connection while it issues the
+  token. A delivery that cannot start (`{:error, :max_children}`, or the supervisor is down) is
+  logged like a failed one (`reason=:max_children` or `reason=:supervisor_unavailable`, masked
+  address) and the reply stays the same; it is never raised, which would crash the LiveView with
+  a crash report holding the address. A raise or exit in the task is logged like a failed
+  delivery (masked address, class only), never as a crash report. `UserNotifier` bounds an HTTP
+  API send (`Swoosh.ApiClient.Req`, `client_options`) to 5 s connect and 10 s receive, instead of
+  Req's 30 s and 15 s, so a hanging provider cannot pile up tasks; this also bounds the
+  synchronous sends of registration and email change. A stopping app gives a delivery in flight
+  20 s (the task `shutdown`) to finish, which covers those timeouts; one that is still not done,
+  or one that never started, is lost, and the user can request another link. Accepted residual difference: one indexed lookup that hits versus one that
   misses, microseconds and far below network jitter. Rejected: sleeping or padding to constant
   time (fragile, makes every request slow); a persistent job queue such as Oban (new dependency and
   migration for a few emails, and a lost email is recoverable); moving the lookup and hit into the
@@ -108,9 +116,11 @@ reputation. The limit must not reveal whether an address has an account (ADR 000
 - LiveViews that send email must assign `remote_ip` from `ClientIP.get/1` in `mount/3`. No controller
   sends email.
 - Tests share one global limiter; they isolate with unique recipient addresses and a unique peer IP
-  per conn (`ConnCase`, `AccountsFixtures.unique_remote_ip/0`).
-- Tests that read login-link emails, tokens or logs call `AccountsFixtures.await_email_deliveries/0`;
-  `DataCase` waits for deliveries before the sandbox owner stops.
+  per conn (`ConnCase.build_conn_with_unique_peer/0`, `AccountsFixtures.unique_remote_ip/0`).
+- Tests that read login-link emails, tokens or logs call
+  `EmailDeliveryHelpers.await_email_deliveries/1` (also imported through `AccountsFixtures`);
+  `DataCase` waits for deliveries before the sandbox owner stops. `EmailDeliveryHelpers` can also
+  stop or fill the delivery supervisor for a test that is not async.
 
 ## Deferred
 - **More than one node:** counters are per node. Move behind the same `hit/4` function with a Postgres

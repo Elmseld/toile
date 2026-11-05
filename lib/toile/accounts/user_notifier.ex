@@ -6,6 +6,12 @@ defmodule Toile.Accounts.UserNotifier do
   alias Toile.Mailer
   alias Toile.Accounts.User
 
+  # Bounds a send through an HTTP API adapter (`Swoosh.ApiClient.Req` in
+  # production): Req's defaults wait up to 30 s to connect and 15 s for the
+  # response, which would hold a request (registration, email change) or a
+  # background login-link delivery that long. Other adapters ignore it.
+  @client_options [connect_options: [timeout: 5_000], receive_timeout: 10_000]
+
   # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do
     email =
@@ -13,6 +19,7 @@ defmodule Toile.Accounts.UserNotifier do
       |> to(recipient)
       |> from({"Toile", "contact@example.com"})
       |> subject(subject)
+      |> put_private(:client_options, @client_options)
       |> text_body(
         "\n==============================\n\n" <> body <> "\n==============================\n"
       )

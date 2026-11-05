@@ -14,7 +14,7 @@ defmodule Toile.Application do
       {Phoenix.PubSub, name: Toile.PubSub},
       Toile.Accounts.EmailRateLimiter,
       # Login links are issued and sent here, off the request (ADR 0010).
-      {Task.Supervisor, name: Toile.Accounts.delivery_supervisor()},
+      Toile.Accounts.delivery_supervisor_spec(),
       # Start a worker by calling: Toile.Worker.start_link(arg)
       # {Toile.Worker, arg},
       # Start to serve requests, typically the last entry

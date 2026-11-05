@@ -3,9 +3,11 @@ defmodule Toile.Accounts.DeliveryFailureTest do
   use Toile.DataCase, async: false
 
   import ExUnit.CaptureLog
+  import Swoosh.TestAssertions
   import Toile.AccountsFixtures
 
   alias Toile.Accounts
+  alias Toile.EmailDeliveryHelpers
   alias Toile.FailingMailAdapter
 
   @login_url "http://localhost/users/log-in"
@@ -67,6 +69,47 @@ defmodule Toile.Accounts.DeliveryFailureTest do
         refute log =~ confirmed.email
         # The task ended normally, without a crash report.
         refute log =~ "terminating"
+      end
+    end
+  end
+
+  # Security review S1 and performance review P1: a delivery that cannot be
+  # started is logged like a failed one, without the address, and not raised.
+  describe "request_login_instructions/3 when no delivery can be started" do
+    for {state, make_unavailable, reason} <- [
+          {"is down", :stop_delivery_supervisor, ":supervisor_unavailable"},
+          {"is full", :fill_delivery_supervisor, ":max_children"}
+        ] do
+      test "returns :ok and logs the masked address when the supervisor #{state}", %{
+        confirmed: confirmed
+      } do
+        apply(EmailDeliveryHelpers, unquote(make_unavailable), [])
+        EmailDeliveryHelpers.flush_emails()
+        unknown = unique_user_email()
+
+        log =
+          capture_log(fn ->
+            for email <- [confirmed.email, unknown] do
+              assert Accounts.request_login_instructions(email, &"#{@login_url}/#{&1}",
+                       remote_ip: unique_remote_ip()
+                     ) == :ok
+            end
+          end)
+
+        lines = log |> String.split("\n") |> Enum.filter(&(&1 =~ "flow=login_link"))
+        assert length(lines) == 2
+        assert Enum.all?(lines, &(&1 =~ "reason=#{unquote(reason)}"))
+        assert log =~ ~s(recipient="u***@example.com")
+        refute log =~ confirmed.email
+        refute log =~ unknown
+        assert_no_email_sent()
+
+        assert Repo.aggregate(
+                 from(t in Toile.Accounts.UserToken,
+                   where: t.user_id == ^confirmed.id and t.context == "login"
+                 ),
+                 :count
+               ) == 0
       end
     end
   end
