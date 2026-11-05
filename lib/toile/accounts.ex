@@ -481,8 +481,10 @@ defmodule Toile.Accounts do
   A confirmed user gets a magic link, an unconfirmed one a confirmation email;
   both are built with `magic_link_url_fun`. The request is rate limited
   (`Toile.Accounts.EmailRateLimiter`, flow `:login_link`) by address and by the
-  client IP given as `opts[:remote_ip]`. The hit is counted before the account
-  lookup, so an unknown address uses the same budget as a known one.
+  client IP given as `opts[:remote_ip]`. The hit is counted for unknown
+  addresses too, so an unknown address uses the same budget as a known one. For
+  a known address the recipient is the stored address, so case variants that
+  the `citext` lookup matches (such as `İ` for `i`) share one budget.
 
   Always returns `:ok`.
 
@@ -499,8 +501,12 @@ defmodule Toile.Accounts do
   """
   def request_login_instructions(email, magic_link_url_fun, opts \\ [])
       when is_binary(email) and is_function(magic_link_url_fun, 1) do
-    with :ok <- EmailRateLimiter.hit(:login_link, email, opts[:remote_ip]),
-         %User{} = user <- get_user_by_email(email) do
+    user = get_user_by_email(email)
+    recipient = if user, do: user.email, else: email
+
+    # Exactly one hit either way, so the IP budget reveals nothing.
+    with :ok <- EmailRateLimiter.hit(:login_link, recipient, opts[:remote_ip]),
+         %User{} <- user do
       {:ok, _} = deliver_login_instructions(user, magic_link_url_fun)
     end
 

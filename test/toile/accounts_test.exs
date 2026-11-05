@@ -813,6 +813,28 @@ defmodule Toile.AccountsTest do
              ) == 3
     end
 
+    test "counts Unicode case variants matched by the lookup against the stored address" do
+      user = user_fixture(%{email: "kiki#{System.unique_integer([:positive])}@example.com"})
+      assert_email_sent()
+
+      # citext lowercases "İ" to "i", String.downcase/1 does not.
+      variants = [
+        String.replace(user.email, "kiki", "kİki"),
+        String.replace(user.email, "kiki", "kikİ"),
+        String.replace(user.email, "kiki", "kİkİ"),
+        String.replace(user.email, "kiki", "KİKİ")
+      ]
+
+      for email <- variants do
+        assert Accounts.request_login_instructions(email, &"http://localhost/users/log-in/#{&1}",
+                 remote_ip: unique_remote_ip()
+               ) == :ok
+      end
+
+      for _ <- 1..3, do: assert_email_sent(to: user.email)
+      assert_no_email_sent()
+    end
+
     test "unknown addresses use up the IP budget like known ones" do
       user = user_fixture()
       assert_email_sent()
