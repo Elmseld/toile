@@ -53,6 +53,7 @@ custom classes must fully style the input
   - A plug `:require_authenticated_user` that redirects to the log in page when the user is not authenticated
   - A `live_session :current_user` scope - for routes that need the current user but don't require authentication, similar to `:fetch_current_scope_for_user`
   - A `live_session :require_authenticated_user` scope - for routes that require authentication, similar to the plug with the same name
+  - A plug `:require_sudo_mode` (added in this app, not by `phx.gen.auth`) that redirects to the log in page unless the user logged in recently. In this app it guards the separate `live_session :require_sudo_mode` scope used only for account settings
   - In both cases, a `@current_scope` is assigned to the Plug connection and LiveView socket
   - A plug `redirect_if_user_is_authenticated` that redirects to a default path in case the user is authenticated - useful for a registration page that should only be shown to unauthenticated users
 - **Always let the user know in which router scopes, `live_session`, and pipeline you are placing the route, AND SAY WHY**
@@ -64,18 +65,27 @@ custom classes must fully style the input
 
 ### Routes that require authentication
 
-LiveViews that require login should **always be placed inside the __existing__ `live_session :require_authenticated_user` block**:
+LiveViews that require login, such as the pages for patterns and measurement profiles, go inside the __existing__ `live_session :require_authenticated_user` block. The only exception is account settings, which require a recent login (see below):
 
-    scope "/", AppWeb do
+    scope "/", ToileWeb do
       pipe_through [:browser, :require_authenticated_user]
 
       live_session :require_authenticated_user,
         on_mount: [{ToileWeb.UserAuth, :require_authenticated}] do
-        # phx.gen.auth generated routes
-        live "/users/settings", UserLive.Settings, :edit
-        live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
-        # our own routes that require logged in user
-        live "/", MyLiveThatRequiresAuth, :index
+        # user-owned resources: no recent login required
+        live "/patterns", PatternLive.Index, :index
+        live "/measurements", MeasurementProfileLive.Index, :index
+      end
+    end
+
+Account settings (`/users/settings` and `/users/settings/confirm-email/:token`) live in their own __existing__ scope and `live_session :require_sudo_mode`, which adds the `:require_sudo_mode` plug to the pipeline. It reuses the `:require_authenticated` `on_mount` hook; the recent-login check runs in the plug on the HTTP request. Only add routes there that need a recent login, and do not create another `live_session` with that name. See `lib/toile_web/router.ex` and `docs/adr/0001-per-user-scope.md`:
+
+    scope "/", ToileWeb do
+      pipe_through [:browser, :require_authenticated_user, :require_sudo_mode]
+
+      live_session :require_sudo_mode,
+        on_mount: [{ToileWeb.UserAuth, :require_authenticated}] do
+        # account settings routes
       end
     end
 
@@ -132,10 +142,12 @@ Controllers automatically have the `current_scope` available if they use the `:b
         socket = assign(socket, :val, val)
       end
 
-      # VALID: we rebind the result of the `if` to a new variable
+      # VALID: we bind the result of the `if` to `socket`, and both branches return a socket
       socket =
         if connected?(socket) do
           assign(socket, :val, val)
+        else
+          socket
         end
 
 - **Never** nest multiple modules in the same file as it can cause cyclic dependencies and compilation errors
@@ -285,7 +297,7 @@ Controllers automatically have the `current_scope` available if they use the `:b
 - **Always** use LiveView streams for collections for assigning regular lists to avoid memory ballooning and runtime termination with the following operations:
   - basic append of N items - `stream(socket, :messages, [new_msg])`
   - resetting stream with new items - `stream(socket, :messages, [new_msg], reset: true)` (e.g. for filtering items)
-  - prepend to stream - `stream(socket, :messages, [new_msg], at: -1)`
+  - prepend to stream - `stream(socket, :messages, [new_msg], at: 0)`
   - deleting items - `stream_delete(socket, :messages, msg)`
 
 - When using the `stream/3` interfaces in the LiveView, the LiveView template must 1) always set `phx-update="stream"` on the parent element, with a DOM id on the parent element like `id="messages"` and 2) consume the `@streams.stream_name` collection and use the id as the DOM id for each child. For a call like `stream(socket, :messages, [new_msg])` in the LiveView, the template would be:
