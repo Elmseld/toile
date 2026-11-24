@@ -161,18 +161,33 @@ export function insidePolygon(polygon: readonly Point[], x: number, y: number): 
 }
 
 /**
- * The lines a view draws for the grainline: the line itself and, at each end, the outline of an
- * arrowhead of GRAINLINE_ARROW_SIZE with its tip on the end point, pointing outward. Nothing for
- * a non-finite grainline; no arrowheads for one of zero length (it has no direction).
+ * The arrowheads a view draws at the ends of the grainline, as triangles `[tip, left, right]`:
+ * first the one at `to`, then the one at `from`. Each is GRAINLINE_ARROW_SIZE long and as wide,
+ * with its tip on the end point, pointing outward. None for a non-finite grainline or one of zero
+ * length (it has no direction). Label placement keeps clear of the same triangles.
+ */
+export function grainlineArrowheads(
+  grainline: LabelPiece["grainline"],
+): [Point, Point, Point][] {
+  const { from, to } = grainline;
+  if (!finitePoint(from) || !finitePoint(to)) return [];
+  const length = Math.hypot(to.x - from.x, to.y - from.y);
+  if (!(length > 0) || !Number.isFinite(length)) return [];
+  const along = { x: (to.x - from.x) / length, y: (to.y - from.y) / length };
+  return [arrowhead(to, along), arrowhead(from, { x: -along.x, y: -along.y })];
+}
+
+/**
+ * The lines a view draws for the grainline: the line itself and the three sides of each of its
+ * `grainlineArrowheads`. Nothing for a non-finite grainline; no arrowheads for one of zero length.
  */
 export function grainlineSegments(grainline: LabelPiece["grainline"]): Segment[] {
   const { from, to } = grainline;
   if (!finitePoint(from) || !finitePoint(to)) return [];
   const segments: Segment[] = [[from, to]];
-  const length = Math.hypot(to.x - from.x, to.y - from.y);
-  if (length === 0) return segments;
-  const along = { x: (to.x - from.x) / length, y: (to.y - from.y) / length };
-  segments.push(...arrowhead(to, along), ...arrowhead(from, { x: -along.x, y: -along.y }));
+  for (const [tip, left, right] of grainlineArrowheads(grainline)) {
+    segments.push([tip, left], [left, right], [right, tip]);
+  }
   return segments;
 }
 
@@ -186,8 +201,8 @@ function notchSegments(notches: LabelPiece["notches"]): Segment[] {
   );
 }
 
-// The three sides of an arrowhead with its tip at `tip`, pointing in the unit direction `along`.
-function arrowhead(tip: Point, along: Point): Segment[] {
+// The arrowhead `[tip, left, right]` with its tip at `tip`, pointing in the unit direction `along`.
+function arrowhead(tip: Point, along: Point): [Point, Point, Point] {
   const half = GRAINLINE_ARROW_SIZE / 2;
   const base = {
     x: tip.x - along.x * GRAINLINE_ARROW_SIZE,
@@ -195,11 +210,7 @@ function arrowhead(tip: Point, along: Point): Segment[] {
   };
   const left = { x: base.x - along.y * half, y: base.y + along.x * half };
   const right = { x: base.x + along.y * half, y: base.y - along.x * half };
-  return [
-    [tip, left],
-    [left, right],
-    [right, tip],
-  ];
+  return [{ x: tip.x, y: tip.y }, left, right];
 }
 
 function closedSegments(polygon: readonly Point[]): Segment[] {

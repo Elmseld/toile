@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { ARM_MEASUREMENTS, blockFiles, PROFILES, readBlock } from "../../test/support/blocks";
 import { evaluatePattern } from "./evaluate";
 import { cuttingLineNotches, NOTCH_LENGTH } from "./notches";
 import { polygonArea } from "./offset";
@@ -17,32 +16,10 @@ import { distance, type Point, pointSegmentDistance } from "./vector";
 // Smoothness and orientation checks of the cutting line of the real blocks over the whole line,
 // dart peaks included (seam-allowance.test.ts excludes the dart zones from its distance checks).
 
-const BLOCKS_DIR = join(import.meta.dir, "..", "..", "blocks");
-
-// prettier-ignore
-const PROFILES: Record<string, Record<string, number>> = {
-  small: {
-    bust: 820, waist: 640, hip: 880, neck: 350, shoulder_width: 118, back_width: 330,
-    chest_width: 310, back_length: 400, armhole_depth: 200, front_length: 430, bust_height: 255,
-    bust_distance: 180, hip_height: 200, skirt_length: 550,
-  },
-  medium: {
-    bust: 880, waist: 680, hip: 940, neck: 370, shoulder_width: 122, back_width: 344,
-    chest_width: 324, back_length: 410, armhole_depth: 210, front_length: 445, bust_height: 265,
-    bust_distance: 190, hip_height: 206, skirt_length: 600,
-  },
-  large: {
-    bust: 1080, waist: 900, hip: 1140, neck: 410, shoulder_width: 130, back_width: 390,
-    chest_width: 370, back_length: 430, armhole_depth: 235, front_length: 490, bust_height: 300,
-    bust_distance: 220, hip_height: 220, skirt_length: 700,
-  },
-};
-
 const ALLOWANCES = [5, 10, 15, 25];
 
 function piecesOf(block: string, measurements: Record<string, number>): [string, CuttingPiece][] {
-  const definition = JSON.parse(readFileSync(join(BLOCKS_DIR, `${block}.json`), "utf8"));
-  const result = evaluatePattern(definition, { measurements });
+  const result = evaluatePattern(readBlock(block), { measurements });
   expect(result.ok).toBe(true);
   return Object.entries(result.pieces);
 }
@@ -104,7 +81,7 @@ describe("cutting line of the blocks over the whole line", () => {
   }
 
   test("reversing the outline direction gives the same cutting line on a real piece", () => {
-    const [, piece] = piecesOf("bodice", PROFILES.medium!).find(([name]) => name === "front")!;
+    const [, piece] = piecesOf("bodice", PROFILES.medium).find(([name]) => name === "front")!;
     const reversed: CuttingPiece = {
       outline: [...piece.outline].reverse().map((edge) =>
         edge.type === "line"
@@ -146,8 +123,8 @@ describe("no jog next to the dart peak", () => {
 
   test("the jog detector finds nothing on the other block pieces", () => {
     for (const [block, measurements] of [
-      ["straight_skirt", PROFILES.medium!],
-      ["bodice", PROFILES.medium!],
+      ["straight_skirt", PROFILES.medium],
+      ["bodice", PROFILES.medium],
     ] as const) {
       for (const [name, piece] of piecesOf(block, measurements)) {
         if (block === "straight_skirt" && name === "back") continue;
@@ -160,14 +137,12 @@ describe("no jog next to the dart peak", () => {
 
 /** Every piece of every block, evaluated in one project, by `<block>.<piece>`. */
 function allBlockPieces(measurements: Record<string, number>): [string, ComputedPiece][] {
-  const parts = readdirSync(BLOCKS_DIR)
-    .filter((file) => file.endsWith(".json"))
-    .map((file) => ({
-      name: file.replace(/\.json$/, ""),
-      definition: JSON.parse(readFileSync(join(BLOCKS_DIR, file), "utf8")),
-    }));
+  const parts = blockFiles().map((file) => {
+    const name = file.replace(/\.json$/, "");
+    return { name, definition: readBlock(name) };
+  });
   const project = evaluateProject(parts, {
-    measurements: { ...measurements, arm_length: 580, upper_arm: 280, wrist: 160 },
+    measurements: { ...measurements, ...ARM_MEASUREMENTS },
   });
   expect(project.ok).toBe(true);
   return Object.entries(project.parts).flatMap(([block, part]) =>

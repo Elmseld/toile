@@ -74,6 +74,17 @@ defmodule ToileWeb.EditorTextsTest do
     end
   end
 
+  test "has the PDF texts the hook passes to the engine", %{texts: texts} do
+    assert texts["pdf"] |> Map.keys() |> Enum.sort() ==
+             ~w(assembly failed overview scale_check test_square too_large)
+
+    for {key, text} <- texts["pdf"], do: assert(text =~ ~r/\S/, "no text for #{key}")
+
+    assert texts["pdf"]["test_square"] == "10 × 10 cm"
+    assert texts["pdf"]["too_large"] == "The pattern is too large to print."
+    assert texts["pdf"]["failed"] == "The PDF could not be made."
+  end
+
   test "encodes to JSON" do
     assert is_binary(JSON.encode!(EditorTexts.texts()))
   end

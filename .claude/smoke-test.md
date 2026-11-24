@@ -99,3 +99,9 @@ Expected: (1) the flash "Rak ärm har lagts till", the sleeve drawn next to the 
 4. Enter "11" as the default allowance.
 5. Set the default to 5.
 Expected: (2) the labels "klipp 2" (Bakstycke) and "klipp 1 i fold" (Framstycke), the seam line dashed inside the solid cutting line, a dash-dot fold line, and the edge redrawn at once; (3) both values are still there; (4) "Ange en sömsmån från 0 till 10,0 cm" and nothing is saved; (5) the pieces do not overlap.
+
+### PDF printing
+1. On a "Liv" project with a complete profile, look next to the zoom buttons (`#pdf-export`).
+2. Click "Ladda ner PDF" (`#download-pdf`) with "Papper" (`#pdf-paper`) on its default.
+3. Select Letter and click "Ladda ner PDF" again.
+Expected: (1) the select "Papper" (A4 chosen) and the button; (2) a download `<project name>.pdf`; page 1 has the project name, a test square of 10 × 10 cm, an overview map of the pages, and the following tile pages are labelled like "A1", "A2", "B1" with no empty pages; (3) a second PDF on Letter-sized pages.

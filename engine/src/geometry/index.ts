@@ -38,6 +38,13 @@ export {
   shiftCurve,
 } from "./layout";
 export {
+  type CuttingLineOf,
+  layoutProject,
+  type PartLayout,
+  type PieceLayout,
+  type ProjectLayout,
+} from "./project-layout";
+export {
   type CompiledProject,
   compileProject,
   evaluateProject,
@@ -49,6 +56,7 @@ export {
 } from "./project";
 export {
   GRAINLINE_ARROW_SIZE,
+  grainlineArrowheads,
   LABEL_LINE_HEIGHT,
   type LabelPiece,
   type LabelPlacement,

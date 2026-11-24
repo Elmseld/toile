@@ -6,6 +6,7 @@ import {
   CHAR_WIDTH_RATIO,
   GRAINLINE_ARROW_SIZE,
   LABEL_LINE_HEIGHT,
+  grainlineArrowheads,
   grainlineSegments,
   insidePolygon,
   type LabelPiece,
@@ -365,6 +366,42 @@ describe("grainlineSegments", () => {
     const point = { x: 3, y: 4 };
     expect(grainlineSegments({ from: point, to: point })).toEqual([[point, point]]);
     expect(grainlineSegments({ from: { x: Infinity, y: 0 }, to: point })).toEqual([]);
+  });
+});
+
+describe("grainlineArrowheads", () => {
+  test("puts the tip on each end point, the base GRAINLINE_ARROW_SIZE back, as wide", () => {
+    const from = { x: 10, y: 20 };
+    const to = { x: 70, y: 100 }; // length 100, direction (0.6, 0.8)
+    const heads = grainlineArrowheads({ from, to });
+    expect(heads).toHaveLength(2);
+    for (const [[tip, left, right], end, sign] of [
+      [heads[0]!, to, 1],
+      [heads[1]!, from, -1],
+    ] as const) {
+      expect(tip).toEqual(end);
+      const base = { x: (left.x + right.x) / 2, y: (left.y + right.y) / 2 };
+      expect(Math.hypot(base.x - tip.x, base.y - tip.y)).toBeCloseTo(GRAINLINE_ARROW_SIZE, 9);
+      expect(Math.hypot(left.x - right.x, left.y - right.y)).toBeCloseTo(GRAINLINE_ARROW_SIZE, 9);
+      // The base lies back along the line, so the arrowhead points outward.
+      expect(Math.sign((tip.x - base.x) * 0.6 + (tip.y - base.y) * 0.8)).toBe(sign);
+    }
+  });
+
+  test("is empty for a grainline of zero length or with a non-finite point", () => {
+    const point = { x: 3, y: 4 };
+    expect(grainlineArrowheads({ from: point, to: point })).toEqual([]);
+    expect(grainlineArrowheads({ from: { x: NaN, y: 0 }, to: point })).toEqual([]);
+  });
+
+  test("gives the same triangles grainlineSegments outlines", () => {
+    const grainline = { from: { x: 0, y: 0 }, to: { x: 30, y: -40 } };
+    const sides = grainlineArrowheads(grainline).flatMap(([tip, left, right]) => [
+      [tip, left],
+      [left, right],
+      [right, tip],
+    ]);
+    expect(grainlineSegments(grainline).slice(1)).toEqual(sides as [Point, Point][]);
   });
 });
 

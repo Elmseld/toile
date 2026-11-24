@@ -8,7 +8,7 @@ Front matter:
 ---
 id: 0001
 title: Short title
-status: todo        # todo | in-progress | in-review | done
+status: todo        # todo | in-progress | done
 type: feature       # feature | bug | chore
 ---
 ```

@@ -104,6 +104,7 @@ Block definitions have no allowances (ADR 0004) and are frozen for this ticket.
   and 0.2 to 0.25 ms per bodice piece, twice that with the safe fallback. The worst hostile
   outlines at the entry limit take at most about 0.2 s and 100 MB. A view should still compute it
   once per drawn input.
+- The PDF (ticket 0010, ADR 0012) prints the cutting line from the same call and layout as the view.
 - A press direction or corner style can be added as optional fields without breaking the API.
 
 ## Known limitations
